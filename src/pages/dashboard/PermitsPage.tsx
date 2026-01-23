@@ -1,0 +1,234 @@
+import { useState } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { DataTable } from '@/components/ui/data-table';
+import { Button } from '@/components/ui/button';
+import { Plus, Download, Shield, AlertTriangle, Clock, Ban } from 'lucide-react';
+import { usePermits } from '@/hooks/usePayments';
+import { PaymentDialog } from '@/components/payments/PaymentDialog';
+import { Badge } from '@/components/ui/badge';
+import { ColumnDef } from '@tanstack/react-table';
+import { format, differenceInDays } from 'date-fns';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+const DEMO_COUNTY_ID = '550e8400-e29b-41d4-a716-446655440001';
+
+type PermitRow = {
+  id: string;
+  permit_number: string;
+  status: string;
+  issued_at: string | null;
+  expires_at: string | null;
+  amount_paid: number | null;
+  riders: { full_name: string; phone: string } | null;
+  motorbikes: { registration_number: string; make: string | null; model: string | null } | null;
+  permit_types: { name: string; amount: number; duration_days: number } | null;
+};
+
+const getStatusBadge = (status: string, expiresAt: string | null) => {
+  const isExpiringSoon = expiresAt && differenceInDays(new Date(expiresAt), new Date()) <= 30;
+  
+  if (status === 'active' && isExpiringSoon) {
+    return (
+      <Badge variant="secondary" className="flex items-center gap-1 w-fit bg-yellow-500/20 text-yellow-600">
+        <AlertTriangle className="h-3 w-3" />
+        Expiring Soon
+      </Badge>
+    );
+  }
+  
+  const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode }> = {
+    active: { variant: 'default', icon: <Shield className="h-3 w-3" /> },
+    pending: { variant: 'secondary', icon: <Clock className="h-3 w-3" /> },
+    expired: { variant: 'destructive', icon: <AlertTriangle className="h-3 w-3" /> },
+    suspended: { variant: 'outline', icon: <Ban className="h-3 w-3" /> },
+    cancelled: { variant: 'outline', icon: <Ban className="h-3 w-3" /> },
+  };
+  
+  const config = variants[status] || variants.pending;
+  return (
+    <Badge variant={config.variant} className="flex items-center gap-1 w-fit">
+      {config.icon}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </Badge>
+  );
+};
+
+const columns: ColumnDef<PermitRow>[] = [
+  {
+    accessorKey: 'permit_number',
+    header: 'Permit #',
+    cell: ({ row }) => (
+      <span className="font-mono text-sm font-medium">{row.original.permit_number}</span>
+    ),
+  },
+  {
+    accessorKey: 'riders.full_name',
+    header: 'Rider',
+    cell: ({ row }) => (
+      <div>
+        <p className="font-medium">{row.original.riders?.full_name || 'N/A'}</p>
+        <p className="text-xs text-muted-foreground">{row.original.riders?.phone || ''}</p>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'motorbikes.registration_number',
+    header: 'Motorbike',
+    cell: ({ row }) => (
+      <div>
+        <p className="font-medium">{row.original.motorbikes?.registration_number || 'N/A'}</p>
+        <p className="text-xs text-muted-foreground">
+          {[row.original.motorbikes?.make, row.original.motorbikes?.model].filter(Boolean).join(' ')}
+        </p>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'permit_types.name',
+    header: 'Type',
+    cell: ({ row }) => (
+      <Badge variant="outline">{row.original.permit_types?.name || 'N/A'}</Badge>
+    ),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => getStatusBadge(row.original.status, row.original.expires_at),
+  },
+  {
+    accessorKey: 'issued_at',
+    header: 'Issued',
+    cell: ({ row }) => (
+      row.original.issued_at ? format(new Date(row.original.issued_at), 'MMM d, yyyy') : '-'
+    ),
+  },
+  {
+    accessorKey: 'expires_at',
+    header: 'Expires',
+    cell: ({ row }) => {
+      if (!row.original.expires_at) return '-';
+      const expiresDate = new Date(row.original.expires_at);
+      const daysLeft = differenceInDays(expiresDate, new Date());
+      return (
+        <div>
+          <p>{format(expiresDate, 'MMM d, yyyy')}</p>
+          <p className={`text-xs ${daysLeft <= 30 ? 'text-yellow-500' : 'text-muted-foreground'}`}>
+            {daysLeft > 0 ? `${daysLeft} days left` : 'Expired'}
+          </p>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'amount_paid',
+    header: 'Amount',
+    cell: ({ row }) => (
+      <span className="font-semibold">
+        {row.original.amount_paid
+          ? new Intl.NumberFormat('en-KE', {
+              style: 'currency',
+              currency: 'KES',
+            }).format(row.original.amount_paid)
+          : '-'}
+      </span>
+    ),
+  },
+];
+
+export default function PermitsPage() {
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const { data: permits = [], isLoading } = usePermits(DEMO_COUNTY_ID);
+
+  const activePermits = permits.filter(p => p.status === 'active').length;
+  const expiringSoon = permits.filter(p => {
+    if (p.status !== 'active' || !p.expires_at) return false;
+    return differenceInDays(new Date(p.expires_at), new Date()) <= 30;
+  }).length;
+  const expiredPermits = permits.filter(p => p.status === 'expired').length;
+  const pendingPermits = permits.filter(p => p.status === 'pending').length;
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Permits</h1>
+            <p className="text-muted-foreground">
+              Manage permits and licenses • {permits.length} total
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+            <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary">
+              <Plus className="mr-2 h-4 w-4" />
+              Issue Permit
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active</CardTitle>
+              <Shield className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-500">{activePermits}</div>
+              <p className="text-xs text-muted-foreground">valid permits</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-500">{expiringSoon}</div>
+              <p className="text-xs text-muted-foreground">within 30 days</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Expired</CardTitle>
+              <Ban className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-500">{expiredPermits}</div>
+              <p className="text-xs text-muted-foreground">need renewal</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{pendingPermits}</div>
+              <p className="text-xs text-muted-foreground">awaiting payment</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Data Table */}
+        <DataTable
+          columns={columns}
+          data={permits as PermitRow[]}
+          searchPlaceholder="Search by permit number, rider..."
+          isLoading={isLoading}
+        />
+
+        {/* Payment Dialog for new permits */}
+        <PaymentDialog
+          open={isPaymentOpen}
+          onOpenChange={setIsPaymentOpen}
+          countyId={DEMO_COUNTY_ID}
+        />
+      </div>
+    </DashboardLayout>
+  );
+}
