@@ -43,10 +43,11 @@ export interface Permit {
   created_at: string;
 }
 
-export function usePermitTypes(countyId: string) {
+export function usePermitTypes(countyId?: string) {
   return useQuery({
     queryKey: ['permit_types', countyId],
     queryFn: async () => {
+      if (!countyId) return [];
       const { data, error } = await supabase
         .from('permit_types')
         .select('*')
