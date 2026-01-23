@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, MapPin, Users } from 'lucide-react';
+import { Plus, Download, MapPin, Users, AlertTriangle } from 'lucide-react';
 import { useStages, useSaccos, Stage } from '@/hooks/useData';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,25 +40,42 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
-const DEMO_COUNTY_ID = '550e8400-e29b-41d4-a716-446655440001';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function StagesPage() {
+  const { profile, roles } = useAuth();
+  
+  // Get county_id from profile or first role
+  const countyId = useMemo(() => {
+    const id = profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
+    return id;
+  }, [profile, roles]);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [riskFilter, setRiskFilter] = useState<string>('all');
 
   const queryClient = useQueryClient();
-  const { data: stages = [], isLoading } = useStages(DEMO_COUNTY_ID);
-  const { data: saccos = [] } = useSaccos(DEMO_COUNTY_ID);
+  const { data: stages = [], isLoading, error } = useStages(countyId);
+  const { data: saccos = [] } = useSaccos(countyId);
+  
+  // Log for debugging
+  useEffect(() => {
+    if (error) {
+      console.error('Error loading stages:', error);
+    }
+  }, [error]);
 
   const filteredStages = useMemo(() => {
     return stages.filter((stage) => {
       if (statusFilter !== 'all' && stage.status !== statusFilter) return false;
+      if (riskFilter === 'high-risk' && (stage.compliance_rate === undefined || stage.compliance_rate >= 50)) return false;
+      if (riskFilter === 'non-compliant' && (stage.compliance_rate === undefined || stage.compliance_rate >= 80)) return false;
       return true;
     });
-  }, [stages, statusFilter]);
+  }, [stages, statusFilter, riskFilter]);
 
   const deleteMutation = useMutation({
     mutationFn: async (stageId: string) => {
@@ -96,12 +113,40 @@ export default function StagesPage() {
       cell: ({ row }) => <span className="text-sm">{row.original.sacco?.name || '-'}</span>,
     },
     {
-      accessorKey: 'capacity',
-      header: 'Capacity',
+      accessorKey: 'member_count',
+      header: 'Members',
       cell: ({ row }) => (
         <div className="flex items-center gap-1 text-sm">
           <Users className="h-4 w-4 text-muted-foreground" />
-          {row.original.capacity || '-'}
+          {row.original.member_count || 0}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'compliance_rate',
+      header: 'Compliance',
+      cell: ({ row }) => {
+        const rate = row.original.compliance_rate ?? 100;
+        const isHighRisk = rate < 50;
+        const isNonCompliant = rate < 80;
+        return (
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-medium ${isHighRisk ? 'text-destructive' : isNonCompliant ? 'text-amber-600' : 'text-success'}`}>
+              {rate}%
+            </span>
+            {isHighRisk && <AlertTriangle className="h-4 w-4 text-destructive" />}
+            {isNonCompliant && !isHighRisk && <AlertTriangle className="h-4 w-4 text-amber-600" />}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'penalties_count',
+      header: 'Penalties',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1 text-sm">
+          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          {row.original.penalties_count || 0}
         </div>
       ),
     },
@@ -162,12 +207,22 @@ export default function StagesPage() {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={riskFilter} onValueChange={setRiskFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Risk Level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Risk Levels</SelectItem>
+              <SelectItem value="high-risk">High Risk (&lt;50% compliance)</SelectItem>
+              <SelectItem value="non-compliant">Non-Compliant (&lt;80% compliance)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <DataTable columns={columns} data={filteredStages} searchPlaceholder="Search stages..." isLoading={isLoading} />
 
         {/* Form Dialog */}
-        <StageFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} stage={selectedStage} countyId={DEMO_COUNTY_ID} saccos={saccos} />
+        <StageFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} stage={selectedStage} countyId={countyId} saccos={saccos} />
 
         {/* Delete Confirmation */}
         <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

@@ -38,6 +38,12 @@ export interface Sacco {
   contact_phone: string | null;
   address: string | null;
   created_at: string;
+  // Enriched fields
+  member_count?: number;
+  stages_count?: number;
+  compliance_rate?: number;
+  penalties_count?: number;
+  non_compliant_count?: number;
 }
 
 export interface Stage {
@@ -52,6 +58,11 @@ export interface Stage {
   capacity: number | null;
   created_at: string;
   sacco?: { name: string } | null;
+  // Enriched fields
+  member_count?: number;
+  compliance_rate?: number;
+  penalties_count?: number;
+  non_compliant_count?: number;
 }
 
 export interface Owner {
@@ -237,7 +248,7 @@ export function useRider(riderId: string) {
   });
 }
 
-// Fetch saccos
+// Fetch saccos with statistics
 export function useSaccos(countyId?: string) {
   return useQuery({
     queryKey: ['saccos', countyId],
@@ -251,14 +262,128 @@ export function useSaccos(countyId?: string) {
         query = query.eq('county_id', countyId);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Sacco[];
+      const { data: saccos, error } = await query;
+      if (error) {
+        console.error('Error fetching saccos:', error);
+        throw error;
+      }
+      if (!saccos || saccos.length === 0) return [] as Sacco[];
+
+      const saccoIds = saccos.map(s => s.id);
+
+      // Fetch member counts (riders per sacco)
+      const { data: riders } = await supabase
+        .from('riders')
+        .select('id, sacco_id, compliance_status')
+        .in('sacco_id', saccoIds);
+
+      // Fetch stages counts
+      const { data: stages } = await supabase
+        .from('stages')
+        .select('id, sacco_id')
+        .in('sacco_id', saccoIds);
+
+      // Fetch penalties counts (via riders)
+      const riderIds = riders?.map(r => r.id) || [];
+      let penalties: any[] = [];
+      if (riderIds.length > 0) {
+        const { data: penaltiesData } = await supabase
+          .from('penalties')
+          .select('id, rider_id')
+          .in('rider_id', riderIds);
+        penalties = penaltiesData || [];
+      }
+
+      // Calculate statistics per sacco
+      const saccoStats = new Map<string, {
+        member_count: number;
+        stages_count: number;
+        compliant_count: number;
+        non_compliant_count: number;
+        penalties_count: number;
+      }>();
+
+      saccos.forEach(sacco => {
+        saccoStats.set(sacco.id, {
+          member_count: 0,
+          stages_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        });
+      });
+
+      // Count members and compliance
+      riders?.forEach(rider => {
+        if (rider.sacco_id) {
+          const stats = saccoStats.get(rider.sacco_id);
+          if (stats) {
+            stats.member_count++;
+            if (rider.compliance_status === 'compliant') {
+              stats.compliant_count++;
+            } else if (rider.compliance_status === 'non_compliant' || rider.compliance_status === 'blacklisted') {
+              stats.non_compliant_count++;
+            }
+          }
+        }
+      });
+
+      // Count stages
+      stages?.forEach(stage => {
+        if (stage.sacco_id) {
+          const stats = saccoStats.get(stage.sacco_id);
+          if (stats) {
+            stats.stages_count++;
+          }
+        }
+      });
+
+      // Count penalties (need to map rider_id to sacco_id)
+      const riderToSacco = new Map<string, string>();
+      riders?.forEach(rider => {
+        if (rider.sacco_id) {
+          riderToSacco.set(rider.id, rider.sacco_id);
+        }
+      });
+
+      penalties?.forEach(penalty => {
+        const saccoId = riderToSacco.get(penalty.rider_id);
+        if (saccoId) {
+          const stats = saccoStats.get(saccoId);
+          if (stats) {
+            stats.penalties_count++;
+          }
+        }
+      });
+
+      // Enrich saccos with statistics
+      return saccos.map(sacco => {
+        const stats = saccoStats.get(sacco.id) || {
+          member_count: 0,
+          stages_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        };
+        const totalMembers = stats.member_count;
+        const complianceRate = totalMembers > 0
+          ? Math.round((stats.compliant_count / totalMembers) * 100)
+          : 100;
+
+        return {
+          ...sacco,
+          member_count: stats.member_count,
+          stages_count: stats.stages_count,
+          compliance_rate: complianceRate,
+          penalties_count: stats.penalties_count,
+          non_compliant_count: stats.non_compliant_count,
+        } as Sacco;
+      });
     },
   });
 }
 
-// Fetch stages
+// Fetch stages with statistics
 export function useStages(countyId?: string, saccoId?: string) {
   return useQuery({
     queryKey: ['stages', countyId, saccoId],
@@ -275,9 +400,103 @@ export function useStages(countyId?: string, saccoId?: string) {
         query = query.eq('sacco_id', saccoId);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Stage[];
+      const { data: stages, error } = await query;
+      if (error) {
+        console.error('Error fetching stages:', error);
+        throw error;
+      }
+      if (!stages || stages.length === 0) return [] as Stage[];
+
+      const stageIds = stages.map(s => s.id);
+
+      // Fetch member counts (riders per stage)
+      const { data: riders } = await supabase
+        .from('riders')
+        .select('id, stage_id, compliance_status')
+        .in('stage_id', stageIds);
+
+      // Fetch penalties counts (via riders)
+      const riderIds = riders?.map(r => r.id) || [];
+      let penalties: any[] = [];
+      if (riderIds.length > 0) {
+        const { data: penaltiesData } = await supabase
+          .from('penalties')
+          .select('id, rider_id')
+          .in('rider_id', riderIds);
+        penalties = penaltiesData || [];
+      }
+
+      // Calculate statistics per stage
+      const stageStats = new Map<string, {
+        member_count: number;
+        compliant_count: number;
+        non_compliant_count: number;
+        penalties_count: number;
+      }>();
+
+      stages.forEach(stage => {
+        stageStats.set(stage.id, {
+          member_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        });
+      });
+
+      // Count members and compliance
+      riders?.forEach(rider => {
+        if (rider.stage_id) {
+          const stats = stageStats.get(rider.stage_id);
+          if (stats) {
+            stats.member_count++;
+            if (rider.compliance_status === 'compliant') {
+              stats.compliant_count++;
+            } else if (rider.compliance_status === 'non_compliant' || rider.compliance_status === 'blacklisted') {
+              stats.non_compliant_count++;
+            }
+          }
+        }
+      });
+
+      // Count penalties (need to map rider_id to stage_id)
+      const riderToStage = new Map<string, string>();
+      riders?.forEach(rider => {
+        if (rider.stage_id) {
+          riderToStage.set(rider.id, rider.stage_id);
+        }
+      });
+
+      penalties?.forEach(penalty => {
+        const stageId = riderToStage.get(penalty.rider_id);
+        if (stageId) {
+          const stats = stageStats.get(stageId);
+          if (stats) {
+            stats.penalties_count++;
+          }
+        }
+      });
+
+      // Enrich stages with statistics
+      return stages.map(stage => {
+        const stats = stageStats.get(stage.id) || {
+          member_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        };
+        const totalMembers = stats.member_count;
+        const complianceRate = totalMembers > 0
+          ? Math.round((stats.compliant_count / totalMembers) * 100)
+          : 100;
+
+        return {
+          ...stage,
+          member_count: stats.member_count,
+          compliance_rate: complianceRate,
+          penalties_count: stats.penalties_count,
+          non_compliant_count: stats.non_compliant_count,
+        } as Stage;
+      });
     },
   });
 }
