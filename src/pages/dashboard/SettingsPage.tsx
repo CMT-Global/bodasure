@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
-import { useCountySettings, useUpdateCountySettings, PermitSettings, PenaltySettings, PenaltyType, EscalationRule } from '@/hooks/useCountySettings';
+import { useCountySettings, useUpdateCountySettings, PermitSettings, PenaltySettings, PenaltyType, EscalationRule, RevenueSharingSettings, RevenueShareRule, RevenueShareType } from '@/hooks/useCountySettings';
 import { usePermitTypes } from '@/hooks/usePayments';
+import { useSaccos } from '@/hooks/useData';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Save, Plus, Trash2, AlertCircle, Shield, FileText } from 'lucide-react';
+import { Loader2, Save, Plus, Trash2, AlertCircle, Shield, FileText, DollarSign, Edit } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ export default function SettingsPage() {
 
   const { data: settings, isLoading: settingsLoading } = useCountySettings(countyId);
   const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId || '');
+  const { data: saccos = [] } = useSaccos(countyId);
   const updateSettings = useUpdateCountySettings();
   const queryClient = useQueryClient();
 
@@ -65,14 +67,21 @@ export default function SettingsPage() {
     escalationRules: [],
   });
 
+  // Revenue Sharing Settings State
+  const [revenueSharingSettings, setRevenueSharingSettings] = useState<RevenueSharingSettings>({
+    rules: [],
+  });
+
   // Dialog states
   const [isPermitTypeDialogOpen, setIsPermitTypeDialogOpen] = useState(false);
   const [isPenaltyTypeDialogOpen, setIsPenaltyTypeDialogOpen] = useState(false);
   const [isEscalationDialogOpen, setIsEscalationDialogOpen] = useState(false);
+  const [isRevenueShareDialogOpen, setIsRevenueShareDialogOpen] = useState(false);
   const [isDeletePermitTypeOpen, setIsDeletePermitTypeOpen] = useState(false);
   const [selectedPermitType, setSelectedPermitType] = useState<any>(null);
   const [selectedPenaltyType, setSelectedPenaltyType] = useState<PenaltyType | null>(null);
   const [selectedEscalationIndex, setSelectedEscalationIndex] = useState<number | null>(null);
+  const [selectedRevenueShareRule, setSelectedRevenueShareRule] = useState<RevenueShareRule | null>(null);
 
   // Form states
   const [permitTypeForm, setPermitTypeForm] = useState({
@@ -94,11 +103,23 @@ export default function SettingsPage() {
     description: '',
   });
 
+  const [revenueShareForm, setRevenueShareForm] = useState({
+    saccoId: '',
+    shareType: 'none' as RevenueShareType,
+    percentage: '',
+    fixedAmount: '',
+    period: 'weekly' as 'weekly' | 'monthly' | 'annual',
+    activePermitsOnly: false,
+    complianceThreshold: '',
+    isActive: true,
+  });
+
   // Load settings when available
   useEffect(() => {
     if (settings) {
       setPermitSettings(settings.permitSettings);
       setPenaltySettings(settings.penaltySettings);
+      setRevenueSharingSettings(settings.revenueSharingSettings || { rules: [] });
     }
   }, [settings]);
 
@@ -119,6 +140,16 @@ export default function SettingsPage() {
     await updateSettings.mutateAsync({
       countyId,
       settings: { penaltySettings: penaltySettings },
+    });
+  };
+
+  // Save Revenue Sharing Settings
+  const handleSaveRevenueSharingSettings = async () => {
+    if (!countyId) return;
+    
+    await updateSettings.mutateAsync({
+      countyId,
+      settings: { revenueSharingSettings: revenueSharingSettings },
     });
   };
 
@@ -268,6 +299,84 @@ export default function SettingsPage() {
     setIsEscalationDialogOpen(true);
   };
 
+  // Add/Update Revenue Share Rule
+  const handleSaveRevenueShareRule = () => {
+    if (!revenueShareForm.saccoId || revenueShareForm.shareType === 'none') {
+      toast.error('Please select a Sacco and revenue share type');
+      return;
+    }
+
+    if (revenueShareForm.shareType === 'percentage' && !revenueShareForm.percentage) {
+      toast.error('Please enter percentage amount');
+      return;
+    }
+
+    if (revenueShareForm.shareType === 'fixed_per_rider' && !revenueShareForm.fixedAmount) {
+      toast.error('Please enter fixed amount per rider');
+      return;
+    }
+
+    const selectedSacco = saccos.find(s => s.id === revenueShareForm.saccoId);
+    if (!selectedSacco) {
+      toast.error('Selected Sacco not found');
+      return;
+    }
+
+    const newRule: RevenueShareRule = {
+      saccoId: revenueShareForm.saccoId,
+      saccoName: selectedSacco.name,
+      shareType: revenueShareForm.shareType,
+      percentage: revenueShareForm.shareType === 'percentage' ? parseFloat(revenueShareForm.percentage) : undefined,
+      fixedAmount: revenueShareForm.shareType === 'fixed_per_rider' ? parseFloat(revenueShareForm.fixedAmount) : undefined,
+      period: revenueShareForm.shareType === 'fixed_per_rider' ? revenueShareForm.period : undefined,
+      activePermitsOnly: revenueShareForm.activePermitsOnly,
+      complianceThreshold: revenueShareForm.complianceThreshold ? parseFloat(revenueShareForm.complianceThreshold) : undefined,
+      isActive: revenueShareForm.isActive,
+    };
+
+    const updatedRules = selectedRevenueShareRule
+      ? revenueSharingSettings.rules.map(r => r.saccoId === selectedRevenueShareRule.saccoId ? newRule : r)
+      : [...revenueSharingSettings.rules.filter(r => r.saccoId !== revenueShareForm.saccoId), newRule];
+
+    setRevenueSharingSettings({ ...revenueSharingSettings, rules: updatedRules });
+    setIsRevenueShareDialogOpen(false);
+    setRevenueShareForm({
+      saccoId: '',
+      shareType: 'none',
+      percentage: '',
+      fixedAmount: '',
+      period: 'weekly',
+      activePermitsOnly: false,
+      complianceThreshold: '',
+      isActive: true,
+    });
+    setSelectedRevenueShareRule(null);
+  };
+
+  // Delete Revenue Share Rule
+  const handleDeleteRevenueShareRule = (saccoId: string) => {
+    setRevenueSharingSettings({
+      ...revenueSharingSettings,
+      rules: revenueSharingSettings.rules.filter(r => r.saccoId !== saccoId),
+    });
+  };
+
+  // Open edit revenue share dialog
+  const openEditRevenueShare = (rule: RevenueShareRule) => {
+    setSelectedRevenueShareRule(rule);
+    setRevenueShareForm({
+      saccoId: rule.saccoId,
+      shareType: rule.shareType,
+      percentage: rule.percentage?.toString() || '',
+      fixedAmount: rule.fixedAmount?.toString() || '',
+      period: rule.period || 'weekly',
+      activePermitsOnly: rule.activePermitsOnly,
+      complianceThreshold: rule.complianceThreshold?.toString() || '',
+      isActive: rule.isActive,
+    });
+    setIsRevenueShareDialogOpen(true);
+  };
+
   // Temporarily commented out - access control will be re-enabled later
   // if (!isCountySuperAdmin) {
   //   return (
@@ -317,6 +426,10 @@ export default function SettingsPage() {
             <TabsTrigger value="penalties">
               <FileText className="mr-2 h-4 w-4" />
               Penalty Settings
+            </TabsTrigger>
+            <TabsTrigger value="revenue-sharing">
+              <DollarSign className="mr-2 h-4 w-4" />
+              Revenue Sharing
             </TabsTrigger>
           </TabsList>
 
@@ -530,6 +643,106 @@ export default function SettingsPage() {
               Save All Penalty Settings
             </Button>
           </TabsContent>
+
+          {/* Revenue Sharing Tab */}
+          <TabsContent value="revenue-sharing" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Revenue Sharing Configuration</CardTitle>
+                    <CardDescription>Configure revenue sharing rules for each Sacco. Changes apply going forward (not retroactive).</CardDescription>
+                  </div>
+                  <Button onClick={() => { 
+                    setSelectedRevenueShareRule(null); 
+                    setRevenueShareForm({
+                      saccoId: '',
+                      shareType: 'none',
+                      percentage: '',
+                      fixedAmount: '',
+                      period: 'weekly',
+                      activePermitsOnly: false,
+                      complianceThreshold: '',
+                      isActive: true,
+                    }); 
+                    setIsRevenueShareDialogOpen(true); 
+                  }}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Revenue Share Rule
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {revenueSharingSettings.rules.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No revenue sharing rules configured. Add one to get started.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {revenueSharingSettings.rules.map((rule) => {
+                        const sacco = saccos.find(s => s.id === rule.saccoId);
+                        return (
+                          <div key={rule.saccoId} className="p-4 border rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium">{rule.saccoName || sacco?.name || 'Unknown Sacco'}</h4>
+                                  {!rule.isActive && <Badge variant="secondary">Inactive</Badge>}
+                                  {rule.shareType === 'none' && <Badge variant="outline">No Revenue Share</Badge>}
+                                </div>
+                                <div className="mt-2 space-y-1 text-sm">
+                                  {rule.shareType === 'percentage' && (
+                                    <p className="text-muted-foreground">
+                                      <span className="font-medium text-foreground">Percentage-based:</span> {rule.percentage}% of permit fees
+                                    </p>
+                                  )}
+                                  {rule.shareType === 'fixed_per_rider' && (
+                                    <p className="text-muted-foreground">
+                                      <span className="font-medium text-foreground">Fixed amount:</span> KES {rule.fixedAmount?.toLocaleString()} per registered rider per {rule.period}
+                                    </p>
+                                  )}
+                                  {rule.shareType === 'none' && (
+                                    <p className="text-muted-foreground">No revenue sharing configured</p>
+                                  )}
+                                  <div className="flex gap-4 mt-2">
+                                    {rule.activePermitsOnly && (
+                                      <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                                        Active Permits Only
+                                      </span>
+                                    )}
+                                    {rule.complianceThreshold && (
+                                      <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">
+                                        Min {rule.complianceThreshold}% Compliance
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => openEditRevenueShare(rule)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleDeleteRevenueShareRule(rule.saccoId)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Button onClick={handleSaveRevenueSharingSettings} disabled={updateSettings.isPending} className="w-full">
+              {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
+              Save Revenue Sharing Settings
+            </Button>
+          </TabsContent>
         </Tabs>
 
         {/* Permit Type Dialog */}
@@ -682,6 +895,151 @@ export default function SettingsPage() {
               <Button variant="outline" onClick={() => setIsEscalationDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleSaveEscalationRule}>
                 {selectedEscalationIndex !== null ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Revenue Share Rule Dialog */}
+        <Dialog open={isRevenueShareDialogOpen} onOpenChange={setIsRevenueShareDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedRevenueShareRule ? 'Edit Revenue Share Rule' : 'Add Revenue Share Rule'}</DialogTitle>
+              <DialogDescription>Configure revenue sharing for a Sacco. Changes apply going forward (not retroactive).</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Sacco *</Label>
+                <Select
+                  value={revenueShareForm.saccoId}
+                  onValueChange={(value) => setRevenueShareForm({ ...revenueShareForm, saccoId: value })}
+                  disabled={!!selectedRevenueShareRule}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Sacco" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {saccos.map((sacco) => (
+                      <SelectItem key={sacco.id} value={sacco.id}>
+                        {sacco.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Applies only to riders registered under this Sacco</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Revenue Share Type *</Label>
+                <Select
+                  value={revenueShareForm.shareType}
+                  onValueChange={(value: RevenueShareType) => setRevenueShareForm({ ...revenueShareForm, shareType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Revenue Share</SelectItem>
+                    <SelectItem value="percentage">Percentage-based (e.g., 5% of permit fees)</SelectItem>
+                    <SelectItem value="fixed_per_rider">Fixed Amount Per Rider (e.g., KES 10 per rider per week)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {revenueShareForm.shareType === 'percentage' && (
+                <div className="space-y-2">
+                  <Label>Percentage (%) *</Label>
+                  <Input
+                    type="number"
+                    value={revenueShareForm.percentage}
+                    onChange={(e) => setRevenueShareForm({ ...revenueShareForm, percentage: e.target.value })}
+                    placeholder="5"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-muted-foreground">Percentage of permit fees to share with this Sacco</p>
+                </div>
+              )}
+
+              {revenueShareForm.shareType === 'fixed_per_rider' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Amount Per Rider (KES) *</Label>
+                    <Input
+                      type="number"
+                      value={revenueShareForm.fixedAmount}
+                      onChange={(e) => setRevenueShareForm({ ...revenueShareForm, fixedAmount: e.target.value })}
+                      placeholder="10"
+                      min="0"
+                      step="0.01"
+                    />
+                    <p className="text-xs text-muted-foreground">Fixed amount per registered rider</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Period *</Label>
+                    <Select
+                      value={revenueShareForm.period}
+                      onValueChange={(value: 'weekly' | 'monthly' | 'annual') => setRevenueShareForm({ ...revenueShareForm, period: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="annual">Annual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Frequency of payment per rider</p>
+                  </div>
+                </>
+              )}
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Active Permits Only</Label>
+                    <p className="text-sm text-muted-foreground">Apply revenue share only to riders with active permits</p>
+                  </div>
+                  <Switch
+                    checked={revenueShareForm.activePermitsOnly}
+                    onCheckedChange={(checked) => setRevenueShareForm({ ...revenueShareForm, activePermitsOnly: checked })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Compliance Threshold (%) (Optional)</Label>
+                  <Input
+                    type="number"
+                    value={revenueShareForm.complianceThreshold}
+                    onChange={(e) => setRevenueShareForm({ ...revenueShareForm, complianceThreshold: e.target.value })}
+                    placeholder="80"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                  />
+                  <p className="text-xs text-muted-foreground">Minimum compliance percentage required (leave empty for no threshold)</p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Active</Label>
+                    <p className="text-sm text-muted-foreground">Enable or disable this revenue share rule</p>
+                  </div>
+                  <Switch
+                    checked={revenueShareForm.isActive}
+                    onCheckedChange={(checked) => setRevenueShareForm({ ...revenueShareForm, isActive: checked })}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRevenueShareDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveRevenueShareRule}>
+                {selectedRevenueShareRule ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
           </DialogContent>

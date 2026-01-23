@@ -27,9 +27,28 @@ export interface PenaltySettings {
   escalationRules: EscalationRule[];
 }
 
+export type RevenueShareType = 'percentage' | 'fixed_per_rider' | 'none';
+
+export interface RevenueShareRule {
+  saccoId: string;
+  saccoName: string;
+  shareType: RevenueShareType;
+  percentage?: number; // For percentage-based (e.g., 5%)
+  fixedAmount?: number; // For fixed amount per rider (e.g., KES 10)
+  period?: 'weekly' | 'monthly' | 'annual'; // For fixed amount per rider
+  activePermitsOnly: boolean; // Apply only to riders with active permits
+  complianceThreshold?: number; // Optional: minimum compliance percentage (e.g., 80)
+  isActive: boolean;
+}
+
+export interface RevenueSharingSettings {
+  rules: RevenueShareRule[];
+}
+
 export interface CountySettings {
   permitSettings: PermitSettings;
   penaltySettings: PenaltySettings;
+  revenueSharingSettings: RevenueSharingSettings;
 }
 
 // Default settings
@@ -78,6 +97,9 @@ export function useCountySettings(countyId?: string) {
           ...defaultPenaltySettings,
           ...settings.penaltySettings,
         },
+        revenueSharingSettings: {
+          rules: settings.revenueSharingSettings?.rules || [],
+        },
       } as CountySettings;
     },
     enabled: !!countyId,
@@ -111,6 +133,10 @@ export function useUpdateCountySettings() {
         penaltySettings: {
           ...currentSettings.penaltySettings,
           ...settings.penaltySettings,
+        },
+        revenueSharingSettings: {
+          ...currentSettings.revenueSharingSettings,
+          ...settings.revenueSharingSettings,
         },
       };
 
