@@ -1,16 +1,35 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Shield, AlertTriangle, Clock, Ban } from 'lucide-react';
+import { Plus, Download, Shield, AlertTriangle, Clock, Ban, Receipt } from 'lucide-react';
 import { usePermits } from '@/hooks/usePayments';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
+import { PermitPaymentsDialog } from '@/components/permits/PermitPaymentsDialog';
 import { Badge } from '@/components/ui/badge';
 import { ColumnDef } from '@tanstack/react-table';
 import { format, differenceInDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/hooks/useAuth';
 
-const DEMO_COUNTY_ID = '550e8400-e29b-41d4-a716-446655440001';
+// Helper to determine permit type from duration
+function getPermitType(durationDays: number): string {
+  if (durationDays <= 7) return 'Weekly';
+  if (durationDays <= 31) return 'Monthly';
+  if (durationDays <= 93) return 'Quarterly';
+  return 'Annual';
+}
+
+// Helper to get permit type badge variant
+function getPermitTypeBadge(type: string) {
+  const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
+    Weekly: 'secondary',
+    Monthly: 'default',
+    Quarterly: 'outline',
+    Annual: 'default',
+  };
+  return variants[type] || 'outline';
+}
 
 type PermitRow = {
   id: string;
@@ -53,7 +72,7 @@ const getStatusBadge = (status: string, expiresAt: string | null) => {
   );
 };
 
-const columns: ColumnDef<PermitRow>[] = [
+const getColumns = (onViewPayments: (permitId: string, permitNumber: string) => void): ColumnDef<PermitRow>[] => [
   {
     accessorKey: 'permit_number',
     header: 'Permit #',
@@ -84,11 +103,21 @@ const columns: ColumnDef<PermitRow>[] = [
     ),
   },
   {
-    accessorKey: 'permit_types.name',
-    header: 'Type',
-    cell: ({ row }) => (
-      <Badge variant="outline">{row.original.permit_types?.name || 'N/A'}</Badge>
-    ),
+    accessorKey: 'permit_types',
+    header: 'Permit Type',
+    cell: ({ row }) => {
+      const permitType = row.original.permit_types;
+      if (!permitType) return <span className="text-sm text-muted-foreground">-</span>;
+      const type = getPermitType(permitType.duration_days);
+      return (
+        <div>
+          <Badge variant={getPermitTypeBadge(type)} className="mb-1">
+            {type}
+          </Badge>
+          <p className="text-xs text-muted-foreground">{permitType.name}</p>
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'status',
@@ -97,14 +126,14 @@ const columns: ColumnDef<PermitRow>[] = [
   },
   {
     accessorKey: 'issued_at',
-    header: 'Issued',
+    header: 'Start Date',
     cell: ({ row }) => (
       row.original.issued_at ? format(new Date(row.original.issued_at), 'MMM d, yyyy') : '-'
     ),
   },
   {
     accessorKey: 'expires_at',
-    header: 'Expires',
+    header: 'Expiry Date',
     cell: ({ row }) => {
       if (!row.original.expires_at) return '-';
       const expiresDate = new Date(row.original.expires_at);
@@ -133,11 +162,41 @@ const columns: ColumnDef<PermitRow>[] = [
       </span>
     ),
   },
+  {
+    id: 'actions',
+    header: 'Actions',
+    cell: ({ row }) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onViewPayments(row.original.id, row.original.permit_number)}
+      >
+        <Receipt className="mr-2 h-4 w-4" />
+        Payments
+      </Button>
+    ),
+  },
 ];
 
 export default function PermitsPage() {
+  const { profile, roles } = useAuth();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const { data: permits = [], isLoading } = usePermits(DEMO_COUNTY_ID);
+  const [selectedPermitId, setSelectedPermitId] = useState<string | null>(null);
+  const [selectedPermitNumber, setSelectedPermitNumber] = useState<string>('');
+  const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
+
+  // Get county_id from profile or first role
+  const countyId = useMemo(() => {
+    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
+  }, [profile, roles]);
+
+  const { data: permits = [], isLoading } = usePermits(countyId);
+
+  const handleViewPayments = (permitId: string, permitNumber: string) => {
+    setSelectedPermitId(permitId);
+    setSelectedPermitNumber(permitNumber);
+    setIsPaymentsOpen(true);
+  };
 
   const activePermits = permits.filter(p => p.status === 'active').length;
   const expiringSoon = permits.filter(p => {
@@ -216,7 +275,7 @@ export default function PermitsPage() {
 
         {/* Data Table */}
         <DataTable
-          columns={columns}
+          columns={getColumns(handleViewPayments)}
           data={permits as PermitRow[]}
           searchPlaceholder="Search by permit number, rider..."
           isLoading={isLoading}
@@ -226,7 +285,15 @@ export default function PermitsPage() {
         <PaymentDialog
           open={isPaymentOpen}
           onOpenChange={setIsPaymentOpen}
-          countyId={DEMO_COUNTY_ID}
+          countyId={countyId}
+        />
+
+        {/* Permit Payments Dialog */}
+        <PermitPaymentsDialog
+          open={isPaymentsOpen}
+          onOpenChange={setIsPaymentsOpen}
+          permitId={selectedPermitId}
+          permitNumber={selectedPermitNumber}
         />
       </div>
     </DashboardLayout>

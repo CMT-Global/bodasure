@@ -83,6 +83,32 @@ export function usePermits(countyId: string) {
   });
 }
 
+// Fetch payments for a specific permit
+export function usePermitPayments(permitId: string) {
+  return useQuery({
+    queryKey: ['permit-payments', permitId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          *,
+          riders(full_name, phone)
+        `)
+        .eq('permit_id', permitId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return (data || []) as Array<Payment & {
+        riders: {
+          full_name: string;
+          phone: string;
+        } | null;
+      }>;
+    },
+    enabled: !!permitId,
+  });
+}
+
 export function usePayments(countyId: string) {
   return useQuery({
     queryKey: ['payments', countyId],
@@ -91,7 +117,7 @@ export function usePayments(countyId: string) {
         .from('payments')
         .select(`
           *,
-          riders(full_name, phone),
+          riders(id, full_name, phone),
           permits(permit_number)
         `)
         .eq('county_id', countyId)
@@ -101,6 +127,52 @@ export function usePayments(countyId: string) {
       return data;
     },
     enabled: !!countyId,
+  });
+}
+
+// Fetch payment history for a specific rider
+export function useRiderPaymentHistory(riderId: string, countyId?: string) {
+  return useQuery({
+    queryKey: ['rider-payment-history', riderId, countyId],
+    queryFn: async () => {
+      let query = supabase
+        .from('payments')
+        .select(`
+          *,
+          permits(
+            id,
+            permit_number,
+            status,
+            issued_at,
+            expires_at,
+            permit_types(name, duration_days, amount)
+          )
+        `)
+        .eq('rider_id', riderId)
+        .order('created_at', { ascending: false });
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []) as Array<Payment & {
+        permits: {
+          id: string;
+          permit_number: string;
+          status: string;
+          issued_at: string | null;
+          expires_at: string | null;
+          permit_types: {
+            name: string;
+            duration_days: number;
+            amount: number;
+          } | null;
+        } | null;
+      }>;
+    },
+    enabled: !!riderId,
   });
 }
 
