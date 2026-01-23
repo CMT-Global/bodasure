@@ -31,6 +31,11 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   
   // County status
   inactive: { label: 'Inactive', className: 'bg-muted text-muted-foreground border-muted' },
+  
+  // Penalty status
+  unpaid: { label: 'Unpaid', className: 'bg-destructive/20 text-destructive border-destructive/30' },
+  paid: { label: 'Paid', className: 'bg-success/20 text-success border-success/30' },
+  waived: { label: 'Waived', className: 'bg-muted text-muted-foreground border-muted' },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
