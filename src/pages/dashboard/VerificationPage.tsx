@@ -111,7 +111,7 @@ export default function VerificationPage() {
         </div>
 
         {/* Search and QR Scanner Section */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {/* QR Scanner Card */}
           <Card>
             <CardHeader>
@@ -123,7 +123,7 @@ export default function VerificationPage() {
             <CardContent className="space-y-4">
               <Button
                 onClick={() => setIsScannerOpen(true)}
-                className="w-full"
+                className="w-full min-h-[44px]"
                 size="lg"
               >
                 <Camera className="mr-2 h-5 w-5" />
@@ -155,7 +155,7 @@ export default function VerificationPage() {
                     setSearchQuery('');
                     setSelectedRider(null);
                   }}
-                  className="flex-1"
+                  className="flex-1 min-h-[44px]"
                 >
                   <User className="h-4 w-4 mr-2" />
                   By Name
@@ -167,7 +167,7 @@ export default function VerificationPage() {
                     setSearchQuery('');
                     setSelectedRider(null);
                   }}
-                  className="flex-1"
+                  className="flex-1 min-h-[44px]"
                 >
                   <Bike className="h-4 w-4 mr-2" />
                   By Plate
@@ -191,10 +191,10 @@ export default function VerificationPage() {
                       handleSearch();
                     }
                   }}
-                  className="flex-1"
+                  className="flex-1 min-h-[44px] text-base sm:text-sm"
                 />
                 {currentRider && (
-                  <Button variant="outline" onClick={handleClear}>
+                  <Button variant="outline" onClick={handleClear} className="min-h-[44px] min-w-[80px]">
                     Clear
                   </Button>
                 )}

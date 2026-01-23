@@ -87,7 +87,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div
@@ -99,7 +99,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 lg:relative',
+          'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 lg:relative lg:flex-shrink-0',
           isCollapsed ? 'w-16' : 'w-64',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
@@ -134,14 +134,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   to={item.href}
                   onClick={() => setIsMobileOpen(false)}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]', // Touch-friendly
                     isActive
                       ? 'bg-sidebar-accent text-primary'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
                   )}
                 >
                   <item.icon className={cn('h-5 w-5 shrink-0', isActive && 'text-primary')} />
-                  {!isCollapsed && <span>{item.title}</span>}
+                  {!isCollapsed && <span className="truncate">{item.title}</span>}
                 </Link>
               );
             })}
@@ -169,17 +169,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <header className="flex-shrink-0 z-30 flex h-16 items-center justify-end gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden mr-auto"
+            className="lg:hidden mr-auto min-h-[44px] min-w-[44px]"
             onClick={() => setIsMobileOpen(true)}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-6 w-6" />
           </Button>
 
           {/* Search - Removed */}
@@ -197,9 +197,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Right side */}
           <div className="flex items-center gap-2">
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
+            <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
               <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
                 3
               </span>
             </Button>
@@ -209,8 +209,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* User menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2">
-                  <Avatar className="h-8 w-8">
+                <Button variant="ghost" className="flex items-center gap-2 px-2 min-h-[44px]">
+                  <Avatar className="h-9 w-9 sm:h-8 sm:w-8">
                     <AvatarImage src={profile?.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                       {getInitials(profile?.full_name)}
@@ -218,8 +218,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </Avatar>
                   {!isCollapsed && (
                     <div className="hidden md:flex flex-col items-start text-left">
-                      <span className="text-sm font-medium">{profile?.full_name || 'User'}</span>
-                      <span className="text-xs text-muted-foreground">{profile?.email}</span>
+                      <span className="text-sm font-medium truncate max-w-[120px]">{profile?.full_name || 'User'}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[120px]">{profile?.email}</span>
                     </div>
                   )}
                 </Button>
@@ -242,8 +242,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6">
+          <div className="w-full max-w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

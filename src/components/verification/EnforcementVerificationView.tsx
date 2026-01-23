@@ -56,21 +56,21 @@ export function EnforcementVerificationView({
   const totalUnpaid = unpaidPenalties.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-4 p-4">
+    <ScrollArea className="h-full w-full overflow-x-hidden">
+      <div className="space-y-4 p-3 sm:p-4 w-full max-w-full overflow-x-hidden">
         {/* Rider Header Card */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-start gap-4">
-              <Avatar className="h-20 w-20">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0">
                 <AvatarImage src={rider.photo_url || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                <AvatarFallback className="bg-primary/10 text-primary text-lg sm:text-xl">
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold">{rider.full_name}</h3>
-                <p className="text-sm text-muted-foreground font-mono">ID: {rider.id_number}</p>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg sm:text-xl font-bold truncate">{rider.full_name}</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground font-mono break-all">ID: {rider.id_number}</p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <StatusBadge status={rider.status} />
                   <StatusBadge status={rider.compliance_status} />
