@@ -32,6 +32,7 @@ import {
   Search,
   Menu,
   ClipboardList,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -59,6 +60,7 @@ const navItems: NavItem[] = [
   { title: 'Penalties', href: '/dashboard/penalties', icon: AlertTriangle },
   { title: 'Verification', href: '/dashboard/verification', icon: QrCode },
   { title: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
+  { title: 'User Management', href: '/dashboard/users', icon: UserCog },
   { title: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -169,19 +171,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main content */}
       <div className="flex flex-1 flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden mr-auto"
             onClick={() => setIsMobileOpen(true)}
           >
             <Menu className="h-5 w-5" />
           </Button>
 
-          {/* Search */}
-          <div className="hidden md:flex flex-1 max-w-md">
+          {/* Search - Removed */}
+          {/* <div className="hidden md:flex flex-1 max-w-md">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -190,7 +192,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 className="h-9 w-full rounded-lg border border-input bg-muted/50 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-          </div>
+          </div> */}
 
           {/* Right side */}
           <div className="flex items-center gap-2">

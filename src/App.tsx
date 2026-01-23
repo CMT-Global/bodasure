@@ -25,6 +25,7 @@ import PenaltiesPage from "./pages/dashboard/PenaltiesPage";
 import VerificationPage from "./pages/dashboard/VerificationPage";
 import ReportsPage from "./pages/dashboard/ReportsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
+import UsersPage from "./pages/dashboard/UsersPage";
 
 const queryClient = new QueryClient();
 
@@ -144,6 +145,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/users"
+              element={
+                <ProtectedRoute>
+                  <UsersPage />
                 </ProtectedRoute>
               }
             />
