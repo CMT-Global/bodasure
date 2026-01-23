@@ -94,6 +94,20 @@ export interface Motorbike {
   rider?: { full_name: string } | null;
 }
 
+// Enhanced rider interface with permit and motorbike info
+export interface RiderWithDetails extends Rider {
+  motorbike?: {
+    id: string;
+    registration_number: string;
+  } | null;
+  permit?: {
+    id: string;
+    permit_number: string;
+    status: 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled';
+    expires_at: string | null;
+  } | null;
+}
+
 // Fetch riders with joined data
 export function useRiders(countyId?: string) {
   return useQuery({
@@ -116,6 +130,86 @@ export function useRiders(countyId?: string) {
       const { data, error } = await query;
       if (error) throw error;
       return data as Rider[];
+    },
+  });
+}
+
+// Fetch riders with permit and motorbike details for registration management
+export function useRidersWithDetails(countyId?: string) {
+  return useQuery({
+    queryKey: ['riders-with-details', countyId],
+    queryFn: async () => {
+      let query = supabase
+        .from('riders')
+        .select(`
+          *,
+          owner:owners(full_name),
+          sacco:saccos(name),
+          stage:stages(name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data: riders, error } = await query;
+      if (error) throw error;
+
+      if (!riders || riders.length === 0) {
+        return [] as RiderWithDetails[];
+      }
+
+      const riderIds = riders.map(r => r.id);
+
+      // Fetch all motorbikes for these riders in one query
+      const { data: motorbikes } = await supabase
+        .from('motorbikes')
+        .select('id, registration_number, rider_id')
+        .in('rider_id', riderIds);
+
+      // Fetch all active/pending permits for these riders in one query
+      const { data: permits } = await supabase
+        .from('permits')
+        .select('id, permit_number, status, expires_at, rider_id')
+        .in('rider_id', riderIds)
+        .in('status', ['active', 'pending'])
+        .order('created_at', { ascending: false });
+
+      // Create maps for quick lookup
+      const motorbikeMap = new Map(
+        (motorbikes || []).map(m => [m.rider_id, { id: m.id, registration_number: m.registration_number }])
+      );
+
+      // For permits, get the most recent one per rider
+      const permitMap = new Map<string, typeof permits[0]>();
+      (permits || []).forEach(p => {
+        if (!permitMap.has(p.rider_id)) {
+          permitMap.set(p.rider_id, p);
+        }
+      });
+
+      // Combine data
+      const ridersWithDetails = (riders as Rider[]).map((rider) => {
+        const motorbike = motorbikeMap.get(rider.id);
+        const permitData = permitMap.get(rider.id);
+        
+        return {
+          ...rider,
+          motorbike: motorbike ? {
+            id: motorbike.id,
+            registration_number: motorbike.registration_number,
+          } : null,
+          permit: permitData ? {
+            id: permitData.id,
+            permit_number: permitData.permit_number,
+            status: permitData.status as 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled',
+            expires_at: permitData.expires_at,
+          } : null,
+        } as RiderWithDetails;
+      });
+
+      return ridersWithDetails;
     },
   });
 }
@@ -252,31 +346,84 @@ export function useCounties() {
 }
 
 // Stats queries
+export interface DashboardStats {
+  totalRiders: number;
+  activePermits: number;
+  expiredPermits: number;
+  nonCompliantRiders: number;
+  penaltiesIssued: number;
+  penaltiesUnpaid: number;
+  penaltiesPaid: number;
+  totalRevenue: number;
+}
+
 export function useDashboardStats(countyId?: string) {
   return useQuery({
     queryKey: ['dashboard-stats', countyId],
     queryFn: async () => {
+      const now = new Date().toISOString();
       const baseQuery = countyId ? { county_id: countyId } : {};
 
-      const [riders, motorbikes, permits, payments, penalties, saccos] = await Promise.all([
-        supabase.from('riders').select('id', { count: 'exact', head: true }).match(baseQuery),
-        supabase.from('motorbikes').select('id', { count: 'exact', head: true }).match(baseQuery),
-        supabase.from('permits').select('id', { count: 'exact', head: true }).match({ ...baseQuery, status: 'active' }),
-        supabase.from('payments').select('amount').match({ ...baseQuery, status: 'completed' }),
-        supabase.from('penalties').select('id', { count: 'exact', head: true }).match({ ...baseQuery, is_paid: false }),
-        supabase.from('saccos').select('id', { count: 'exact', head: true }).match({ ...baseQuery, status: 'approved' }),
+      // Build queries
+      let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true });
+      let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('status', 'active');
+      let permitsForExpiryQuery = supabase.from('permits').select('id, status, expires_at');
+      let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('compliance_status', 'non_compliant');
+      let penaltiesTotalQuery = supabase.from('penalties').select('id', { count: 'exact', head: true });
+      let penaltiesUnpaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', false);
+      let penaltiesPaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', true);
+      let paymentsQuery = supabase.from('payments').select('amount').eq('status', 'completed');
+
+      // Apply county filter if provided
+      if (countyId) {
+        ridersQuery = ridersQuery.eq('county_id', countyId);
+        activePermitsQuery = activePermitsQuery.eq('county_id', countyId);
+        permitsForExpiryQuery = permitsForExpiryQuery.eq('county_id', countyId);
+        nonCompliantRidersQuery = nonCompliantRidersQuery.eq('county_id', countyId);
+        penaltiesTotalQuery = penaltiesTotalQuery.eq('county_id', countyId);
+        penaltiesUnpaidQuery = penaltiesUnpaidQuery.eq('county_id', countyId);
+        penaltiesPaidQuery = penaltiesPaidQuery.eq('county_id', countyId);
+        paymentsQuery = paymentsQuery.eq('county_id', countyId);
+      }
+
+      // Execute all queries in parallel
+      const [
+        riders,
+        activePermits,
+        permitsData,
+        nonCompliantRiders,
+        penaltiesTotal,
+        penaltiesUnpaid,
+        penaltiesPaid,
+        payments,
+      ] = await Promise.all([
+        ridersQuery,
+        activePermitsQuery,
+        permitsForExpiryQuery,
+        nonCompliantRidersQuery,
+        penaltiesTotalQuery,
+        penaltiesUnpaidQuery,
+        penaltiesPaidQuery,
+        paymentsQuery,
       ]);
+
+      // Calculate expired permits (status='expired' OR expires_at < now)
+      const expiredPermitsCount = permitsData.data?.filter(
+        (p) => p.status === 'expired' || (p.expires_at && new Date(p.expires_at) < new Date(now))
+      ).length || 0;
 
       const totalRevenue = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
       return {
         totalRiders: riders.count || 0,
-        totalMotorbikes: motorbikes.count || 0,
-        activePermits: permits.count || 0,
+        activePermits: activePermits.count || 0,
+        expiredPermits: expiredPermitsCount,
+        nonCompliantRiders: nonCompliantRiders.count || 0,
+        penaltiesIssued: penaltiesTotal.count || 0,
+        penaltiesUnpaid: penaltiesUnpaid.count || 0,
+        penaltiesPaid: penaltiesPaid.count || 0,
         totalRevenue,
-        pendingPenalties: penalties.count || 0,
-        activeSaccos: saccos.count || 0,
-      };
+      } as DashboardStats;
     },
   });
 }

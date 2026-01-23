@@ -31,6 +31,7 @@ import {
   Bell,
   Search,
   Menu,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +49,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Riders', href: '/dashboard/riders', icon: Users },
+  { title: 'Registration Management', href: '/dashboard/registration-management', icon: ClipboardList },
   { title: 'Motorbikes', href: '/dashboard/motorbikes', icon: Bike },
   { title: 'Owners', href: '/dashboard/owners', icon: Users },
   { title: 'Saccos', href: '/dashboard/saccos', icon: Building2 },

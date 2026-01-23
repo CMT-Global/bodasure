@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 
 // Placeholder pages for dashboard sections
 import RidersPage from "./pages/dashboard/RidersPage";
+import RegistrationManagementPage from "./pages/dashboard/RegistrationManagementPage";
 import MotorbikesPage from "./pages/dashboard/MotorbikesPage";
 import OwnersPage from "./pages/dashboard/OwnersPage";
 import SaccosPage from "./pages/dashboard/SaccosPage";
@@ -55,6 +56,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RidersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/registration-management"
+              element={
+                <ProtectedRoute>
+                  <RegistrationManagementPage />
                 </ProtectedRoute>
               }
             />
