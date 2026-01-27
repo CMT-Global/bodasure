@@ -72,8 +72,7 @@ export default function UsersPage() {
   }, [profile, roles]);
 
   // Check if user is County Super Admin
-  // const isCountySuperAdmin = hasRole('county_super_admin') || hasRole('county_admin');
-  const isCountySuperAdmin = true; // Temporarily allow all users to access user management
+  const isCountySuperAdmin = hasRole('county_super_admin') || hasRole('county_admin');
 
   const { data: users = [], isLoading } = useCountyUsers(countyId);
   const { data: activityLogs = [] } = useUserActivityLogs(countyId);
@@ -333,27 +332,27 @@ export default function UsersPage() {
     },
   ];
 
-  // Temporarily commented out - access control will be re-enabled later
-  // if (!isCountySuperAdmin) {
-  //   return (
-  //     <DashboardLayout>
-  //       <div className="space-y-6">
-  //         <div>
-  //           <h1 className="text-2xl font-bold">User Management</h1>
-  //           <p className="text-muted-foreground">Manage county users and permissions</p>
-  //         </div>
-  //         <Card>
-  //           <CardContent className="pt-6">
-  //             <div className="flex items-center gap-3 text-amber-600">
-  //               <Shield className="h-5 w-5" />
-  //               <p>You need County Super Admin or County Admin privileges to access user management.</p>
-  //             </div>
-  //           </CardContent>
-  //         </Card>
-  //       </div>
-  //     </DashboardLayout>
-  //   );
-  // }
+  // Access control - only County Super Admin and County Admin can access user management
+  if (!isCountySuperAdmin) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold">User Management</h1>
+            <p className="text-muted-foreground">Manage county users and permissions</p>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3 text-amber-600">
+                <Shield className="h-5 w-5" />
+                <p>You need County Super Admin or County Admin privileges to access user management.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

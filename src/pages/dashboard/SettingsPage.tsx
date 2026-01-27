@@ -45,8 +45,7 @@ export default function SettingsPage() {
   }, [profile, roles]);
 
   // Check if user is County Super Admin
-  // const isCountySuperAdmin = hasRole('county_super_admin') || hasRole('county_admin');
-  const isCountySuperAdmin = true; // Temporarily allow all users to access settings
+  const isCountySuperAdmin = hasRole('county_super_admin') || hasRole('county_admin');
 
   const { data: settings, isLoading: settingsLoading } = useCountySettings(countyId);
   const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId || '');
@@ -377,27 +376,27 @@ export default function SettingsPage() {
     setIsRevenueShareDialogOpen(true);
   };
 
-  // Temporarily commented out - access control will be re-enabled later
-  // if (!isCountySuperAdmin) {
-  //   return (
-  //     <DashboardLayout>
-  //       <div className="space-y-6">
-  //         <div>
-  //           <h1 className="text-2xl font-bold">Settings</h1>
-  //           <p className="text-muted-foreground">Manage your account and county settings</p>
-  //         </div>
-  //         <Card>
-  //           <CardContent className="pt-6">
-  //             <div className="flex items-center gap-3 text-amber-600">
-  //               <AlertCircle className="h-5 w-5" />
-  //               <p>You need County Super Admin or County Admin privileges to access settings.</p>
-  //             </div>
-  //           </CardContent>
-  //         </Card>
-  //       </div>
-  //     </DashboardLayout>
-  //   );
-  // }
+  // Access control - only County Super Admin and County Admin can access settings
+  if (!isCountySuperAdmin) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold">Settings</h1>
+            <p className="text-muted-foreground">Manage your account and county settings</p>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3 text-amber-600">
+                <AlertCircle className="h-5 w-5" />
+                <p>You need County Super Admin or County Admin privileges to access settings.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (settingsLoading || permitTypesLoading) {
     return (

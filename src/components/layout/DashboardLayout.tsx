@@ -50,18 +50,18 @@ interface NavItem {
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Riders', href: '/dashboard/riders', icon: Users },
-  { title: 'Registration Management', href: '/dashboard/registration-management', icon: ClipboardList },
+  { title: 'Registration Management', href: '/dashboard/registration-management', icon: ClipboardList, roles: ['county_super_admin', 'county_admin', 'county_registration_agent'] },
   { title: 'Motorbikes', href: '/dashboard/motorbikes', icon: Bike },
   { title: 'Owners', href: '/dashboard/owners', icon: Users },
-  { title: 'Saccos', href: '/dashboard/saccos', icon: Building2 },
-  { title: 'Stages', href: '/dashboard/stages', icon: MapPin },
+  { title: 'Saccos', href: '/dashboard/saccos', icon: Building2, roles: ['county_super_admin', 'county_admin'] },
+  { title: 'Stages', href: '/dashboard/stages', icon: MapPin, roles: ['county_super_admin', 'county_admin'] },
   { title: 'Permits', href: '/dashboard/permits', icon: FileCheck },
-  { title: 'Payments', href: '/dashboard/payments', icon: CreditCard },
-  { title: 'Penalties', href: '/dashboard/penalties', icon: AlertTriangle },
-  { title: 'Verification', href: '/dashboard/verification', icon: QrCode },
-  { title: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
-  { title: 'User Management', href: '/dashboard/users', icon: UserCog },
-  { title: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { title: 'Payments', href: '/dashboard/payments', icon: CreditCard, roles: ['county_super_admin', 'county_admin', 'county_finance_officer'] },
+  { title: 'Penalties', href: '/dashboard/penalties', icon: AlertTriangle, roles: ['county_super_admin', 'county_admin', 'county_enforcement_officer'] },
+  { title: 'Verification', href: '/dashboard/verification', icon: QrCode, roles: ['county_super_admin', 'county_admin', 'county_enforcement_officer'] },
+  { title: 'Reports', href: '/dashboard/reports', icon: BarChart3, roles: ['county_super_admin', 'county_admin', 'county_finance_officer', 'county_analyst'] },
+  { title: 'User Management', href: '/dashboard/users', icon: UserCog, roles: ['county_super_admin', 'county_admin'] },
+  { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin', 'county_admin'] },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -69,7 +69,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, roles, hasRole } = useAuth();
+
+  // Filter navigation items based on user roles
+  const filteredNavItems = navItems.filter((item) => {
+    // If no roles specified, show to all authenticated users
+    if (!item.roles || item.roles.length === 0) return true;
+    
+    // Check if user has any of the required roles
+    return item.roles.some(role => hasRole(role));
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -126,7 +135,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Navigation */}
         <ScrollArea className="flex-1 py-4">
           <nav className="space-y-1 px-2">
-            {navItems.map((item) => {
+            {filteredNavItems.map((item) => {
               const isActive = location.pathname === item.href;
               return (
                 <Link

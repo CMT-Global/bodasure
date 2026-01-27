@@ -45,6 +45,38 @@ export interface PenaltyRevenueBreakdown {
   unpaidCount: number;
 }
 
+export interface RevenueShare {
+  id: string;
+  county_id: string;
+  sacco_id: string;
+  sacco_name?: string;
+  payment_id: string;
+  rider_id: string | null;
+  permit_id: string | null;
+  share_type: 'percentage' | 'fixed_per_rider' | 'none';
+  base_amount: number;
+  share_amount: number;
+  percentage: number | null;
+  fixed_amount: number | null;
+  period: 'weekly' | 'monthly' | 'annual' | null;
+  compliance_threshold_met: boolean;
+  active_permit_required: boolean;
+  had_active_permit: boolean;
+  status: 'pending' | 'distributed' | 'cancelled';
+  distributed_at: string | null;
+  created_at: string;
+}
+
+export interface RevenueShareBySacco {
+  saccoId: string;
+  saccoName: string;
+  totalShares: number;
+  totalAmount: number;
+  pendingAmount: number;
+  distributedAmount: number;
+  shareType: string;
+}
+
 // Fetch revenue by date range
 export function useRevenueByDateRange(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
@@ -424,6 +456,118 @@ export function usePenaltyRevenueBreakdown(countyId?: string, startDate?: string
           unpaidCount,
         };
       }) as PenaltyRevenueBreakdown[];
+    },
+    enabled: !!countyId,
+  });
+}
+
+// Fetch revenue shares
+export function useRevenueShares(countyId?: string, saccoId?: string, startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['revenue-shares', countyId, saccoId, startDate, endDate],
+    queryFn: async () => {
+      if (!countyId) return [];
+
+      let sharesQuery = supabase
+        .from('revenue_shares')
+        .select(`
+          *,
+          sacco:saccos(name),
+          rider:riders(full_name, phone),
+          payment:payments(amount, description, paid_at)
+        `)
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false });
+
+      if (saccoId) {
+        sharesQuery = sharesQuery.eq('sacco_id', saccoId);
+      }
+
+      if (startDate) {
+        sharesQuery = sharesQuery.gte('created_at', startDate);
+      }
+      if (endDate) {
+        sharesQuery = sharesQuery.lte('created_at', endDate);
+      }
+
+      const { data: shares, error } = await sharesQuery;
+
+      if (error) throw error;
+
+      return (shares || []).map((share: any) => ({
+        ...share,
+        sacco_name: share.sacco?.name || null,
+      })) as RevenueShare[];
+    },
+    enabled: !!countyId,
+  });
+}
+
+// Fetch revenue shares aggregated by Sacco
+export function useRevenueSharesBySacco(countyId?: string, startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['revenue-shares-by-sacco', countyId, startDate, endDate],
+    queryFn: async () => {
+      if (!countyId) return [];
+
+      let sharesQuery = supabase
+        .from('revenue_shares')
+        .select(`
+          *,
+          sacco:saccos(name)
+        `)
+        .eq('county_id', countyId);
+
+      if (startDate) {
+        sharesQuery = sharesQuery.gte('created_at', startDate);
+      }
+      if (endDate) {
+        sharesQuery = sharesQuery.lte('created_at', endDate);
+      }
+
+      const { data: shares, error } = await sharesQuery;
+
+      if (error) throw error;
+
+      // Aggregate by sacco
+      const saccoMap = new Map<string, {
+        saccoId: string;
+        saccoName: string;
+        totalShares: number;
+        totalAmount: number;
+        pendingAmount: number;
+        distributedAmount: number;
+        shareType: string;
+      }>();
+
+      (shares || []).forEach((share: any) => {
+        const saccoId = share.sacco_id;
+        const saccoName = share.sacco?.name || 'Unknown';
+        
+        if (!saccoMap.has(saccoId)) {
+          saccoMap.set(saccoId, {
+            saccoId,
+            saccoName,
+            totalShares: 0,
+            totalAmount: 0,
+            pendingAmount: 0,
+            distributedAmount: 0,
+            shareType: share.share_type,
+          });
+        }
+
+        const stats = saccoMap.get(saccoId)!;
+        stats.totalShares++;
+        stats.totalAmount += Number(share.share_amount || 0);
+        
+        if (share.status === 'pending') {
+          stats.pendingAmount += Number(share.share_amount || 0);
+        } else if (share.status === 'distributed') {
+          stats.distributedAmount += Number(share.share_amount || 0);
+        }
+      });
+
+      return Array.from(saccoMap.values()) as RevenueShareBySacco[];
     },
     enabled: !!countyId,
   });

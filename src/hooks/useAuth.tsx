@@ -42,17 +42,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let sessionTimeoutId: NodeJS.Timeout | null = null;
+    const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
+
     // Set up auth state listener BEFORE getting initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
+        // Clear existing timeout
+        if (sessionTimeoutId) {
+          clearTimeout(sessionTimeoutId);
+          sessionTimeoutId = null;
+        }
+        
         if (newSession?.user) {
           // Defer fetching to avoid blocking auth state change
           setTimeout(() => {
             fetchUserData(newSession.user.id);
           }, 0);
+
+          // Set up session timeout
+          sessionTimeoutId = setTimeout(async () => {
+            console.warn('Session expired due to inactivity');
+            await supabase.auth.signOut();
+            setProfile(null);
+            setRoles([]);
+            // Optionally redirect to login
+            if (window.location.pathname.startsWith('/dashboard')) {
+              window.location.href = '/login?session=expired';
+            }
+          }, SESSION_TIMEOUT_MS);
         } else {
           setProfile(null);
           setRoles([]);
@@ -69,6 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (initialSession?.user) {
         fetchUserData(initialSession.user.id);
+        
+        // Set up session timeout for initial session
+        sessionTimeoutId = setTimeout(async () => {
+          console.warn('Session expired due to inactivity');
+          await supabase.auth.signOut();
+          setProfile(null);
+          setRoles([]);
+          if (window.location.pathname.startsWith('/dashboard')) {
+            window.location.href = '/login?session=expired';
+          }
+        }, SESSION_TIMEOUT_MS);
       }
       
       setIsLoading(false);
@@ -76,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       subscription.unsubscribe();
+      if (sessionTimeoutId) {
+        clearTimeout(sessionTimeoutId);
+      }
     };
   }, []);
 

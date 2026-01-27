@@ -14,13 +14,17 @@ import {
   useRevenueByStage,
   useRevenueByPermitType,
   usePenaltyRevenueBreakdown,
+  useRevenueShares,
+  useRevenueSharesBySacco,
   RevenueByDateRange,
   RevenueBySacco,
   RevenueByStage,
   RevenueByPermitType,
   PenaltyRevenueBreakdown,
+  RevenueShare,
+  RevenueShareBySacco,
 } from '@/hooks/useRevenue';
-import { Download, Calendar, DollarSign, Building2, MapPin, FileText, AlertTriangle, Loader2, Users, CheckCircle, FileSpreadsheet, FileDown, Activity, Shield } from 'lucide-react';
+import { Download, Calendar, DollarSign, Building2, MapPin, FileText, AlertTriangle, Loader2, Users, CheckCircle, FileSpreadsheet, FileDown, Activity, Shield, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -60,6 +64,8 @@ export default function ReportsPage() {
   const { data: revenueByStage = [], isLoading: loadingStage } = useRevenueByStage(countyId, startDate, endDate);
   const { data: revenueByPermitType = [], isLoading: loadingPermitType } = useRevenueByPermitType(countyId, startDate, endDate);
   const { data: penaltyBreakdown = [], isLoading: loadingPenalty } = usePenaltyRevenueBreakdown(countyId, startDate, endDate);
+  const { data: revenueShares = [], isLoading: loadingRevenueShares } = useRevenueShares(countyId, undefined, startDate, endDate);
+  const { data: revenueSharesBySacco = [], isLoading: loadingRevenueSharesBySacco } = useRevenueSharesBySacco(countyId, startDate, endDate);
 
   // Fetch additional reports
   const { data: registrationReport = [], isLoading: loadingRegistration } = useRegistrationReport(countyId, startDate, endDate);
@@ -691,6 +697,126 @@ export default function ReportsPage() {
     },
   ];
 
+  // Revenue Share columns
+  const revenueShareColumns: ColumnDef<RevenueShare>[] = [
+    {
+      accessorKey: 'created_at',
+      header: 'Date',
+      cell: ({ row }) => format(new Date(row.original.created_at), 'MMM dd, yyyy'),
+    },
+    {
+      accessorKey: 'sacco_name',
+      header: 'Sacco',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{row.original.sacco_name || 'Unknown'}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'share_type',
+      header: 'Share Type',
+      cell: ({ row }) => {
+        const type = row.original.share_type;
+        const labels: Record<string, string> = {
+          percentage: 'Percentage',
+          fixed_per_rider: 'Fixed per Rider',
+          none: 'None',
+        };
+        return <Badge variant="outline">{labels[type] || type}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'base_amount',
+      header: 'Base Amount',
+      cell: ({ row }) => `KES ${Number(row.original.base_amount).toLocaleString()}`,
+    },
+    {
+      accessorKey: 'share_amount',
+      header: 'Share Amount',
+      cell: ({ row }) => (
+        <span className="font-semibold text-green-600">
+          KES {Number(row.original.share_amount).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'percentage',
+      header: 'Percentage',
+      cell: ({ row }) => {
+        const pct = row.original.percentage;
+        return pct ? `${pct}%` : '-';
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
+          pending: 'secondary',
+          distributed: 'default',
+          cancelled: 'destructive',
+        };
+        return <Badge variant={variants[status] || 'secondary'}>{status}</Badge>;
+      },
+    },
+  ];
+
+  // Revenue Share by Sacco columns
+  const revenueShareBySaccoColumns: ColumnDef<RevenueShareBySacco>[] = [
+    {
+      accessorKey: 'saccoName',
+      header: 'Sacco',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{row.original.saccoName}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'shareType',
+      header: 'Share Type',
+      cell: ({ row }) => {
+        const type = row.original.shareType;
+        const labels: Record<string, string> = {
+          percentage: 'Percentage',
+          fixed_per_rider: 'Fixed per Rider',
+          none: 'None',
+        };
+        return <Badge variant="outline">{labels[type] || type}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'totalShares',
+      header: 'Total Shares',
+      cell: ({ row }) => row.original.totalShares,
+    },
+    {
+      accessorKey: 'totalAmount',
+      header: 'Total Amount',
+      cell: ({ row }) => (
+        <span className="font-semibold">KES {row.original.totalAmount.toLocaleString()}</span>
+      ),
+    },
+    {
+      accessorKey: 'pendingAmount',
+      header: 'Pending',
+      cell: ({ row }) => (
+        <span className="text-amber-600">KES {row.original.pendingAmount.toLocaleString()}</span>
+      ),
+    },
+    {
+      accessorKey: 'distributedAmount',
+      header: 'Distributed',
+      cell: ({ row }) => (
+        <span className="text-green-600">KES {row.original.distributedAmount.toLocaleString()}</span>
+      ),
+    },
+  ];
+
   // Audit Log columns
   const auditLogColumns: ColumnDef<UserActivityLog>[] = [
     {
@@ -889,6 +1015,11 @@ export default function ReportsPage() {
               <Building2 className="mr-1 sm:mr-2 h-4 w-4" />
               <span className="hidden sm:inline">Sacco Performance</span>
               <span className="sm:hidden">Sacco</span>
+            </TabsTrigger>
+            <TabsTrigger value="revenue-shares" className="flex-1 min-w-[120px] sm:flex-initial">
+              <Share2 className="mr-1 sm:mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Revenue Shares</span>
+              <span className="sm:hidden">Shares</span>
             </TabsTrigger>
             <TabsTrigger value="audit-logs" className="flex-1 min-w-[120px] sm:flex-initial">
               <Activity className="mr-1 sm:mr-2 h-4 w-4" />
@@ -1150,6 +1281,70 @@ export default function ReportsPage() {
                 />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Revenue Shares Tab */}
+          <TabsContent value="revenue-shares" className="space-y-6">
+            <Tabs defaultValue="by-sacco" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="by-sacco">By Sacco</TabsTrigger>
+                <TabsTrigger value="detailed">Detailed View</TabsTrigger>
+              </TabsList>
+
+              {/* Revenue Shares by Sacco */}
+              <TabsContent value="by-sacco">
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <CardTitle>Revenue Shares by Sacco</CardTitle>
+                        <CardDescription>Aggregated revenue share breakdown by Sacco organization</CardDescription>
+                      </div>
+                      <ExportButtons 
+                        data={revenueSharesBySacco} 
+                        filename="revenue_shares_by_sacco" 
+                        title="Revenue Shares by Sacco" 
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <DataTable
+                      columns={revenueShareBySaccoColumns}
+                      data={revenueSharesBySacco}
+                      isLoading={loadingRevenueSharesBySacco}
+                      searchPlaceholder="Search saccos..."
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Detailed Revenue Shares */}
+              <TabsContent value="detailed">
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <CardTitle>Detailed Revenue Shares</CardTitle>
+                        <CardDescription>Individual revenue share transactions and calculations</CardDescription>
+                      </div>
+                      <ExportButtons 
+                        data={revenueShares} 
+                        filename="revenue_shares_detailed" 
+                        title="Detailed Revenue Shares" 
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <DataTable
+                      columns={revenueShareColumns}
+                      data={revenueShares}
+                      isLoading={loadingRevenueShares}
+                      searchPlaceholder="Search revenue shares..."
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Audit Logs Tab */}

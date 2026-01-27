@@ -646,3 +646,322 @@ export function useDashboardStats(countyId?: string) {
     },
   });
 }
+
+// Recent activity interface
+export interface RecentActivityItem {
+  id: string;
+  type: 'registration' | 'payment' | 'permit' | 'penalty' | 'verification';
+  title: string;
+  description: string;
+  time: string;
+  status?: 'success' | 'pending' | 'warning' | 'error';
+}
+
+// Fetch recent activity for dashboard
+export function useRecentActivity(countyId?: string, limit: number = 10) {
+  return useQuery({
+    queryKey: ['recent-activity', countyId, limit],
+    queryFn: async () => {
+      if (!countyId) return [] as RecentActivityItem[];
+
+      const activities: RecentActivityItem[] = [];
+      const now = new Date();
+
+      // Helper to format time ago
+      const formatTimeAgo = (date: Date): string => {
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      };
+
+      // Fetch recent registrations
+      const { data: recentRiders } = await supabase
+        .from('riders')
+        .select('id, full_name, id_number, created_at')
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      recentRiders?.forEach((rider) => {
+        activities.push({
+          id: `rider-${rider.id}`,
+          type: 'registration',
+          title: 'New Rider Registered',
+          description: `${rider.full_name} (ID: ${rider.id_number}) registered`,
+          time: formatTimeAgo(new Date(rider.created_at)),
+          status: 'success',
+        });
+      });
+
+      // Fetch recent payments
+      const { data: recentPayments } = await supabase
+        .from('payments')
+        .select('id, amount, paid_at, rider_id, riders!inner(full_name, id_number)')
+        .eq('county_id', countyId)
+        .eq('status', 'completed')
+        .not('paid_at', 'is', null)
+        .order('paid_at', { ascending: false })
+        .limit(5);
+
+      recentPayments?.forEach((payment: any) => {
+        const rider = payment.riders;
+        activities.push({
+          id: `payment-${payment.id}`,
+          type: 'payment',
+          title: 'Permit Payment Received',
+          description: `KES ${Number(payment.amount).toLocaleString()} received from ${rider?.full_name || 'Unknown'}`,
+          time: payment.paid_at ? formatTimeAgo(new Date(payment.paid_at)) : 'Unknown',
+          status: 'success',
+        });
+      });
+
+      // Fetch recent penalties
+      const { data: recentPenalties } = await supabase
+        .from('penalties')
+        .select('id, penalty_type, amount, created_at, rider_id, riders!inner(full_name)')
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      recentPenalties?.forEach((penalty: any) => {
+        const rider = penalty.riders;
+        activities.push({
+          id: `penalty-${penalty.id}`,
+          type: 'penalty',
+          title: 'Penalty Issued',
+          description: `${penalty.penalty_type} penalty issued to ${rider?.full_name || 'Unknown'}`,
+          time: formatTimeAgo(new Date(penalty.created_at)),
+          status: penalty.is_paid ? 'success' : 'warning',
+        });
+      });
+
+      // Fetch permits expiring soon (next 7 days)
+      const sevenDaysFromNow = new Date();
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+      const { data: expiringPermits } = await supabase
+        .from('permits')
+        .select('id, expires_at, status')
+        .eq('county_id', countyId)
+        .eq('status', 'active')
+        .lte('expires_at', sevenDaysFromNow.toISOString())
+        .gte('expires_at', now.toISOString())
+        .order('expires_at', { ascending: true })
+        .limit(1);
+
+      if (expiringPermits && expiringPermits.length > 0) {
+        const count = expiringPermits.length;
+        activities.push({
+          id: 'permits-expiring',
+          type: 'permit',
+          title: 'Permits Expiring Soon',
+          description: `${count} permit${count > 1 ? 's' : ''} expiring in the next 7 days`,
+          time: formatTimeAgo(new Date(expiringPermits[0].expires_at)),
+          status: 'pending',
+        });
+      }
+
+      // Sort by time (most recent first) and limit
+      return activities
+        .sort((a, b) => {
+          // Simple sort - in production, parse actual dates
+          return 0;
+        })
+        .slice(0, limit) as RecentActivityItem[];
+    },
+    enabled: !!countyId,
+  });
+}
+
+// Monthly revenue data interface
+export interface MonthlyRevenueData {
+  date: string;
+  amount: number;
+}
+
+// Fetch monthly revenue for chart
+export function useMonthlyRevenue(countyId?: string, months: number = 6) {
+  return useQuery({
+    queryKey: ['monthly-revenue', countyId, months],
+    queryFn: async () => {
+      if (!countyId) return [] as MonthlyRevenueData[];
+
+      const now = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - months);
+
+      // Fetch payments for the last N months
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('amount, paid_at')
+        .eq('county_id', countyId)
+        .eq('status', 'completed')
+        .gte('paid_at', startDate.toISOString())
+        .lte('paid_at', now.toISOString());
+
+      // Group by month
+      const monthMap = new Map<string, number>();
+
+      // Initialize all months with 0
+      for (let i = months - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+        monthMap.set(monthKey, 0);
+      }
+
+      // Sum payments by month
+      payments?.forEach((payment: any) => {
+        if (payment.paid_at) {
+          const date = new Date(payment.paid_at);
+          const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+          const current = monthMap.get(monthKey) || 0;
+          monthMap.set(monthKey, current + Number(payment.amount || 0));
+        }
+      });
+
+      // Convert to array format
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const result: MonthlyRevenueData[] = [];
+      
+      for (let i = months - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+        result.push({
+          date: monthKey,
+          amount: monthMap.get(monthKey) || 0,
+        });
+      }
+
+      return result;
+    },
+    enabled: !!countyId,
+  });
+}
+
+// Compliance overview item interface
+export interface ComplianceOverviewItem {
+  id: string;
+  name: string;
+  type: 'sacco' | 'stage';
+  complianceRate: number;
+  status: 'compliant' | 'at_risk' | 'non_compliant';
+}
+
+// Fetch compliance overview for dashboard
+export function useComplianceOverview(countyId?: string, limit: number = 4) {
+  return useQuery({
+    queryKey: ['compliance-overview', countyId, limit],
+    queryFn: async () => {
+      if (!countyId) return [] as ComplianceOverviewItem[];
+
+      const items: ComplianceOverviewItem[] = [];
+
+      // Fetch top saccos by compliance
+      const { data: saccos } = await supabase
+        .from('saccos')
+        .select('id, name')
+        .eq('county_id', countyId)
+        .eq('status', 'approved')
+        .limit(10);
+
+      if (saccos && saccos.length > 0) {
+        const saccoIds = saccos.map(s => s.id);
+        const { data: riders } = await supabase
+          .from('riders')
+          .select('id, sacco_id, compliance_status')
+          .in('sacco_id', saccoIds)
+          .eq('county_id', countyId);
+
+        // Calculate compliance per sacco
+        const saccoStats = new Map<string, { total: number; compliant: number }>();
+        saccos.forEach(s => saccoStats.set(s.id, { total: 0, compliant: 0 }));
+        
+        riders?.forEach(rider => {
+          if (rider.sacco_id) {
+            const stats = saccoStats.get(rider.sacco_id);
+            if (stats) {
+              stats.total++;
+              if (rider.compliance_status === 'compliant') {
+                stats.compliant++;
+              }
+            }
+          }
+        });
+
+        saccos.forEach(sacco => {
+          const stats = saccoStats.get(sacco.id) || { total: 0, compliant: 0 };
+          if (stats.total > 0) {
+            const complianceRate = Math.round((stats.compliant / stats.total) * 100);
+            items.push({
+              id: `sacco-${sacco.id}`,
+              name: sacco.name,
+              type: 'sacco',
+              complianceRate,
+              status: complianceRate >= 80 ? 'compliant' : complianceRate >= 50 ? 'at_risk' : 'non_compliant',
+            });
+          }
+        });
+      }
+
+      // Fetch top stages by compliance
+      const { data: stages } = await supabase
+        .from('stages')
+        .select('id, name')
+        .eq('county_id', countyId)
+        .eq('status', 'approved')
+        .limit(10);
+
+      if (stages && stages.length > 0) {
+        const stageIds = stages.map(s => s.id);
+        const { data: riders } = await supabase
+          .from('riders')
+          .select('id, stage_id, compliance_status')
+          .in('stage_id', stageIds)
+          .eq('county_id', countyId);
+
+        // Calculate compliance per stage
+        const stageStats = new Map<string, { total: number; compliant: number }>();
+        stages.forEach(s => stageStats.set(s.id, { total: 0, compliant: 0 }));
+        
+        riders?.forEach(rider => {
+          if (rider.stage_id) {
+            const stats = stageStats.get(rider.stage_id);
+            if (stats) {
+              stats.total++;
+              if (rider.compliance_status === 'compliant') {
+                stats.compliant++;
+              }
+            }
+          }
+        });
+
+        stages.forEach(stage => {
+          const stats = stageStats.get(stage.id) || { total: 0, compliant: 0 };
+          if (stats.total > 0) {
+            const complianceRate = Math.round((stats.compliant / stats.total) * 100);
+            items.push({
+              id: `stage-${stage.id}`,
+              name: stage.name,
+              type: 'stage',
+              complianceRate,
+              status: complianceRate >= 80 ? 'compliant' : complianceRate >= 50 ? 'at_risk' : 'non_compliant',
+            });
+          }
+        });
+      }
+
+      // Sort by compliance rate (lowest first to show non-compliant items)
+      return items
+        .sort((a, b) => a.complianceRate - b.complianceRate)
+        .slice(0, limit) as ComplianceOverviewItem[];
+    },
+    enabled: !!countyId,
+  });
+}

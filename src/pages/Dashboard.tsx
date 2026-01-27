@@ -5,67 +5,8 @@ import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { ComplianceOverview } from '@/components/dashboard/ComplianceOverview';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { Users, FileCheck, AlertTriangle, CreditCard, XCircle, CheckCircle2 } from 'lucide-react';
-import { useDashboardStats } from '@/hooks/useData';
+import { useDashboardStats, useRecentActivity, useMonthlyRevenue, useComplianceOverview } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
-
-const demoRevenueData = [
-  { date: 'Jan', amount: 3200000 },
-  { date: 'Feb', amount: 3800000 },
-  { date: 'Mar', amount: 3500000 },
-  { date: 'Apr', amount: 4100000 },
-  { date: 'May', amount: 4350000 },
-  { date: 'Jun', amount: 4520000 },
-];
-
-const demoActivities = [
-  {
-    id: '1',
-    type: 'registration' as const,
-    title: 'New Rider Registered',
-    description: 'John Mwangi (ID: 32456789) registered in Kisumu County',
-    time: '2 min ago',
-    status: 'success' as const,
-  },
-  {
-    id: '2',
-    type: 'payment' as const,
-    title: 'Permit Payment Received',
-    description: 'KES 2,500 received from James Ochieng for annual permit',
-    time: '15 min ago',
-    status: 'success' as const,
-  },
-  {
-    id: '3',
-    type: 'penalty' as const,
-    title: 'Penalty Issued',
-    description: 'Expired permit penalty issued to Peter Wafula',
-    time: '1 hour ago',
-    status: 'warning' as const,
-  },
-  {
-    id: '4',
-    type: 'verification' as const,
-    title: 'QR Verification',
-    description: 'Rider verified by enforcement officer at CBD Stage',
-    time: '2 hours ago',
-    status: 'success' as const,
-  },
-  {
-    id: '5',
-    type: 'permit' as const,
-    title: 'Permit Expiring Soon',
-    description: '45 permits expiring in the next 7 days',
-    time: '3 hours ago',
-    status: 'pending' as const,
-  },
-];
-
-const demoCompliance = [
-  { id: '1', name: 'Boda Boda Sacco Ltd', type: 'sacco' as const, complianceRate: 94, status: 'compliant' as const },
-  { id: '2', name: 'CBD Central Stage', type: 'stage' as const, complianceRate: 87, status: 'compliant' as const },
-  { id: '3', name: 'Mama Mboga Welfare', type: 'sacco' as const, complianceRate: 72, status: 'at_risk' as const },
-  { id: '4', name: 'Kondele Junction', type: 'stage' as const, complianceRate: 45, status: 'non_compliant' as const },
-];
 
 export default function Dashboard() {
   const { profile, roles } = useAuth();
@@ -76,6 +17,9 @@ export default function Dashboard() {
   }, [profile, roles]);
 
   const { data: stats, isLoading } = useDashboardStats(countyId);
+  const { data: recentActivities = [], isLoading: isLoadingActivities } = useRecentActivity(countyId, 5);
+  const { data: monthlyRevenue = [], isLoading: isLoadingRevenue } = useMonthlyRevenue(countyId, 6);
+  const { data: complianceOverview = [], isLoading: isLoadingCompliance } = useComplianceOverview(countyId, 4);
 
   // Format revenue for display
   const formatRevenue = (amount: number) => {
@@ -194,12 +138,54 @@ export default function Dashboard() {
 
         {/* Charts and activity */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <RevenueChart data={demoRevenueData} />
-          <RecentActivity activities={demoActivities} />
+          {isLoadingRevenue ? (
+            <div className="rounded-xl border border-border bg-card p-6 animate-pulse">
+              <div className="h-4 bg-muted rounded w-1/4 mb-4"></div>
+              <div className="h-[300px] bg-muted rounded"></div>
+            </div>
+          ) : monthlyRevenue.length > 0 ? (
+            <RevenueChart data={monthlyRevenue} />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
+              No revenue data available
+            </div>
+          )}
+          
+          {isLoadingActivities ? (
+            <div className="rounded-xl border border-border bg-card p-6 animate-pulse">
+              <div className="h-4 bg-muted rounded w-1/3 mb-4"></div>
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-16 bg-muted rounded"></div>
+                ))}
+              </div>
+            </div>
+          ) : recentActivities.length > 0 ? (
+            <RecentActivity activities={recentActivities} />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
+              No recent activity
+            </div>
+          )}
         </div>
 
         {/* Compliance overview */}
-        <ComplianceOverview items={demoCompliance} />
+        {isLoadingCompliance ? (
+          <div className="rounded-xl border border-border bg-card p-6 animate-pulse">
+            <div className="h-4 bg-muted rounded w-1/3 mb-4"></div>
+            <div className="space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-12 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        ) : complianceOverview.length > 0 ? (
+          <ComplianceOverview items={complianceOverview} />
+        ) : (
+          <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
+            No compliance data available
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type { EscalationRule } from './useCountySettings';
 
 export interface Penalty {
   id: string;
@@ -33,6 +34,48 @@ export interface Penalty {
 export interface PenaltyWithRepeatInfo extends Penalty {
   repeat_offender: boolean;
   penalty_count: number;
+}
+
+// Helper function to calculate escalated penalty amount
+async function calculateEscalatedPenalty(
+  baseAmount: number,
+  riderId: string,
+  countyId: string,
+  escalationRules: EscalationRule[]
+): Promise<{ amount: number; multiplier: number; ruleDescription?: string }> {
+  // Count previous penalties for this rider
+  const { data: previousPenalties, error } = await supabase
+    .from('penalties')
+    .select('id')
+    .eq('rider_id', riderId)
+    .eq('county_id', countyId);
+
+  if (error) {
+    console.error('Error fetching previous penalties:', error);
+    return { amount: baseAmount, multiplier: 1 };
+  }
+
+  const offenseCount = (previousPenalties?.length || 0) + 1; // +1 for the current penalty being created
+
+  // Find the highest applicable escalation rule
+  let applicableRule: EscalationRule | null = null;
+  for (const rule of escalationRules.sort((a, b) => b.offenseCount - a.offenseCount)) {
+    if (offenseCount >= rule.offenseCount) {
+      applicableRule = rule;
+      break;
+    }
+  }
+
+  if (applicableRule) {
+    const escalatedAmount = Math.round(baseAmount * applicableRule.multiplier);
+    return {
+      amount: escalatedAmount,
+      multiplier: applicableRule.multiplier,
+      ruleDescription: applicableRule.description,
+    };
+  }
+
+  return { amount: baseAmount, multiplier: 1 };
 }
 
 // Fetch penalties with rider info
@@ -106,14 +149,65 @@ export function useCreatePenalty() {
       description?: string;
       amount: number;
       due_date?: string;
+      applyEscalation?: boolean; // Optional flag to apply escalation
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
+
+      // Check for duplicate penalty (same rider, same type, within last 1 hour)
+      // This prevents accidental duplicate submissions
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: recentPenalty } = await supabase
+        .from('penalties')
+        .select('id')
+        .eq('rider_id', penalty.rider_id)
+        .eq('penalty_type', penalty.penalty_type)
+        .eq('county_id', penalty.county_id)
+        .eq('issued_by', session.user.id)
+        .gte('created_at', oneHourAgo)
+        .single();
+
+      if (recentPenalty) {
+        throw new Error('A similar penalty was recently issued for this rider. Please wait before issuing another.');
+      }
+
+      let finalAmount = penalty.amount;
+      let escalationDescription = '';
+
+      // Apply escalation if enabled (default: true)
+      if (penalty.applyEscalation !== false) {
+        // Fetch county settings for escalation rules
+        const { data: county } = await supabase
+          .from('counties')
+          .select('settings')
+          .eq('id', penalty.county_id)
+          .single();
+
+        if (county?.settings) {
+          const settings = county.settings as any;
+          const escalationRules = settings.penaltySettings?.escalationRules || [];
+          
+          if (escalationRules.length > 0) {
+            const escalated = await calculateEscalatedPenalty(
+              penalty.amount,
+              penalty.rider_id,
+              penalty.county_id,
+              escalationRules
+            );
+            finalAmount = escalated.amount;
+            if (escalated.ruleDescription) {
+              escalationDescription = ` (${escalated.ruleDescription})`;
+            }
+          }
+        }
+      }
 
       const { data, error } = await supabase
         .from('penalties')
         .insert({
           ...penalty,
+          amount: finalAmount,
+          description: penalty.description ? `${penalty.description}${escalationDescription}` : escalationDescription.trim() || null,
           issued_by: session.user.id,
         })
         .select()
@@ -283,56 +377,106 @@ export function useCheckExpiredPermits(countyId?: string) {
     mutationFn: async () => {
       if (!countyId) throw new Error('County ID required');
 
-      // Get all active permits that have expired
-      const now = new Date().toISOString();
+      // Fetch county settings
+      const { data: county, error: settingsError } = await supabase
+        .from('counties')
+        .select('settings')
+        .eq('id', countyId)
+        .single();
+
+      if (settingsError) throw settingsError;
+
+      const settings = (county?.settings as any) || {};
+      const permitSettings = settings.permitSettings || { gracePeriodDays: 7 };
+      const penaltySettings = settings.penaltySettings || {
+        autoPenaltyEnabled: true,
+        penaltyTypes: [],
+        escalationRules: [],
+      };
+
+      // Check if auto-penalty is enabled
+      if (!penaltySettings.autoPenaltyEnabled) {
+        return { created: 0, updated: 0, skipped: 0, message: 'Auto-penalty is disabled in settings' };
+      }
+
+      // Get grace period
+      const gracePeriodDays = permitSettings.gracePeriodDays || 7;
+      const gracePeriodMs = gracePeriodDays * 24 * 60 * 60 * 1000;
+
+      // Calculate cutoff date (permits expired before this date are past grace period)
+      const now = new Date();
+      const gracePeriodCutoff = new Date(now.getTime() - gracePeriodMs);
+
+      // Get all active permits that have expired past the grace period
       const { data: expiredPermits, error: permitsError } = await supabase
         .from('permits')
         .select('id, rider_id, expires_at, county_id')
         .eq('county_id', countyId)
         .eq('status', 'active')
-        .lt('expires_at', now);
+        .lt('expires_at', gracePeriodCutoff.toISOString());
 
       if (permitsError) throw permitsError;
 
       if (!expiredPermits || expiredPermits.length === 0) {
-        return { created: 0, updated: 0 };
+        return { created: 0, updated: 0, skipped: 0 };
       }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
+      // Find the "Expired Permit" penalty type from settings
+      const expiredPermitType = penaltySettings.penaltyTypes?.find(
+        (pt: any) => pt.name === 'Expired Permit' || pt.name === 'Expired permit'
+      );
+      const basePenaltyAmount = expiredPermitType?.amount || 5000; // Default fallback
+      const escalationRules = penaltySettings.escalationRules || [];
+
       let created = 0;
       let updated = 0;
+      let skipped = 0;
 
       // For each expired permit, check if penalty already exists and create if not
       for (const permit of expiredPermits) {
-        // Check if penalty already exists for this permit expiry
+        // Check if penalty already exists for this permit expiry (within last 30 days to avoid duplicates)
         const { data: existingPenalty } = await supabase
           .from('penalties')
           .select('id')
           .eq('rider_id', permit.rider_id)
           .eq('penalty_type', 'Expired permit')
           .eq('county_id', countyId)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Within last 24 hours
+          .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
           .single();
 
-        if (!existingPenalty) {
-          // Create penalty for expired permit
-          const { error: penaltyError } = await supabase
-            .from('penalties')
-            .insert({
-              county_id: permit.county_id,
-              rider_id: permit.rider_id,
-              issued_by: session.user.id,
-              penalty_type: 'Expired permit',
-              description: `Automatic penalty for expired permit`,
-              amount: 5000, // Default amount, should be configurable
-              due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-            });
+        if (existingPenalty) {
+          skipped++;
+          continue;
+        }
 
-          if (!penaltyError) {
-            created++;
-          }
+        // Calculate escalated penalty amount
+        const escalated = await calculateEscalatedPenalty(
+          basePenaltyAmount,
+          permit.rider_id,
+          countyId,
+          escalationRules
+        );
+
+        // Create penalty for expired permit
+        const description = `Automatic penalty for expired permit${escalated.ruleDescription ? ` (${escalated.ruleDescription})` : ''}`;
+        
+        const { error: penaltyError } = await supabase
+          .from('penalties')
+          .insert({
+            county_id: permit.county_id,
+            rider_id: permit.rider_id,
+            issued_by: session.user.id,
+            penalty_type: 'Expired permit',
+            description: description,
+            amount: escalated.amount,
+            due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+          });
+
+        if (!penaltyError) {
+          created++;
 
           // Update rider compliance status to non_compliant
           await supabase
@@ -348,10 +492,11 @@ export function useCheckExpiredPermits(countyId?: string) {
       queryClient.invalidateQueries({ queryKey: ['riders'] });
       queryClient.invalidateQueries({ queryKey: ['permits'] });
 
-      return { created, updated };
+      return { created, updated, skipped };
     },
     onSuccess: (result) => {
-      toast.success(`Processed ${result.created} new penalties, updated ${result.updated} riders`);
+      const message = `Processed ${result.created} new penalties, updated ${result.updated} riders${result.skipped > 0 ? `, skipped ${result.skipped} (already penalized)` : ''}`;
+      toast.success(message);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to check expired permits');
