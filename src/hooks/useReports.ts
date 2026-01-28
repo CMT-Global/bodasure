@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { addDays, format, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RegistrationReport {
@@ -162,7 +163,11 @@ export function usePenaltyReport(countyId?: string, startDate?: string, endDate?
         .eq('county_id', countyId);
 
       if (startDate) query = query.gte('created_at', startDate);
-      if (endDate) query = query.lte('created_at', endDate);
+      // Use exclusive upper bound (start of next day) so we include the full end date
+      if (endDate) {
+        const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+        query = query.lt('created_at', endExclusive);
+      }
 
       const { data: penalties, error } = await query;
       if (error) throw error;
@@ -272,167 +277,225 @@ export function useSaccoPerformanceReport(countyId?: string, startDate?: string,
     queryFn: async () => {
       if (!countyId) return [];
 
-      // Get all saccos
-      const { data: saccos } = await supabase
-        .from('saccos')
-        .select('id, name')
-        .eq('county_id', countyId);
+      try {
+        // Get all saccos
+        const { data: saccos, error: saccosError } = await supabase
+          .from('saccos')
+          .select('id, name')
+          .eq('county_id', countyId);
 
-      if (!saccos) return [];
-
-      const saccoIds = saccos.map(s => s.id);
-
-      // Get riders by sacco
-      const { data: riders } = await supabase
-        .from('riders')
-        .select('id, sacco_id, compliance_status')
-        .eq('county_id', countyId)
-        .in('sacco_id', saccoIds.length > 0 ? saccoIds : ['00000000-0000-0000-0000-000000000000']);
-
-      // Get permits
-      const riderIds = riders?.map(r => r.id) || [];
-      let permitsQuery = supabase
-        .from('permits')
-        .select('id, rider_id, status, expires_at')
-        .eq('county_id', countyId)
-        .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
-      if (startDate) permitsQuery = permitsQuery.gte('created_at', startDate);
-      if (endDate) permitsQuery = permitsQuery.lte('created_at', endDate);
-
-      const { data: permits } = await permitsQuery;
-
-      // Get penalties
-      let penaltiesQuery = supabase
-        .from('penalties')
-        .select('id, rider_id, is_paid, amount')
-        .eq('county_id', countyId)
-        .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
-      if (startDate) penaltiesQuery = penaltiesQuery.gte('created_at', startDate);
-      if (endDate) penaltiesQuery = penaltiesQuery.lte('created_at', endDate);
-
-      const { data: penalties } = await penaltiesQuery;
-
-      // Get payments (revenue)
-      let paymentsQuery = supabase
-        .from('payments')
-        .select('amount, rider_id')
-        .eq('county_id', countyId)
-        .eq('status', 'completed')
-        .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
-      if (startDate) paymentsQuery = paymentsQuery.gte('paid_at', startDate);
-      if (endDate) paymentsQuery = paymentsQuery.lte('paid_at', endDate);
-
-      const { data: payments } = await paymentsQuery;
-
-      // Map riders to saccos
-      const riderToSacco = new Map<string, string>();
-      riders?.forEach(rider => {
-        if (rider.sacco_id) {
-          riderToSacco.set(rider.id, rider.sacco_id);
+        if (saccosError) {
+          console.error('Error fetching saccos:', saccosError);
+          throw saccosError;
         }
-      });
 
-      // Calculate stats per sacco
-      const saccoPerformance = new Map<string, {
-        totalRiders: number;
-        compliant: number;
-        activePermits: number;
-        expiredPermits: number;
-        totalPenalties: number;
-        paidPenalties: number;
-        unpaidPenalties: number;
-        revenue: number;
-      }>();
+        if (!saccos || saccos.length === 0) return [];
 
-      saccos.forEach(sacco => {
-        saccoPerformance.set(sacco.id, {
-          totalRiders: 0,
-          compliant: 0,
-          activePermits: 0,
-          expiredPermits: 0,
-          totalPenalties: 0,
-          paidPenalties: 0,
-          unpaidPenalties: 0,
-          revenue: 0,
+        const saccoIds = saccos.map(s => s.id);
+
+        // Get riders by sacco - get ALL riders, not filtered by date
+        const { data: riders, error: ridersError } = await supabase
+          .from('riders')
+          .select('id, sacco_id, compliance_status')
+          .eq('county_id', countyId)
+          .in('sacco_id', saccoIds);
+
+        if (ridersError) {
+          console.error('Error fetching riders:', ridersError);
+          throw ridersError;
+        }
+
+        const riderIds = riders?.map(r => r.id) || [];
+
+        // Get permits - get ALL permits for riders in these saccos (not filtered by date)
+        // We want to see current permit status, not just permits created in date range
+        let permitsQuery = supabase
+          .from('permits')
+          .select('id, rider_id, status, expires_at')
+          .eq('county_id', countyId);
+
+        if (riderIds.length > 0) {
+          permitsQuery = permitsQuery.in('rider_id', riderIds);
+        } else {
+          // If no riders, return empty array for permits
+          permitsQuery = permitsQuery.eq('rider_id', '00000000-0000-0000-0000-000000000000');
+        }
+
+        const { data: permits, error: permitsError } = await permitsQuery;
+
+        if (permitsError) {
+          console.error('Error fetching permits:', permitsError);
+          throw permitsError;
+        }
+
+        // Get penalties - filter by date range if provided
+        let penaltiesQuery = supabase
+          .from('penalties')
+          .select('id, rider_id, is_paid, amount')
+          .eq('county_id', countyId);
+
+        if (riderIds.length > 0) {
+          penaltiesQuery = penaltiesQuery.in('rider_id', riderIds);
+        } else {
+          penaltiesQuery = penaltiesQuery.eq('rider_id', '00000000-0000-0000-0000-000000000000');
+        }
+
+        if (startDate) penaltiesQuery = penaltiesQuery.gte('created_at', startDate);
+        if (endDate) {
+          const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+          penaltiesQuery = penaltiesQuery.lt('created_at', endExclusive);
+        }
+
+        const { data: penalties, error: penaltiesError } = await penaltiesQuery;
+
+        if (penaltiesError) {
+          console.error('Error fetching penalties:', penaltiesError);
+          throw penaltiesError;
+        }
+
+        // Get payments (revenue) - filter by date range on paid_at
+        let paymentsQuery = supabase
+          .from('payments')
+          .select('amount, rider_id')
+          .eq('county_id', countyId)
+          .eq('status', 'completed');
+
+        if (riderIds.length > 0) {
+          paymentsQuery = paymentsQuery.in('rider_id', riderIds);
+        } else {
+          paymentsQuery = paymentsQuery.eq('rider_id', '00000000-0000-0000-0000-000000000000');
+        }
+
+        if (startDate) paymentsQuery = paymentsQuery.gte('paid_at', startDate);
+        if (endDate) {
+          const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+          paymentsQuery = paymentsQuery.lt('paid_at', endExclusive);
+        }
+
+        const { data: payments, error: paymentsError } = await paymentsQuery;
+
+        if (paymentsError) {
+          console.error('Error fetching payments:', paymentsError);
+          throw paymentsError;
+        }
+
+        // Map riders to saccos
+        const riderToSacco = new Map<string, string>();
+        riders?.forEach(rider => {
+          if (rider.sacco_id) {
+            riderToSacco.set(rider.id, rider.sacco_id);
+          }
         });
-      });
 
-      // Count riders and compliance
-      riders?.forEach((rider: any) => {
-        if (rider.sacco_id) {
-          const perf = saccoPerformance.get(rider.sacco_id);
-          if (perf) {
-            perf.totalRiders++;
-            if (rider.compliance_status === 'compliant') perf.compliant++;
+        // Calculate stats per sacco
+        const saccoPerformance = new Map<string, {
+          totalRiders: number;
+          compliant: number;
+          activePermits: number;
+          expiredPermits: number;
+          totalPenalties: number;
+          paidPenalties: number;
+          unpaidPenalties: number;
+          revenue: number;
+        }>();
+
+        saccos.forEach(sacco => {
+          saccoPerformance.set(sacco.id, {
+            totalRiders: 0,
+            compliant: 0,
+            activePermits: 0,
+            expiredPermits: 0,
+            totalPenalties: 0,
+            paidPenalties: 0,
+            unpaidPenalties: 0,
+            revenue: 0,
+          });
+        });
+
+        // Count riders and compliance
+        riders?.forEach((rider: any) => {
+          if (rider.sacco_id) {
+            const perf = saccoPerformance.get(rider.sacco_id);
+            if (perf) {
+              perf.totalRiders++;
+              if (rider.compliance_status === 'compliant') perf.compliant++;
+            }
           }
-        }
-      });
+        });
 
-      // Count permits
-      const now = new Date().toISOString();
-      permits?.forEach((permit: any) => {
-        const saccoId = riderToSacco.get(permit.rider_id);
-        if (saccoId) {
-          const perf = saccoPerformance.get(saccoId);
-          if (perf) {
-            if (permit.status === 'active') perf.activePermits++;
-            if (permit.status === 'expired' || (permit.expires_at && permit.expires_at < now)) perf.expiredPermits++;
+        // Count permits - check current status
+        const now = new Date().toISOString();
+        permits?.forEach((permit: any) => {
+          const saccoId = riderToSacco.get(permit.rider_id);
+          if (saccoId) {
+            const perf = saccoPerformance.get(saccoId);
+            if (perf) {
+              // Check if permit is currently active
+              if (permit.status === 'active' && permit.expires_at && permit.expires_at > now) {
+                perf.activePermits++;
+              }
+              // Check if permit is expired
+              if (permit.status === 'expired' || (permit.expires_at && permit.expires_at < now)) {
+                perf.expiredPermits++;
+              }
+            }
           }
-        }
-      });
+        });
 
-      // Count penalties
-      penalties?.forEach((penalty: any) => {
-        const saccoId = riderToSacco.get(penalty.rider_id);
-        if (saccoId) {
-          const perf = saccoPerformance.get(saccoId);
-          if (perf) {
-            perf.totalPenalties++;
-            if (penalty.is_paid) perf.paidPenalties++;
-            else perf.unpaidPenalties++;
+        // Count penalties
+        penalties?.forEach((penalty: any) => {
+          const saccoId = riderToSacco.get(penalty.rider_id);
+          if (saccoId) {
+            const perf = saccoPerformance.get(saccoId);
+            if (perf) {
+              perf.totalPenalties++;
+              if (penalty.is_paid) perf.paidPenalties++;
+              else perf.unpaidPenalties++;
+            }
           }
-        }
-      });
+        });
 
-      // Calculate revenue
-      payments?.forEach((payment: any) => {
-        const saccoId = riderToSacco.get(payment.rider_id);
-        if (saccoId) {
-          const perf = saccoPerformance.get(saccoId);
-          if (perf) {
-            perf.revenue += Number(payment.amount || 0);
+        // Calculate revenue
+        payments?.forEach((payment: any) => {
+          const saccoId = riderToSacco.get(payment.rider_id);
+          if (saccoId) {
+            const perf = saccoPerformance.get(saccoId);
+            if (perf) {
+              perf.revenue += Number(payment.amount || 0);
+            }
           }
-        }
-      });
+        });
 
-      return saccos.map(sacco => {
-        const perf = saccoPerformance.get(sacco.id) || {
-          totalRiders: 0,
-          compliant: 0,
-          activePermits: 0,
-          expiredPermits: 0,
-          totalPenalties: 0,
-          paidPenalties: 0,
-          unpaidPenalties: 0,
-          revenue: 0,
-        };
-        const complianceRate = perf.totalRiders > 0 ? Math.round((perf.compliant / perf.totalRiders) * 100) : 100;
-        return {
-          saccoId: sacco.id,
-          saccoName: sacco.name,
-          totalRiders: perf.totalRiders,
-          activePermits: perf.activePermits,
-          expiredPermits: perf.expiredPermits,
-          totalPenalties: perf.totalPenalties,
-          paidPenalties: perf.paidPenalties,
-          unpaidPenalties: perf.unpaidPenalties,
-          complianceRate,
-          revenue: perf.revenue,
-        };
-      }).filter(r => r.totalRiders > 0 || r.revenue > 0) as SaccoPerformanceReport[];
+        // Return all saccos with their performance data (don't filter out empty ones)
+        return saccos.map(sacco => {
+          const perf = saccoPerformance.get(sacco.id) || {
+            totalRiders: 0,
+            compliant: 0,
+            activePermits: 0,
+            expiredPermits: 0,
+            totalPenalties: 0,
+            paidPenalties: 0,
+            unpaidPenalties: 0,
+            revenue: 0,
+          };
+          const complianceRate = perf.totalRiders > 0 ? Math.round((perf.compliant / perf.totalRiders) * 100) : 0;
+          return {
+            saccoId: sacco.id,
+            saccoName: sacco.name,
+            totalRiders: perf.totalRiders,
+            activePermits: perf.activePermits,
+            expiredPermits: perf.expiredPermits,
+            totalPenalties: perf.totalPenalties,
+            paidPenalties: perf.paidPenalties,
+            unpaidPenalties: perf.unpaidPenalties,
+            complianceRate,
+            revenue: perf.revenue,
+          };
+        }) as SaccoPerformanceReport[];
+      } catch (error) {
+        console.error('Error in useSaccoPerformanceReport:', error);
+        return [];
+      }
     },
     enabled: !!countyId,
   });

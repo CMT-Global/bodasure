@@ -71,14 +71,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, roles, hasRole } = useAuth();
 
-  // Filter navigation items based on user roles
-  const filteredNavItems = navItems.filter((item) => {
-    // If no roles specified, show to all authenticated users
-    if (!item.roles || item.roles.length === 0) return true;
-    
-    // Check if user has any of the required roles
-    return item.roles.some(role => hasRole(role));
-  });
+  // Show all pages only to platform_super_admin and county_super_admin
+  const canSeeAllPages = hasRole('platform_super_admin') || hasRole('county_super_admin');
+  const filteredNavItems = canSeeAllPages
+    ? navItems
+    : [];
 
   const handleSignOut = async () => {
     await signOut();
@@ -180,31 +177,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main content */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="flex-shrink-0 z-30 flex h-16 items-center justify-end gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <header className="sticky top-0 flex-shrink-0 z-30 flex h-16 items-center justify-between gap-2 sm:gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 sm:px-4 lg:px-6">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden mr-auto min-h-[44px] min-w-[44px]"
+            className="lg:hidden min-h-[44px] min-w-[44px]"
             onClick={() => setIsMobileOpen(true)}
           >
             <Menu className="h-6 w-6" />
           </Button>
 
-          {/* Search - Removed */}
-          {/* <div className="hidden md:flex flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="search"
-                placeholder="Search riders, bikes, payments..."
-                className="h-9 w-full rounded-lg border border-input bg-muted/50 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-          </div> */}
+          {/* Spacer to push right side content to the right */}
+          <div className="flex-1" />
 
-          {/* Right side */}
-          <div className="flex items-center gap-2">
+          {/* Right side - fixed on the right */}
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
             {/* Notifications */}
             <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
               <Bell className="h-5 w-5" />
@@ -213,35 +201,33 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </span>
             </Button>
 
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6 hidden sm:block" />
 
             {/* User menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2 min-h-[44px]">
-                  <Avatar className="h-9 w-9 sm:h-8 sm:w-8">
+                <Button variant="ghost" className="flex items-center gap-1 sm:gap-2 md:gap-3 px-1 sm:px-2 min-h-[44px]">
+                  <Avatar className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10">
                     <AvatarImage src={profile?.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                       {getInitials(profile?.full_name)}
                     </AvatarFallback>
                   </Avatar>
-                  {!isCollapsed && (
-                    <div className="hidden md:flex flex-col items-start text-left">
-                      <span className="text-sm font-medium truncate max-w-[120px]">{profile?.full_name || 'User'}</span>
-                      <span className="text-xs text-muted-foreground truncate max-w-[120px]">{profile?.email}</span>
-                    </div>
-                  )}
+                  <div className="hidden md:flex flex-col items-start text-left">
+                    <span className="text-sm font-medium truncate max-w-[140px] md:max-w-[160px]">{profile?.full_name || 'User'}</span>
+                    <span className="text-xs text-muted-foreground truncate max-w-[140px] md:max-w-[160px]">{profile?.email}</span>
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
+                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive min-h-[44px]">
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
                 </DropdownMenuItem>
@@ -252,7 +238,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6">
-          <div className="w-full max-w-full">
+          <div className="w-full max-w-full mx-auto">
             {children}
           </div>
         </main>

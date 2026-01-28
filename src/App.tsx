@@ -43,11 +43,11 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
 
-            {/* Protected dashboard routes */}
+            {/* Protected dashboard routes — platform_super_admin and county_super_admin only */}
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <Dashboard />
                 </ProtectedRoute>
               }
@@ -55,7 +55,7 @@ const App = () => (
             <Route
               path="/dashboard/riders"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <RidersPage />
                 </ProtectedRoute>
               }
@@ -63,7 +63,7 @@ const App = () => (
             <Route
               path="/dashboard/registration-management"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <RegistrationManagementPage />
                 </ProtectedRoute>
               }
@@ -71,7 +71,7 @@ const App = () => (
             <Route
               path="/dashboard/motorbikes"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <MotorbikesPage />
                 </ProtectedRoute>
               }
@@ -79,7 +79,7 @@ const App = () => (
             <Route
               path="/dashboard/owners"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <OwnersPage />
                 </ProtectedRoute>
               }
@@ -87,7 +87,7 @@ const App = () => (
             <Route
               path="/dashboard/saccos"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <SaccosPage />
                 </ProtectedRoute>
               }
@@ -95,7 +95,7 @@ const App = () => (
             <Route
               path="/dashboard/stages"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <StagesPage />
                 </ProtectedRoute>
               }
@@ -103,7 +103,7 @@ const App = () => (
             <Route
               path="/dashboard/permits"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <PermitsPage />
                 </ProtectedRoute>
               }
@@ -111,7 +111,7 @@ const App = () => (
             <Route
               path="/dashboard/payments"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <PaymentsPage />
                 </ProtectedRoute>
               }
@@ -119,7 +119,7 @@ const App = () => (
             <Route
               path="/dashboard/penalties"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <PenaltiesPage />
                 </ProtectedRoute>
               }
@@ -127,7 +127,7 @@ const App = () => (
             <Route
               path="/dashboard/verification"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <VerificationPage />
                 </ProtectedRoute>
               }
@@ -135,7 +135,7 @@ const App = () => (
             <Route
               path="/dashboard/reports"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <ReportsPage />
                 </ProtectedRoute>
               }
@@ -143,7 +143,7 @@ const App = () => (
             <Route
               path="/dashboard/settings"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <SettingsPage />
                 </ProtectedRoute>
               }
@@ -151,7 +151,7 @@ const App = () => (
             <Route
               path="/dashboard/users"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <UsersPage />
                 </ProtectedRoute>
               }

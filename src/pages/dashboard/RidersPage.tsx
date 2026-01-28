@@ -97,53 +97,55 @@ export default function RidersPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Riders</h1>
-            <p className="text-muted-foreground">
-              Manage registered riders • {filteredRiders.length} total
-            </p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold sm:text-3xl">Riders</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">
+                Manage registered riders • {filteredRiders.length} total
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+              <Button onClick={handleAdd} className="glow-primary min-h-[44px] flex-1 sm:flex-initial">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Rider
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <Button onClick={handleAdd} className="glow-primary">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Rider
-            </Button>
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[150px] min-h-[44px]">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={complianceFilter} onValueChange={setComplianceFilter}>
+              <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
+                <SelectValue placeholder="Compliance" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Compliance</SelectItem>
+                <SelectItem value="compliant">Compliant</SelectItem>
+                <SelectItem value="non_compliant">Non-Compliant</SelectItem>
+                <SelectItem value="pending_review">Under Review</SelectItem>
+                <SelectItem value="blacklisted">Blacklisted</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={complianceFilter} onValueChange={setComplianceFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Compliance" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Compliance</SelectItem>
-              <SelectItem value="compliant">Compliant</SelectItem>
-              <SelectItem value="non_compliant">Non-Compliant</SelectItem>
-              <SelectItem value="pending_review">Under Review</SelectItem>
-              <SelectItem value="blacklisted">Blacklisted</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Data Table */}

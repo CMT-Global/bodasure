@@ -61,10 +61,17 @@ import {
 // Helper to get penalty status
 function getPenaltyStatus(penalty: PenaltyWithRepeatInfo): 'unpaid' | 'paid' | 'waived' {
   if (penalty.is_paid) {
-    // Check if waived (we can use payment_id being null but paid, or add a flag)
-    // For now, we'll assume if paid_at exists and payment_id is null, it might be waived
-    // In production, you'd want a proper waived field
-    return penalty.payment_id ? 'paid' : 'waived';
+    // If there's a payment_id, it's a real payment
+    if (penalty.payment_id) {
+      return 'paid';
+    }
+    // If payment_id is null, check if it was waived (marked in description)
+    // Waived penalties have "[WAIVED]" marker in description
+    if (penalty.description && penalty.description.includes('[WAIVED]')) {
+      return 'waived';
+    }
+    // Otherwise, it's admin-marked as complete/paid
+    return 'paid';
   }
   return 'unpaid';
 }
@@ -102,24 +109,34 @@ export default function PenaltiesPage() {
   const updatePenaltyStatus = useUpdatePenaltyStatus();
   const waivePenalty = useWaivePenalty();
   const updateRiderStatus = useUpdateRiderStatus();
-  const checkExpiredPermits = useCheckExpiredPermits();
-
+  
   // Get county_id from profile or first role
   const countyId = useMemo(() => {
     return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
   }, [profile, roles]);
+  
+  const checkExpiredPermits = useCheckExpiredPermits(countyId);
 
   const { data: penalties = [], isLoading } = usePenalties(countyId);
 
-  // Check if user is enforcement officer or admin
-  const canIssuePenalties = hasRole('county_enforcement_officer') || hasRole('county_admin') || hasRole('county_super_admin');
-  const isAdmin = hasRole('county_admin') || hasRole('county_super_admin');
+  // Platform/county super admins have full rights; enforcement officer and county admin can also issue
+  const canIssuePenalties = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_enforcement_officer') || hasRole('county_admin');
+  const isAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
 
   // Calculate stats
   const stats = useMemo(() => {
     const unpaid = penalties.filter(p => !p.is_paid).length;
-    const paid = penalties.filter(p => p.is_paid && p.payment_id).length;
-    const waived = penalties.filter(p => p.is_paid && !p.payment_id).length;
+    // Paid: has payment_id OR is_paid without [WAIVED] marker
+    const paid = penalties.filter(p => {
+      if (!p.is_paid) return false;
+      if (p.payment_id) return true; // Real payment
+      // Admin-completed (no payment_id but not waived)
+      return !(p.description && p.description.includes('[WAIVED]'));
+    }).length;
+    // Waived: is_paid with [WAIVED] marker in description
+    const waived = penalties.filter(p => {
+      return p.is_paid && p.description && p.description.includes('[WAIVED]');
+    }).length;
     const repeatOffenders = new Set(
       penalties.filter(p => p.repeat_offender).map(p => p.rider_id)
     ).size;
@@ -361,24 +378,25 @@ export default function PenaltiesPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Penalties</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl font-bold sm:text-3xl">Penalties</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Manage fines and violations • {filteredPenalties.length} penalties
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleCheckExpired}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={handleCheckExpired} className="min-h-[44px] flex-1 sm:flex-initial">
               <RefreshCw className="mr-2 h-4 w-4" />
-              Check Expired Permits
+              <span className="hidden sm:inline">Check Expired Permits</span>
+              <span className="sm:hidden">Check Expired</span>
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
             {canIssuePenalties && (
-              <Button onClick={() => setIsIssuanceOpen(true)} className="glow-primary">
+              <Button onClick={() => setIsIssuanceOpen(true)} className="glow-primary min-h-[44px] flex-1 sm:flex-initial">
                 <Plus className="mr-2 h-4 w-4" />
                 Issue Penalty
               </Button>
@@ -387,65 +405,67 @@ export default function PenaltiesPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unpaid</CardTitle>
-              <XCircle className="h-4 w-4 text-red-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Unpaid</CardTitle>
+              <XCircle className="h-4 w-4 text-red-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-500">{stats.unpaid}</div>
-              <p className="text-xs text-muted-foreground">
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold text-red-500">{stats.unpaid}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                 {new Intl.NumberFormat('en-KE', {
                   style: 'currency',
                   currency: 'KES',
+                  maximumFractionDigits: 0,
                 }).format(stats.totalAmount)} outstanding
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Paid</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Paid</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-500">{stats.paid}</div>
-              <p className="text-xs text-muted-foreground">settled</p>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold text-green-500">{stats.paid}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">settled</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Waived</CardTitle>
-              <Shield className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Waived</CardTitle>
+              <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.waived}</div>
-              <p className="text-xs text-muted-foreground">admin waived</p>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold">{stats.waived}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">admin waived</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Repeat Offenders</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Repeat Offenders</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-500">{stats.repeatOffenders}</div>
-              <p className="text-xs text-muted-foreground">multiple violations</p>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold text-yellow-500">{stats.repeatOffenders}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">multiple violations</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
-              <Clock className="h-4 w-4 text-primary" />
+          <Card className="col-span-2 md:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Total Outstanding</CardTitle>
+              <Clock className="h-4 w-4 text-primary shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold text-primary">
                 {new Intl.NumberFormat('en-KE', {
                   style: 'currency',
                   currency: 'KES',
+                  maximumFractionDigits: 0,
                 }).format(stats.totalAmount)}
               </div>
-              <p className="text-xs text-muted-foreground">unpaid amount</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">unpaid amount</p>
             </CardContent>
           </Card>
         </div>
@@ -456,18 +476,18 @@ export default function PenaltiesPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by rider name, phone, ID, penalty type, or description..."
+              placeholder="Search by rider name, phone, ID, penalty type..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 min-h-[44px] text-base sm:text-sm"
             />
           </div>
 
           {/* Filter Row */}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <Filter className="mr-2 h-4 w-4" />
+              <SelectTrigger className="w-full sm:w-[150px] min-h-[44px]">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -479,15 +499,13 @@ export default function PenaltiesPage() {
             </Select>
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[265px]">
+              <SelectTrigger className="w-full sm:w-[265px] min-h-[44px]">
                 <SelectValue placeholder="Penalty Type" />
               </SelectTrigger>
-              <SelectContent className="min-w-[265px]">
-                <SelectItem value="all" className="whitespace-nowrap justify-center text-center pl-2 pr-2">
-                  All Types
-                </SelectItem>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                <SelectItem value="all">All Types</SelectItem>
                 {PENALTY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type} className="whitespace-nowrap justify-center text-center pl-2 pr-2">
+                  <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>
                 ))}
@@ -495,7 +513,7 @@ export default function PenaltiesPage() {
             </Select>
 
             <Select value={repeatOffenderFilter} onValueChange={setRepeatOffenderFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
                 <SelectValue placeholder="Offender Type" />
               </SelectTrigger>
               <SelectContent>

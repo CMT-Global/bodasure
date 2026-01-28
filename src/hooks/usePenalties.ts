@@ -271,15 +271,27 @@ export function useWaivePenalty() {
   
   return useMutation({
     mutationFn: async (penaltyId: string) => {
-      // For now, we'll mark as paid with a special payment_id or use metadata
-      // In a real system, you'd want a separate 'waived' status field
+      // First, get the current penalty to preserve its description
+      const { data: currentPenalty, error: fetchError } = await supabase
+        .from('penalties')
+        .select('description')
+        .eq('id', penaltyId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Add [WAIVED] marker to description to distinguish from admin-completed
+      const updatedDescription = currentPenalty?.description 
+        ? `${currentPenalty.description} [WAIVED]`
+        : '[WAIVED]';
+
       const { data, error } = await supabase
         .from('penalties')
         .update({
           is_paid: true,
           paid_at: new Date().toISOString(),
-          // We can use a special payment_id pattern or add metadata
-          // For now, we'll use a flag in description or add a waived field
+          description: updatedDescription,
+          payment_id: null, // Ensure payment_id is null for waived penalties
         })
         .eq('id', penaltyId)
         .select()

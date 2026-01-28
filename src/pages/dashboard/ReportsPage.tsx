@@ -45,9 +45,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export default function ReportsPage() {
   const { profile, roles } = useAuth();
   
-  // Get county_id from profile or first role
+  // Get county_id from profile or first role (same fallback as Penalties page)
   const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
   }, [profile, roles]);
 
   // Date range state
@@ -851,6 +851,446 @@ export default function ReportsPage() {
     },
   ];
 
+  // Mobile card renderers for tables
+  const renderDateRangeCard = (item: RevenueByDateRange) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-sm">{format(new Date(item.date), 'MMM dd, yyyy')}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Permit Revenue:</span>
+            <span>KES {item.permitRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Penalty Revenue:</span>
+            <span>KES {item.penaltyRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Total Revenue:</span>
+            <span className="font-semibold">KES {item.totalRevenue.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderSaccoCard = (item: RevenueBySacco) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.saccoName}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Riders:</span>
+            <span>{item.riderCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Permit Revenue:</span>
+            <span>KES {item.permitRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Penalty Revenue:</span>
+            <span>KES {item.penaltyRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Total Revenue:</span>
+            <span className="font-semibold">KES {item.totalRevenue.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderStageCard = (item: RevenueByStage) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.stageName}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Sacco:</span>
+            <span>{item.saccoName || '-'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Riders:</span>
+            <span>{item.riderCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Permit Revenue:</span>
+            <span>KES {item.permitRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Penalty Revenue:</span>
+            <span>KES {item.penaltyRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Total Revenue:</span>
+            <span className="font-semibold">KES {item.totalRevenue.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPermitTypeCard = (item: RevenueByPermitType) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.permitTypeName}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Count:</span>
+            <span>{item.count}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Average Amount:</span>
+            <span>KES {item.averageAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Total Revenue:</span>
+            <span className="font-semibold">KES {item.totalRevenue.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPenaltyCard = (item: PenaltyRevenueBreakdown) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.penaltyType}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Count:</span>
+            <span>{item.count}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Paid:</span>
+            <Badge variant="default" className="bg-green-600 text-xs">{item.paidCount}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Unpaid:</span>
+            <Badge variant="destructive" className="text-xs">{item.unpaidCount}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Amount:</span>
+            <span>KES {item.totalAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-green-600">Paid Amount:</span>
+            <span className="text-green-600 font-medium">KES {item.paidAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-red-600">Unpaid Amount:</span>
+            <span className="text-red-600 font-medium">KES {item.unpaidAmount.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRegistrationCard = (item: RegistrationReport) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-sm">{format(new Date(item.date), 'MMM dd, yyyy')}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total:</span>
+            <span>{item.totalRegistrations}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Approved:</span>
+            <Badge variant="default" className="bg-green-600 text-xs">{item.approved}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pending:</span>
+            <Badge variant="secondary" className="text-xs">{item.pending}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Rejected:</span>
+            <Badge variant="destructive" className="text-xs">{item.rejected}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Suspended:</span>
+            <Badge variant="outline" className="text-xs">{item.suspended}</Badge>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPaymentCard = (item: PaymentReport) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-sm">{format(new Date(item.date), 'MMM dd, yyyy')}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Payments:</span>
+            <span>{item.totalPayments}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Completed:</span>
+            <Badge variant="default" className="bg-green-600 text-xs">{item.completed}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Failed:</span>
+            <Badge variant="destructive" className="text-xs">{item.failed}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pending:</span>
+            <Badge variant="secondary" className="text-xs">{item.pending}</Badge>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Total Amount:</span>
+            <span className="font-semibold">KES {item.totalAmount.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPenaltyReportCard = (item: PenaltyReport) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-sm">{format(new Date(item.date), 'MMM dd, yyyy')}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Penalties:</span>
+            <span>{item.totalPenalties}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Paid:</span>
+            <Badge variant="default" className="bg-green-600 text-xs">{item.paid}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Unpaid:</span>
+            <Badge variant="destructive" className="text-xs">{item.unpaid}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Amount:</span>
+            <span>KES {item.totalAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-green-600">Paid Amount:</span>
+            <span className="text-green-600 font-medium">KES {item.paidAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-red-600">Unpaid Amount:</span>
+            <span className="text-red-600 font-medium">KES {item.unpaidAmount.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderComplianceCard = (item: ComplianceReport) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.saccoName}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Riders:</span>
+            <span>{item.totalRiders}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Compliant:</span>
+            <Badge variant="default" className="bg-green-600 text-xs">{item.compliant}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Non-Compliant:</span>
+            <Badge variant="destructive" className="text-xs">{item.nonCompliant}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pending Review:</span>
+            <Badge variant="secondary" className="text-xs">{item.pendingReview}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Blacklisted:</span>
+            <Badge variant="outline" className="text-xs">{item.blacklisted}</Badge>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Compliance Rate:</span>
+            <span className={`font-semibold ${item.complianceRate >= 80 ? 'text-green-600' : item.complianceRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {item.complianceRate}%
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderSaccoPerformanceCard = (item: SaccoPerformanceReport) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.saccoName}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Riders:</span>
+            <span>{item.totalRiders}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Active Permits:</span>
+            <Badge variant="default" className="bg-green-600 text-xs">{item.activePermits}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Expired Permits:</span>
+            <Badge variant="destructive" className="text-xs">{item.expiredPermits}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Penalties:</span>
+            <span>{item.totalPenalties}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-green-600">Paid:</span>
+            <span className="text-green-600">{item.paidPenalties}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-red-600">Unpaid:</span>
+            <span className="text-red-600">{item.unpaidPenalties}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Compliance Rate:</span>
+            <span className={`font-semibold ${item.complianceRate >= 80 ? 'text-green-600' : item.complianceRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {item.complianceRate}%
+            </span>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Revenue:</span>
+            <span className="font-semibold">KES {item.revenue.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRevenueShareCard = (item: RevenueShare) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-sm">{format(new Date(item.created_at), 'MMM dd, yyyy')}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{item.sacco_name || 'Unknown'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Share Type:</span>
+            <Badge variant="outline" className="text-xs">
+              {item.share_type === 'percentage' ? 'Percentage' : item.share_type === 'fixed_per_rider' ? 'Fixed per Rider' : 'None'}
+            </Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Base Amount:</span>
+            <span>KES {Number(item.base_amount).toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Percentage:</span>
+            <span>{item.percentage ? `${item.percentage}%` : '-'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Status:</span>
+            <Badge variant={item.status === 'distributed' ? 'default' : item.status === 'cancelled' ? 'destructive' : 'secondary'} className="text-xs">
+              {item.status}
+            </Badge>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold text-green-600">Share Amount:</span>
+            <span className="font-semibold text-green-600">KES {Number(item.share_amount).toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRevenueShareBySaccoCard = (item: RevenueShareBySacco) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{item.saccoName}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Share Type:</span>
+            <Badge variant="outline" className="text-xs">
+              {item.shareType === 'percentage' ? 'Percentage' : item.shareType === 'fixed_per_rider' ? 'Fixed per Rider' : 'None'}
+            </Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total Shares:</span>
+            <span>{item.totalShares}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-amber-600">Pending:</span>
+            <span className="text-amber-600">KES {item.pendingAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-green-600">Distributed:</span>
+            <span className="text-green-600">KES {item.distributedAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t">
+            <span className="font-semibold">Total Amount:</span>
+            <span className="font-semibold">KES {item.totalAmount.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderAuditLogCard = (item: UserActivityLog) => (
+    <Card className="w-full">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-xs">{format(new Date(item.created_at), 'MMM dd, yyyy HH:mm')}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div>
+            <p className="font-medium">{item.user?.full_name || item.user?.email || 'System'}</p>
+            {item.user?.email && <p className="text-muted-foreground text-xs">{item.user.email}</p>}
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Action:</span>
+            <Badge variant="outline" className="text-xs">{item.action}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Entity Type:</span>
+            <span>{item.entity_type}</span>
+          </div>
+          {item.entity_id && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Entity ID:</span>
+              <span className="text-xs font-mono">{item.entity_id.slice(0, 8)}...</span>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   // Helper function to create export buttons
   const ExportButtons = ({ data, filename, title, disabled = false }: { data: any[], filename: string, title?: string, disabled?: boolean }) => {
     return (
@@ -903,39 +1343,41 @@ export default function ReportsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Reports, Exports & Audit Logs</h1>
-            <p className="text-muted-foreground">Comprehensive reports, exports, and activity tracking</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Reports, Exports & Audit Logs</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Comprehensive reports, exports, and activity tracking</p>
           </div>
         </div>
 
         {/* Date Range Filter */}
         <Card>
-          <CardHeader>
-            <CardTitle>Date Range Filter</CardTitle>
-            <CardDescription>Select the date range for revenue analysis</CardDescription>
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="text-base sm:text-lg">Date Range Filter</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Select the date range for revenue analysis</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4 items-end">
-              <div className="space-y-2 flex-1">
-                <Label>Start Date</Label>
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
+              <div className="space-y-2 flex-1 w-full">
+                <Label className="text-sm">Start Date</Label>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  className="min-h-[44px] text-base"
                 />
               </div>
-              <div className="space-y-2 flex-1">
-                <Label>End Date</Label>
+              <div className="space-y-2 flex-1 w-full">
+                <Label className="text-sm">End Date</Label>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  className="min-h-[44px] text-base"
                 />
               </div>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto min-h-[44px]">
                 <Calendar className="mr-2 h-4 w-4" />
                 Apply Filter
               </Button>
@@ -944,14 +1386,14 @@ export default function ReportsPage() {
         </Card>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Total Revenue</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">KES {totalRevenue.toLocaleString()}</div>
+              <div className="text-xl sm:text-2xl font-bold">KES {totalRevenue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {format(new Date(startDate), 'MMM dd')} - {format(new Date(endDate), 'MMM dd, yyyy')}
               </p>
@@ -959,11 +1401,11 @@ export default function ReportsPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Permit Revenue</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Permit Revenue</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">KES {totalPermitRevenue.toLocaleString()}</div>
+              <div className="text-xl sm:text-2xl font-bold">KES {totalPermitRevenue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {totalPermitRevenue > 0 ? ((totalPermitRevenue / totalRevenue) * 100).toFixed(1) : 0}% of total
               </p>
@@ -971,11 +1413,11 @@ export default function ReportsPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Penalty Revenue</CardTitle>
+              <CardTitle className="text-xs sm:text-sm font-medium">Penalty Revenue</CardTitle>
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">KES {totalPenaltyRevenue.toLocaleString()}</div>
+              <div className="text-xl sm:text-2xl font-bold">KES {totalPenaltyRevenue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {totalPenaltyRevenue > 0 ? ((totalPenaltyRevenue / totalRevenue) * 100).toFixed(1) : 0}% of total
               </p>
@@ -984,68 +1426,68 @@ export default function ReportsPage() {
         </div>
 
         {/* Reports Tabs */}
-        <Tabs defaultValue="revenue" className="space-y-6">
-          <TabsList className="flex w-full flex-wrap gap-1 sm:gap-2">
-            <TabsTrigger value="revenue" className="flex-1 min-w-[120px] sm:flex-initial">
-              <DollarSign className="mr-1 sm:mr-2 h-4 w-4" />
+        <Tabs defaultValue="revenue" className="space-y-4 sm:space-y-6">
+          <TabsList className="flex w-full flex-wrap gap-1 sm:gap-2 h-auto p-1">
+            <TabsTrigger value="revenue" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <DollarSign className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Revenue</span>
               <span className="sm:hidden">Rev</span>
             </TabsTrigger>
-            <TabsTrigger value="registrations" className="flex-1 min-w-[120px] sm:flex-initial">
-              <Users className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="registrations" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <Users className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Registrations</span>
               <span className="sm:hidden">Reg</span>
             </TabsTrigger>
-            <TabsTrigger value="payments" className="flex-1 min-w-[120px] sm:flex-initial">
-              <FileText className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="payments" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <FileText className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Payments</span>
               <span className="sm:hidden">Pay</span>
             </TabsTrigger>
-            <TabsTrigger value="penalties" className="flex-1 min-w-[120px] sm:flex-initial">
-              <AlertTriangle className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="penalties" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <AlertTriangle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Penalties</span>
               <span className="sm:hidden">Pen</span>
             </TabsTrigger>
-            <TabsTrigger value="compliance" className="flex-1 min-w-[120px] sm:flex-initial">
-              <CheckCircle className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="compliance" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <CheckCircle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Compliance</span>
               <span className="sm:hidden">Comp</span>
             </TabsTrigger>
-            <TabsTrigger value="sacco-performance" className="flex-1 min-w-[120px] sm:flex-initial">
-              <Building2 className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="sacco-performance" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <Building2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Sacco Performance</span>
               <span className="sm:hidden">Sacco</span>
             </TabsTrigger>
-            <TabsTrigger value="revenue-shares" className="flex-1 min-w-[120px] sm:flex-initial">
-              <Share2 className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="revenue-shares" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <Share2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Revenue Shares</span>
               <span className="sm:hidden">Shares</span>
             </TabsTrigger>
-            <TabsTrigger value="audit-logs" className="flex-1 min-w-[120px] sm:flex-initial">
-              <Activity className="mr-1 sm:mr-2 h-4 w-4" />
+            <TabsTrigger value="audit-logs" className="flex-1 min-w-[80px] sm:flex-initial min-h-[44px] text-xs sm:text-sm">
+              <Activity className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Audit Logs</span>
               <span className="sm:hidden">Audit</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Revenue Reports Tab */}
-          <TabsContent value="revenue" className="space-y-6">
+          <TabsContent value="revenue" className="space-y-4 sm:space-y-6">
             <Tabs defaultValue="date-range" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="date-range">By Date</TabsTrigger>
-                <TabsTrigger value="sacco">By Sacco</TabsTrigger>
-                <TabsTrigger value="stage">By Stage</TabsTrigger>
-                <TabsTrigger value="permit-type">By Permit Type</TabsTrigger>
+              <TabsList className="flex w-full flex-wrap gap-1 sm:gap-2 h-auto p-1">
+                <TabsTrigger value="date-range" className="flex-1 sm:flex-initial min-h-[44px] text-xs sm:text-sm">By Date</TabsTrigger>
+                <TabsTrigger value="sacco" className="flex-1 sm:flex-initial min-h-[44px] text-xs sm:text-sm">By Sacco</TabsTrigger>
+                <TabsTrigger value="stage" className="flex-1 sm:flex-initial min-h-[44px] text-xs sm:text-sm">By Stage</TabsTrigger>
+                <TabsTrigger value="permit-type" className="flex-1 sm:flex-initial min-h-[44px] text-xs sm:text-sm">By Permit Type</TabsTrigger>
               </TabsList>
 
               {/* Revenue by Date Range */}
               <TabsContent value="date-range">
                 <Card>
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <CardHeader className="pb-3 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       <div>
-                        <CardTitle>Revenue by Date Range</CardTitle>
-                        <CardDescription>Daily revenue breakdown for the selected period</CardDescription>
+                        <CardTitle className="text-base sm:text-lg">Revenue by Date Range</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">Daily revenue breakdown for the selected period</CardDescription>
                       </div>
                       <ExportButtons 
                         data={revenueByDate} 
@@ -1060,6 +1502,7 @@ export default function ReportsPage() {
                       data={revenueByDate}
                       isLoading={loadingDate}
                       searchPlaceholder="Search dates..."
+                      mobileCardRender={renderDateRangeCard}
                     />
                   </CardContent>
                 </Card>
@@ -1068,11 +1511,11 @@ export default function ReportsPage() {
               {/* Revenue by Sacco */}
               <TabsContent value="sacco">
                 <Card>
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <CardHeader className="pb-3 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       <div>
-                        <CardTitle>Revenue by Sacco</CardTitle>
-                        <CardDescription>Revenue breakdown by Sacco organization</CardDescription>
+                        <CardTitle className="text-base sm:text-lg">Revenue by Sacco</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">Revenue breakdown by Sacco organization</CardDescription>
                       </div>
                       <ExportButtons 
                         data={revenueBySacco} 
@@ -1087,6 +1530,7 @@ export default function ReportsPage() {
                       data={revenueBySacco}
                       isLoading={loadingSacco}
                       searchPlaceholder="Search saccos..."
+                      mobileCardRender={renderSaccoCard}
                     />
                   </CardContent>
                 </Card>
@@ -1095,11 +1539,11 @@ export default function ReportsPage() {
               {/* Revenue by Stage */}
               <TabsContent value="stage">
                 <Card>
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <CardHeader className="pb-3 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       <div>
-                        <CardTitle>Revenue by Stage</CardTitle>
-                        <CardDescription>Revenue breakdown by stage location</CardDescription>
+                        <CardTitle className="text-base sm:text-lg">Revenue by Stage</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">Revenue breakdown by stage location</CardDescription>
                       </div>
                       <ExportButtons 
                         data={revenueByStage} 
@@ -1114,6 +1558,7 @@ export default function ReportsPage() {
                       data={revenueByStage}
                       isLoading={loadingStage}
                       searchPlaceholder="Search stages..."
+                      mobileCardRender={renderStageCard}
                     />
                   </CardContent>
                 </Card>
@@ -1122,11 +1567,11 @@ export default function ReportsPage() {
               {/* Revenue by Permit Type */}
               <TabsContent value="permit-type">
                 <Card>
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <CardHeader className="pb-3 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       <div>
-                        <CardTitle>Revenue by Permit Type</CardTitle>
-                        <CardDescription>Revenue breakdown by permit type</CardDescription>
+                        <CardTitle className="text-base sm:text-lg">Revenue by Permit Type</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">Revenue breakdown by permit type</CardDescription>
                       </div>
                       <ExportButtons 
                         data={revenueByPermitType} 
@@ -1141,6 +1586,7 @@ export default function ReportsPage() {
                       data={revenueByPermitType}
                       isLoading={loadingPermitType}
                       searchPlaceholder="Search permit types..."
+                      mobileCardRender={renderPermitTypeCard}
                     />
                   </CardContent>
                 </Card>
@@ -1151,11 +1597,11 @@ export default function ReportsPage() {
           {/* Registrations Report Tab */}
           <TabsContent value="registrations">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div>
-                    <CardTitle>Registration Report</CardTitle>
-                    <CardDescription>Daily registration breakdown by status</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">Registration Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Daily registration breakdown by status</CardDescription>
                   </div>
                   <ExportButtons 
                     data={registrationReport} 
@@ -1170,6 +1616,7 @@ export default function ReportsPage() {
                   data={registrationReport}
                   isLoading={loadingRegistration}
                   searchPlaceholder="Search dates..."
+                  mobileCardRender={renderRegistrationCard}
                 />
               </CardContent>
             </Card>
@@ -1178,11 +1625,11 @@ export default function ReportsPage() {
           {/* Payments Report Tab */}
           <TabsContent value="payments">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div>
-                    <CardTitle>Payment Report</CardTitle>
-                    <CardDescription>Daily payment breakdown by status</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">Payment Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Daily payment breakdown by status</CardDescription>
                   </div>
                   <ExportButtons 
                     data={paymentReport} 
@@ -1197,6 +1644,7 @@ export default function ReportsPage() {
                   data={paymentReport}
                   isLoading={loadingPayment}
                   searchPlaceholder="Search dates..."
+                  mobileCardRender={renderPaymentCard}
                 />
               </CardContent>
             </Card>
@@ -1205,11 +1653,11 @@ export default function ReportsPage() {
           {/* Penalties Report Tab */}
           <TabsContent value="penalties">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div>
-                    <CardTitle>Penalty Report</CardTitle>
-                    <CardDescription>Daily penalty breakdown by payment status</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">Penalty Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Daily penalty breakdown by payment status</CardDescription>
                   </div>
                   <ExportButtons 
                     data={penaltyReport} 
@@ -1224,6 +1672,7 @@ export default function ReportsPage() {
                   data={penaltyReport}
                   isLoading={loadingPenaltyReport}
                   searchPlaceholder="Search dates..."
+                  mobileCardRender={renderPenaltyReportCard}
                 />
               </CardContent>
             </Card>
@@ -1232,11 +1681,11 @@ export default function ReportsPage() {
           {/* Compliance Report Tab */}
           <TabsContent value="compliance">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div>
-                    <CardTitle>Compliance Report</CardTitle>
-                    <CardDescription>Compliance breakdown by Sacco</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">Compliance Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Compliance breakdown by Sacco</CardDescription>
                   </div>
                   <ExportButtons 
                     data={complianceReport} 
@@ -1251,6 +1700,7 @@ export default function ReportsPage() {
                   data={complianceReport}
                   isLoading={loadingCompliance}
                   searchPlaceholder="Search saccos..."
+                  mobileCardRender={renderComplianceCard}
                 />
               </CardContent>
             </Card>
@@ -1259,11 +1709,11 @@ export default function ReportsPage() {
           {/* Sacco Performance Report Tab */}
           <TabsContent value="sacco-performance">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div>
-                    <CardTitle>Sacco Performance Report</CardTitle>
-                    <CardDescription>Comprehensive performance metrics by Sacco</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">Sacco Performance Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Comprehensive performance metrics by Sacco</CardDescription>
                   </div>
                   <ExportButtons 
                     data={saccoPerformanceReport} 
@@ -1278,27 +1728,28 @@ export default function ReportsPage() {
                   data={saccoPerformanceReport}
                   isLoading={loadingSaccoPerformance}
                   searchPlaceholder="Search saccos..."
+                  mobileCardRender={renderSaccoPerformanceCard}
                 />
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Revenue Shares Tab */}
-          <TabsContent value="revenue-shares" className="space-y-6">
+          <TabsContent value="revenue-shares" className="space-y-4 sm:space-y-6">
             <Tabs defaultValue="by-sacco" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="by-sacco">By Sacco</TabsTrigger>
-                <TabsTrigger value="detailed">Detailed View</TabsTrigger>
+              <TabsList className="flex w-full flex-wrap gap-1 sm:gap-2 h-auto p-1">
+                <TabsTrigger value="by-sacco" className="flex-1 sm:flex-initial min-h-[44px] text-xs sm:text-sm">By Sacco</TabsTrigger>
+                <TabsTrigger value="detailed" className="flex-1 sm:flex-initial min-h-[44px] text-xs sm:text-sm">Detailed View</TabsTrigger>
               </TabsList>
 
               {/* Revenue Shares by Sacco */}
               <TabsContent value="by-sacco">
                 <Card>
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <CardHeader className="pb-3 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       <div>
-                        <CardTitle>Revenue Shares by Sacco</CardTitle>
-                        <CardDescription>Aggregated revenue share breakdown by Sacco organization</CardDescription>
+                        <CardTitle className="text-base sm:text-lg">Revenue Shares by Sacco</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">Aggregated revenue share breakdown by Sacco organization</CardDescription>
                       </div>
                       <ExportButtons 
                         data={revenueSharesBySacco} 
@@ -1313,6 +1764,7 @@ export default function ReportsPage() {
                       data={revenueSharesBySacco}
                       isLoading={loadingRevenueSharesBySacco}
                       searchPlaceholder="Search saccos..."
+                      mobileCardRender={renderRevenueShareBySaccoCard}
                     />
                   </CardContent>
                 </Card>
@@ -1321,11 +1773,11 @@ export default function ReportsPage() {
               {/* Detailed Revenue Shares */}
               <TabsContent value="detailed">
                 <Card>
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <CardHeader className="pb-3 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       <div>
-                        <CardTitle>Detailed Revenue Shares</CardTitle>
-                        <CardDescription>Individual revenue share transactions and calculations</CardDescription>
+                        <CardTitle className="text-base sm:text-lg">Detailed Revenue Shares</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">Individual revenue share transactions and calculations</CardDescription>
                       </div>
                       <ExportButtons 
                         data={revenueShares} 
@@ -1340,6 +1792,7 @@ export default function ReportsPage() {
                       data={revenueShares}
                       isLoading={loadingRevenueShares}
                       searchPlaceholder="Search revenue shares..."
+                      mobileCardRender={renderRevenueShareCard}
                     />
                   </CardContent>
                 </Card>
@@ -1350,12 +1803,12 @@ export default function ReportsPage() {
           {/* Audit Logs Tab */}
           <TabsContent value="audit-logs">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col gap-3 sm:gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                     <div>
-                      <CardTitle>Audit Logs</CardTitle>
-                      <CardDescription>Track all user actions, enforcement actions, and payment status changes</CardDescription>
+                      <CardTitle className="text-base sm:text-lg">Audit Logs</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Track all user actions, enforcement actions, and payment status changes</CardDescription>
                     </div>
                     <ExportButtons 
                       data={filteredAuditLogs} 
@@ -1365,7 +1818,7 @@ export default function ReportsPage() {
                   </div>
                   <div className="flex gap-2">
                     <Select value={auditLogFilter} onValueChange={setAuditLogFilter}>
-                      <SelectTrigger className="w-full sm:w-[200px]">
+                      <SelectTrigger className="w-full sm:w-[200px] min-h-[44px] text-base">
                         <SelectValue placeholder="Filter by type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1384,6 +1837,7 @@ export default function ReportsPage() {
                   data={filteredAuditLogs}
                   isLoading={false}
                   searchPlaceholder="Search audit logs..."
+                  mobileCardRender={renderAuditLogCard}
                 />
               </CardContent>
             </Card>
