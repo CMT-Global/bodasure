@@ -11,6 +11,8 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
+// Import role assignment utility (makes it available in browser console)
+import "@/utils/assignRole";
 
 // Placeholder pages for dashboard sections
 import RidersPage from "./pages/dashboard/RidersPage";

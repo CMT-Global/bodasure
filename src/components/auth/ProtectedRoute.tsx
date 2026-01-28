@@ -8,9 +8,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, roles, isLoading } = useAuth();
+  const { user, roles, isLoading, isLoadingRoles, rolesLoaded, hasRole } = useAuth();
   const location = useLocation();
 
+  // Wait for auth to load
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -24,6 +25,25 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Wait for roles to be loaded (either successfully or with error)
+  if (isLoadingRoles || !rolesLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Super admins have access to everything - bypass role checks
+  const isSuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin');
+  
+  if (isSuperAdmin) {
+    return <>{children}</>;
   }
 
   // Check required roles if specified

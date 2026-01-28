@@ -71,11 +71,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, roles, hasRole } = useAuth();
 
-  // Show all pages only to platform_super_admin and county_super_admin
+  // Super admins can see all pages, others see pages based on their roles
   const canSeeAllPages = hasRole('platform_super_admin') || hasRole('county_super_admin');
   const filteredNavItems = canSeeAllPages
     ? navItems
-    : [];
+    : navItems.filter(item => {
+        // If no roles specified, show to everyone
+        if (!item.roles || item.roles.length === 0) return true;
+        // Check if user has at least one of the required roles
+        return item.roles.some(role => hasRole(role));
+      });
 
   const handleSignOut = async () => {
     await signOut();

@@ -67,7 +67,10 @@ export function useRegistrationReport(countyId?: string, startDate?: string, end
         .eq('county_id', countyId);
 
       if (startDate) query = query.gte('created_at', startDate);
-      if (endDate) query = query.lte('created_at', endDate);
+      if (endDate) {
+        const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+        query = query.lt('created_at', endExclusive);
+      }
 
       const { data: riders, error } = await query;
       if (error) throw error;
@@ -111,27 +114,39 @@ export function usePaymentReport(countyId?: string, startDate?: string, endDate?
 
       let query = supabase
         .from('payments')
-        .select('id, status, amount, created_at')
+        .select('id, status, amount, created_at, paid_at')
         .eq('county_id', countyId);
 
       if (startDate) query = query.gte('created_at', startDate);
-      if (endDate) query = query.lte('created_at', endDate);
+      if (endDate) {
+        const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+        query = query.lt('created_at', endExclusive);
+      }
 
       const { data: payments, error } = await query;
       if (error) throw error;
       if (!payments) return [];
 
-      // Group by date
+      // Group by date (using created_at for grouping, but paid_at for amount calculation)
       const dateMap = new Map<string, { total: number; completed: number; failed: number; pending: number; totalAmount: number }>();
 
       payments.forEach((payment: any) => {
         const date = payment.created_at.split('T')[0];
         const current = dateMap.get(date) || { total: 0, completed: 0, failed: 0, pending: 0, totalAmount: 0 };
         current.total++;
-        current.totalAmount += Number(payment.amount || 0);
-        if (payment.status === 'completed') current.completed++;
-        else if (payment.status === 'failed') current.failed++;
-        else if (payment.status === 'pending') current.pending++;
+        
+        // Only count amount for completed payments (matching revenue calculations)
+        if (payment.status === 'completed') {
+          current.completed++;
+          // Only add to totalAmount if payment was actually paid (has paid_at)
+          if (payment.paid_at) {
+            current.totalAmount += Number(payment.amount || 0);
+          }
+        } else if (payment.status === 'failed') {
+          current.failed++;
+        } else if (payment.status === 'pending') {
+          current.pending++;
+        }
         dateMap.set(date, current);
       });
 

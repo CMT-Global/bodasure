@@ -91,19 +91,15 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
         .eq('county_id', countyId)
         .eq('status', 'completed');
 
+      // For penalties, we need to get all paid penalties and use paid_at or created_at for date
       let penaltyQuery = supabase
         .from('penalties')
-        .select('amount, paid_at, is_paid')
-        .eq('county_id', countyId);
+        .select('amount, paid_at, is_paid, created_at')
+        .eq('county_id', countyId)
+        .eq('is_paid', true);
 
-      if (startDate) {
-        permitQuery = permitQuery.gte('paid_at', startDate);
-        penaltyQuery = penaltyQuery.gte('paid_at', startDate);
-      }
-      if (endDate) {
-        permitQuery = permitQuery.lte('paid_at', endDate);
-        penaltyQuery = penaltyQuery.lte('paid_at', endDate);
-      }
+      // Note: We'll filter by date in the code since some penalties might not have paid_at set
+      // We'll use paid_at if available, otherwise created_at for date grouping
 
       const [permitPayments, penaltyPayments] = await Promise.all([
         permitQuery,
@@ -118,17 +114,28 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
 
       (permitPayments.data || []).forEach((payment: any) => {
         if (payment.paid_at) {
-          const date = payment.paid_at.split('T')[0];
-          const current = dateMap.get(date) || { permit: 0, penalty: 0 };
-          dateMap.set(date, { ...current, permit: current.permit + Number(payment.amount || 0) });
+          const paymentDate = payment.paid_at.split('T')[0];
+          // Check if payment date is within range
+          if (startDate && paymentDate < startDate) return;
+          if (endDate && paymentDate > endDate) return;
+          
+          const current = dateMap.get(paymentDate) || { permit: 0, penalty: 0 };
+          dateMap.set(paymentDate, { ...current, permit: current.permit + Number(payment.amount || 0) });
         }
       });
 
       (penaltyPayments.data || []).forEach((penalty: any) => {
-        if (penalty.paid_at && penalty.is_paid) {
-          const date = penalty.paid_at.split('T')[0];
-          const current = dateMap.get(date) || { permit: 0, penalty: 0 };
-          dateMap.set(date, { ...current, penalty: current.penalty + Number(penalty.amount || 0) });
+        if (penalty.is_paid) {
+          // Use paid_at if available, otherwise use created_at as fallback
+          const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
+          if (!penaltyDate) return;
+          
+          // Check if penalty date is within range
+          if (startDate && penaltyDate < startDate) return;
+          if (endDate && penaltyDate > endDate) return;
+          
+          const current = dateMap.get(penaltyDate) || { permit: 0, penalty: 0 };
+          dateMap.set(penaltyDate, { ...current, penalty: current.penalty + Number(penalty.amount || 0) });
         }
       });
 
@@ -192,16 +199,14 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
 
       const { data: permitPayments } = await permitPaymentsQuery;
 
-      // Get penalty payments
+      // Get penalty payments - filter by is_paid, but handle date filtering in code
+      // since some penalties might not have paid_at set
       let penaltyPaymentsQuery = supabase
         .from('penalties')
-        .select('amount, rider_id, paid_at, is_paid')
+        .select('amount, rider_id, paid_at, is_paid, created_at')
         .eq('county_id', countyId)
         .eq('is_paid', true)
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
-      if (startDate) penaltyPaymentsQuery = penaltyPaymentsQuery.gte('paid_at', startDate);
-      if (endDate) penaltyPaymentsQuery = penaltyPaymentsQuery.lte('paid_at', endDate);
 
       const { data: penaltyPayments } = await penaltyPaymentsQuery;
 
@@ -225,6 +230,14 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
       });
 
       (penaltyPayments || []).forEach((penalty: any) => {
+        // Use paid_at if available, otherwise created_at for date check
+        const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
+        if (!penaltyDate) return;
+        
+        // Check if penalty date is within range
+        if (startDate && penaltyDate < startDate) return;
+        if (endDate && penaltyDate > endDate) return;
+        
         for (const [saccoId, riderIds] of saccoToRiders.entries()) {
           if (riderIds.includes(penalty.rider_id)) {
             const current = saccoRevenue.get(saccoId);
@@ -298,15 +311,14 @@ export function useRevenueByStage(countyId?: string, startDate?: string, endDate
 
       const { data: permitPayments } = await permitPaymentsQuery;
 
+      // Get penalty payments - filter by is_paid, but handle date filtering in code
+      // since some penalties might not have paid_at set
       let penaltyPaymentsQuery = supabase
         .from('penalties')
-        .select('amount, rider_id, paid_at, is_paid')
+        .select('amount, rider_id, paid_at, is_paid, created_at')
         .eq('county_id', countyId)
         .eq('is_paid', true)
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
-      if (startDate) penaltyPaymentsQuery = penaltyPaymentsQuery.gte('paid_at', startDate);
-      if (endDate) penaltyPaymentsQuery = penaltyPaymentsQuery.lte('paid_at', endDate);
 
       const { data: penaltyPayments } = await penaltyPaymentsQuery;
 
@@ -330,6 +342,14 @@ export function useRevenueByStage(countyId?: string, startDate?: string, endDate
       });
 
       (penaltyPayments || []).forEach((penalty: any) => {
+        // Use paid_at if available, otherwise created_at for date check
+        const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
+        if (!penaltyDate) return;
+        
+        // Check if penalty date is within range
+        if (startDate && penaltyDate < startDate) return;
+        if (endDate && penaltyDate > endDate) return;
+        
         for (const [stageId, riderIds] of stageToRiders.entries()) {
           if (riderIds.includes(penalty.rider_id)) {
             const current = stageRevenue.get(stageId);
