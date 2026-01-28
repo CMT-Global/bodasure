@@ -193,6 +193,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <Menu className="h-6 w-6" />
           </Button>
 
+          {/* Portal Tabs */}
+          <div className="flex items-center gap-2 ml-2 sm:ml-4">
+            <Button
+              variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              className="min-h-[36px]"
+            >
+              County Portal
+            </Button>
+            <Button
+              variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/sacco')}
+              className="min-h-[36px]"
+            >
+              Sacco Portal
+            </Button>
+          </div>
+
           {/* Spacer to push right side content to the right */}
           <div className="flex-1" />
 

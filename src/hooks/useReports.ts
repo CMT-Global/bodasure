@@ -515,3 +515,390 @@ export function useSaccoPerformanceReport(countyId?: string, startDate?: string,
     enabled: !!countyId,
   });
 }
+
+// --- Sacco-specific Reports ---
+
+export interface SaccoMemberListReport {
+  id: string;
+  fullName: string;
+  phone: string;
+  idNumber: string;
+  email: string | null;
+  status: string;
+  complianceStatus: string;
+  stageName: string | null;
+  permitNumber: string | null;
+  permitStatus: string | null;
+  permitExpiresAt: string | null;
+  motorbikeRegistration: string | null;
+  createdAt: string;
+}
+
+export interface SaccoComplianceReport {
+  totalMembers: number;
+  compliant: number;
+  nonCompliant: number;
+  pendingReview: number;
+  blacklisted: number;
+  complianceRate: number;
+}
+
+export interface SaccoPenaltyReport {
+  date: string;
+  totalPenalties: number;
+  paid: number;
+  unpaid: number;
+  totalAmount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+}
+
+export interface SaccoStagePerformanceReport {
+  stageId: string;
+  stageName: string;
+  totalMembers: number;
+  compliant: number;
+  nonCompliant: number;
+  activePermits: number;
+  expiredPermits: number;
+  totalPenalties: number;
+  paidPenalties: number;
+  unpaidPenalties: number;
+  complianceRate: number;
+}
+
+// Fetch sacco member list report
+export function useSaccoMemberListReport(saccoId?: string, countyId?: string) {
+  return useQuery({
+    queryKey: ['sacco-member-list-report', saccoId, countyId],
+    queryFn: async () => {
+      if (!saccoId || !countyId) return [];
+
+      const { data: riders, error } = await supabase
+        .from('riders')
+        .select(`
+          id,
+          full_name,
+          phone,
+          id_number,
+          email,
+          status,
+          compliance_status,
+          created_at,
+          stage:stages(name),
+          motorbikes(registration_number),
+          permits(permit_number, status, expires_at)
+        `)
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!riders) return [];
+
+      return riders.map((rider: any) => {
+        const motorbike = Array.isArray(rider.motorbikes) && rider.motorbikes.length > 0 
+          ? rider.motorbikes[0] 
+          : null;
+        const permit = Array.isArray(rider.permits) && rider.permits.length > 0
+          ? rider.permits[0]
+          : null;
+
+        return {
+          id: rider.id,
+          fullName: rider.full_name || '',
+          phone: rider.phone || '',
+          idNumber: rider.id_number || '',
+          email: rider.email || null,
+          status: rider.status || '',
+          complianceStatus: rider.compliance_status || '',
+          stageName: rider.stage?.name || null,
+          permitNumber: permit?.permit_number || null,
+          permitStatus: permit?.status || null,
+          permitExpiresAt: permit?.expires_at || null,
+          motorbikeRegistration: motorbike?.registration_number || null,
+          createdAt: rider.created_at,
+        };
+      }) as SaccoMemberListReport[];
+    },
+    enabled: !!saccoId && !!countyId,
+  });
+}
+
+// Fetch sacco compliance report
+export function useSaccoComplianceReport(saccoId?: string, countyId?: string) {
+  return useQuery({
+    queryKey: ['sacco-compliance-report', saccoId, countyId],
+    queryFn: async (): Promise<SaccoComplianceReport | null> => {
+      if (!saccoId || !countyId) return null;
+
+      const { data: riders, error } = await supabase
+        .from('riders')
+        .select('id, compliance_status')
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId);
+
+      if (error) throw error;
+      if (!riders) return null;
+
+      let compliant = 0;
+      let nonCompliant = 0;
+      let pendingReview = 0;
+      let blacklisted = 0;
+
+      riders.forEach((rider: any) => {
+        if (rider.compliance_status === 'compliant') compliant++;
+        else if (rider.compliance_status === 'non_compliant') nonCompliant++;
+        else if (rider.compliance_status === 'pending_review') pendingReview++;
+        else if (rider.compliance_status === 'blacklisted') blacklisted++;
+      });
+
+      const totalMembers = riders.length;
+      const complianceRate = totalMembers > 0 
+        ? Math.round((compliant / totalMembers) * 100) 
+        : 0;
+
+      return {
+        totalMembers,
+        compliant,
+        nonCompliant,
+        pendingReview,
+        blacklisted,
+        complianceRate,
+      };
+    },
+    enabled: !!saccoId && !!countyId,
+  });
+}
+
+// Fetch sacco penalty report
+export function useSaccoPenaltyReport(saccoId?: string, countyId?: string, startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['sacco-penalty-report', saccoId, countyId, startDate, endDate],
+    queryFn: async () => {
+      if (!saccoId || !countyId) return [];
+
+      // Get member IDs for this sacco
+      const { data: members, error: membersError } = await supabase
+        .from('riders')
+        .select('id')
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId);
+
+      if (membersError) throw membersError;
+      if (!members || members.length === 0) return [];
+
+      const memberIds = members.map(m => m.id);
+
+      let query = supabase
+        .from('penalties')
+        .select('id, is_paid, amount, created_at')
+        .eq('county_id', countyId)
+        .in('rider_id', memberIds);
+
+      if (startDate) query = query.gte('created_at', startDate);
+      if (endDate) {
+        const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+        query = query.lt('created_at', endExclusive);
+      }
+
+      const { data: penalties, error } = await query;
+      if (error) throw error;
+      if (!penalties) return [];
+
+      // Group by date
+      const dateMap = new Map<string, { total: number; paid: number; unpaid: number; totalAmount: number; paidAmount: number; unpaidAmount: number }>();
+
+      penalties.forEach((penalty: any) => {
+        const date = penalty.created_at.split('T')[0];
+        const current = dateMap.get(date) || { total: 0, paid: 0, unpaid: 0, totalAmount: 0, paidAmount: 0, unpaidAmount: 0 };
+        current.total++;
+        const amount = Number(penalty.amount || 0);
+        current.totalAmount += amount;
+        if (penalty.is_paid) {
+          current.paid++;
+          current.paidAmount += amount;
+        } else {
+          current.unpaid++;
+          current.unpaidAmount += amount;
+        }
+        dateMap.set(date, current);
+      });
+
+      return Array.from(dateMap.entries())
+        .map(([date, stats]) => ({
+          date,
+          totalPenalties: stats.total,
+          paid: stats.paid,
+          unpaid: stats.unpaid,
+          totalAmount: stats.totalAmount,
+          paidAmount: stats.paidAmount,
+          unpaidAmount: stats.unpaidAmount,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date)) as SaccoPenaltyReport[];
+    },
+    enabled: !!saccoId && !!countyId,
+  });
+}
+
+// Fetch sacco stage performance report
+export function useSaccoStagePerformanceReport(saccoId?: string, countyId?: string) {
+  return useQuery({
+    queryKey: ['sacco-stage-performance-report', saccoId, countyId],
+    queryFn: async () => {
+      if (!saccoId || !countyId) return [];
+
+      // Get stages for this sacco
+      const { data: stages, error: stagesError } = await supabase
+        .from('stages')
+        .select('id, name')
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId);
+
+      if (stagesError) throw stagesError;
+      if (!stages || stages.length === 0) return [];
+
+      const stageIds = stages.map(s => s.id);
+
+      // Get riders for these stages
+      const { data: riders, error: ridersError } = await supabase
+        .from('riders')
+        .select('id, stage_id, compliance_status')
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId)
+        .in('stage_id', stageIds);
+
+      if (ridersError) throw ridersError;
+
+      const riderIds = riders?.map(r => r.id) || [];
+
+      // Get permits
+      let permits: any[] = [];
+      if (riderIds.length > 0) {
+        const { data: permitsData } = await supabase
+          .from('permits')
+          .select('id, rider_id, status, expires_at')
+          .eq('county_id', countyId)
+          .in('rider_id', riderIds);
+        permits = permitsData || [];
+      }
+
+      // Get penalties
+      let penalties: any[] = [];
+      if (riderIds.length > 0) {
+        const { data: penaltiesData } = await supabase
+          .from('penalties')
+          .select('id, rider_id, is_paid')
+          .eq('county_id', countyId)
+          .in('rider_id', riderIds);
+        penalties = penaltiesData || [];
+      }
+
+      // Map riders to stages
+      const riderToStage = new Map<string, string>();
+      riders?.forEach(rider => {
+        if (rider.stage_id) {
+          riderToStage.set(rider.id, rider.stage_id);
+        }
+      });
+
+      // Calculate stats per stage
+      const stageStats = new Map<string, {
+        totalMembers: number;
+        compliant: number;
+        nonCompliant: number;
+        activePermits: number;
+        expiredPermits: number;
+        totalPenalties: number;
+        paidPenalties: number;
+        unpaidPenalties: number;
+      }>();
+
+      stages.forEach(stage => {
+        stageStats.set(stage.id, {
+          totalMembers: 0,
+          compliant: 0,
+          nonCompliant: 0,
+          activePermits: 0,
+          expiredPermits: 0,
+          totalPenalties: 0,
+          paidPenalties: 0,
+          unpaidPenalties: 0,
+        });
+      });
+
+      // Count members and compliance
+      riders?.forEach((rider: any) => {
+        if (rider.stage_id) {
+          const stats = stageStats.get(rider.stage_id);
+          if (stats) {
+            stats.totalMembers++;
+            if (rider.compliance_status === 'compliant') stats.compliant++;
+            else if (rider.compliance_status === 'non_compliant' || rider.compliance_status === 'blacklisted') stats.nonCompliant++;
+          }
+        }
+      });
+
+      // Count permits
+      const now = new Date().toISOString();
+      permits.forEach((permit: any) => {
+        const stageId = riderToStage.get(permit.rider_id);
+        if (stageId) {
+          const stats = stageStats.get(stageId);
+          if (stats) {
+            if (permit.status === 'active' && permit.expires_at && permit.expires_at > now) {
+              stats.activePermits++;
+            }
+            if (permit.status === 'expired' || (permit.expires_at && permit.expires_at < now)) {
+              stats.expiredPermits++;
+            }
+          }
+        }
+      });
+
+      // Count penalties
+      penalties.forEach((penalty: any) => {
+        const stageId = riderToStage.get(penalty.rider_id);
+        if (stageId) {
+          const stats = stageStats.get(stageId);
+          if (stats) {
+            stats.totalPenalties++;
+            if (penalty.is_paid) stats.paidPenalties++;
+            else stats.unpaidPenalties++;
+          }
+        }
+      });
+
+      return stages.map(stage => {
+        const stats = stageStats.get(stage.id) || {
+          totalMembers: 0,
+          compliant: 0,
+          nonCompliant: 0,
+          activePermits: 0,
+          expiredPermits: 0,
+          totalPenalties: 0,
+          paidPenalties: 0,
+          unpaidPenalties: 0,
+        };
+        const complianceRate = stats.totalMembers > 0 
+          ? Math.round((stats.compliant / stats.totalMembers) * 100) 
+          : 0;
+
+        return {
+          stageId: stage.id,
+          stageName: stage.name,
+          totalMembers: stats.totalMembers,
+          compliant: stats.compliant,
+          nonCompliant: stats.nonCompliant,
+          activePermits: stats.activePermits,
+          expiredPermits: stats.expiredPermits,
+          totalPenalties: stats.totalPenalties,
+          paidPenalties: stats.paidPenalties,
+          unpaidPenalties: stats.unpaidPenalties,
+          complianceRate,
+        };
+      }) as SaccoStagePerformanceReport[];
+    },
+    enabled: !!saccoId && !!countyId,
+  });
+}

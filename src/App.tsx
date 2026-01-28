@@ -28,6 +28,16 @@ import VerificationPage from "./pages/dashboard/VerificationPage";
 import ReportsPage from "./pages/dashboard/ReportsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import UsersPage from "./pages/dashboard/UsersPage";
+import SaccoPortal from "./pages/sacco/SaccoPortal";
+import MemberManagementPage from "./pages/sacco/MemberManagementPage";
+import RegistrationSupportPage from "./pages/sacco/RegistrationSupportPage";
+import StageManagementPage from "./pages/sacco/StageManagementPage";
+import CompliancePenaltiesPage from "./pages/sacco/CompliancePenaltiesPage";
+import DisciplineIncidentPage from "./pages/sacco/DisciplineIncidentPage";
+import SaccoProfileSettingsPage from "./pages/sacco/SaccoProfileSettingsPage";
+import SaccoAuditLogsPage from "./pages/sacco/SaccoAuditLogsPage";
+import CommunicationToolsPage from "./pages/sacco/CommunicationToolsPage";
+import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
 
 const queryClient = new QueryClient();
 
@@ -155,6 +165,88 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <UsersPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Sacco Portal routes */}
+            <Route
+              path="/sacco"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <SaccoPortal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/registration-support"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <RegistrationSupportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/members"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <MemberManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/stages"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <StageManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/compliance"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <CompliancePenaltiesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/discipline"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <DisciplineIncidentPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/communication"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <CommunicationToolsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/reports"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <SaccoReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/settings"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <SaccoProfileSettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/audit-logs"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                  <SaccoAuditLogsPage />
                 </ProtectedRoute>
               }
             />

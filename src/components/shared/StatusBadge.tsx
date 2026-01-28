@@ -36,6 +36,12 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   unpaid: { label: 'Unpaid', className: 'bg-destructive/20 text-destructive border-destructive/30' },
   paid: { label: 'Paid', className: 'bg-success/20 text-success border-success/30' },
   waived: { label: 'Waived', className: 'bg-muted text-muted-foreground border-muted' },
+  
+  // Incident/Discipline status
+  acknowledged: { label: 'Acknowledged', className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400' },
+  resolved: { label: 'Resolved', className: 'bg-success/20 text-success border-success/30' },
+  escalated: { label: 'Escalated', className: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400' },
+  dismissed: { label: 'Dismissed', className: 'bg-muted text-muted-foreground border-muted' },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
