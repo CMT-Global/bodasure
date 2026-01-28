@@ -1,91 +1,91 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Download, Bike } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { StatusBadge } from '@/components/shared/StatusBadge';
+import { Download, Plus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ColumnDef } from '@tanstack/react-table';
-
-const DEMO_COUNTY_ID = '550e8400-e29b-41d4-a716-446655440001';
-
-interface Motorbike {
-  id: string;
-  registration_number: string;
-  make: string | null;
-  model: string | null;
-  year: number | null;
-  color: string | null;
-  status: string;
-  qr_code: string | null;
-  owner?: { full_name: string } | null;
-  rider?: { full_name: string } | null;
-}
+import { MotorbikeFormDialog } from '@/components/motorbikes/MotorbikeFormDialog';
+import { MotorbikeDetailSheet } from '@/components/motorbikes/MotorbikeDetailSheet';
+import { getMotorbikeColumns } from '@/components/motorbikes/MotorbikeColumns';
+import { Motorbike, useMotorbikes } from '@/hooks/useData';
+import { useAuth } from '@/hooks/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function MotorbikesPage() {
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const { profile, roles } = useAuth();
+  
+  // Get county_id from profile or first role
+  const countyId = useMemo(() => {
+    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+  }, [profile, roles]);
 
-  const { data: motorbikes = [], isLoading } = useQuery({
-    queryKey: ['motorbikes', DEMO_COUNTY_ID],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('motorbikes')
-        .select(`*, owner:owners(full_name), rider:riders(full_name)`)
-        .eq('county_id', DEMO_COUNTY_ID)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Motorbike[];
-    },
-  });
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [selectedMotorbike, setSelectedMotorbike] = useState<Motorbike | null>(null);
+
+  const queryClient = useQueryClient();
+  const { data: motorbikes = [], isLoading } = useMotorbikes(countyId);
 
   const filteredMotorbikes = useMemo(() => {
     return motorbikes.filter((m) => statusFilter === 'all' || m.status === statusFilter);
   }, [motorbikes, statusFilter]);
 
-  const columns: ColumnDef<Motorbike>[] = [
-    {
-      accessorKey: 'registration_number',
-      header: 'Registration',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Bike className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="font-medium font-mono">{row.original.registration_number}</p>
-            <p className="text-xs text-muted-foreground">{row.original.make} {row.original.model}</p>
-          </div>
-        </div>
-      ),
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (motorbikeId: string) => {
+      const { error } = await supabase.from('motorbikes').delete().eq('id', motorbikeId);
+      if (error) throw error;
     },
-    {
-      accessorKey: 'owner.full_name',
-      header: 'Owner',
-      cell: ({ row }) => <span className="text-sm">{row.original.owner?.full_name || '-'}</span>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['motorbikes'] });
+      toast.success('Motorbike deleted successfully');
+      setIsDeleteOpen(false);
+      setSelectedMotorbike(null);
     },
-    {
-      accessorKey: 'rider.full_name',
-      header: 'Rider',
-      cell: ({ row }) => <span className="text-sm">{row.original.rider?.full_name || '-'}</span>,
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete motorbike');
     },
-    {
-      accessorKey: 'color',
-      header: 'Details',
-      cell: ({ row }) => (
-        <div className="text-sm">
-          <p>{row.original.color || '-'}</p>
-          <p className="text-xs text-muted-foreground">{row.original.year || '-'}</p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
-  ];
+  });
+
+  const handleEdit = (motorbike: Motorbike) => {
+    setSelectedMotorbike(motorbike);
+    setIsFormOpen(true);
+  };
+
+  const handleView = (motorbike: Motorbike) => {
+    setSelectedMotorbike(motorbike);
+    setIsDetailOpen(true);
+  };
+
+  const handleDelete = (motorbike: Motorbike) => {
+    setSelectedMotorbike(motorbike);
+    setIsDeleteOpen(true);
+  };
+
+  const handleAdd = () => {
+    setSelectedMotorbike(null);
+    setIsFormOpen(true);
+  };
+
+  const columns = getMotorbikeColumns({
+    onEdit: handleEdit,
+    onView: handleView,
+    onDelete: handleDelete,
+  });
 
   return (
     <DashboardLayout>
@@ -95,7 +95,16 @@ export default function MotorbikesPage() {
             <h1 className="text-2xl font-bold">Motorbikes</h1>
             <p className="text-muted-foreground">Registered motorbikes • {filteredMotorbikes.length} total</p>
           </div>
-          <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export</Button>
+          <div className="flex gap-2">
+            <Button variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+            <Button onClick={handleAdd} className="glow-primary">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Motorbike
+            </Button>
+          </div>
         </div>
 
         <div className="flex gap-3">
@@ -110,6 +119,46 @@ export default function MotorbikesPage() {
         </div>
 
         <DataTable columns={columns} data={filteredMotorbikes} searchPlaceholder="Search by plate number..." isLoading={isLoading} />
+
+        {/* Add/Edit Dialog */}
+        <MotorbikeFormDialog
+          open={isFormOpen}
+          onOpenChange={setIsFormOpen}
+          motorbike={selectedMotorbike}
+          countyId={countyId}
+        />
+
+        {/* Detail Sheet */}
+        <MotorbikeDetailSheet
+          open={isDetailOpen}
+          onOpenChange={setIsDetailOpen}
+          motorbike={selectedMotorbike}
+          onEdit={() => {
+            setIsDetailOpen(false);
+            setIsFormOpen(true);
+          }}
+        />
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Motorbike</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete motorbike {selectedMotorbike?.registration_number}? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => selectedMotorbike && deleteMutation.mutate(selectedMotorbike.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

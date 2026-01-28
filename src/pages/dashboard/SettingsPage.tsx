@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useCountySettings, useUpdateCountySettings, PermitSettings, PenaltySettings, PenaltyType, EscalationRule, RevenueSharingSettings, RevenueShareRule, RevenueShareType } from '@/hooks/useCountySettings';
 import { usePermitTypes } from '@/hooks/usePayments';
-import { useSaccos } from '@/hooks/useData';
+import { useSaccos, useCounties } from '@/hooks/useData';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -39,6 +39,9 @@ import { Badge } from '@/components/ui/badge';
 export default function SettingsPage() {
   const { profile, roles, hasRole } = useAuth();
   
+  // Check if user is Platform Super Admin
+  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
+  
   // Get county_id from profile or first role
   const countyId = useMemo(() => {
     return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
@@ -47,8 +50,15 @@ export default function SettingsPage() {
   // Check if user is County Super Admin or Platform Super Admin
   const isCountySuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
 
+  // County selection for super admins when creating permit types
+  const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
+  const { data: counties = [] } = useCounties();
+  
+  // Use selected county or provided countyId for permit types
+  const effectiveCountyId = selectedCountyId || countyId;
+
   const { data: settings, isLoading: settingsLoading } = useCountySettings(countyId);
-  const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId || '');
+  const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(effectiveCountyId || '');
   const { data: saccos = [] } = useSaccos(countyId);
   const updateSettings = useUpdateCountySettings();
   const queryClient = useQueryClient();
@@ -122,6 +132,22 @@ export default function SettingsPage() {
     }
   }, [settings]);
 
+  // Reset selected county when permit type dialog opens/closes
+  useEffect(() => {
+    if (isPermitTypeDialogOpen) {
+      // When opening for new permit type, reset county selection for super admins
+      if (!selectedPermitType && isPlatformSuperAdmin) {
+        setSelectedCountyId(undefined);
+      } else if (selectedPermitType) {
+        // When editing, use the permit type's county
+        setSelectedCountyId(selectedPermitType.county_id || countyId);
+      } else {
+        // For non-super admins, use their county
+        setSelectedCountyId(countyId);
+      }
+    }
+  }, [isPermitTypeDialogOpen, selectedPermitType, isPlatformSuperAdmin, countyId]);
+
   // Save Permit Settings
   const handleSavePermitSettings = async () => {
     if (!countyId) return;
@@ -154,8 +180,13 @@ export default function SettingsPage() {
 
   // Create/Update Permit Type
   const createPermitTypeMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string; amount: number; duration_days: number }) => {
-      if (!countyId) throw new Error('County ID required');
+    mutationFn: async (data: { name: string; description: string; amount: number; duration_days: number; county_id?: string }) => {
+      // Determine the county_id to use
+      const finalCountyId = data.county_id || selectedCountyId || countyId;
+      
+      if (!finalCountyId) {
+        throw new Error('County ID required. Please select a county.');
+      }
       
       if (selectedPermitType) {
         const { error } = await supabase
@@ -166,16 +197,20 @@ export default function SettingsPage() {
       } else {
         const { error } = await supabase
           .from('permit_types')
-          .insert([{ ...data, county_id: countyId }]);
+          .insert([{ ...data, county_id: finalCountyId }]);
         if (error) throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permit_types', countyId] });
+      queryClient.invalidateQueries({ queryKey: ['permit_types'] });
       toast.success(selectedPermitType ? 'Permit type updated' : 'Permit type created');
       setIsPermitTypeDialogOpen(false);
       setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' });
       setSelectedPermitType(null);
+      // Reset selected county for next creation
+      if (isPlatformSuperAdmin) {
+        setSelectedCountyId(undefined);
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to save permit type');
@@ -446,7 +481,14 @@ export default function SettingsPage() {
                     <CardDescription className="text-xs sm:text-sm mt-0.5">Manage permit types and their fee amounts</CardDescription>
                   </div>
                   <Button
-                    onClick={() => { setSelectedPermitType(null); setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' }); setIsPermitTypeDialogOpen(true); }}
+                    onClick={() => { 
+                      setSelectedPermitType(null); 
+                      setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' }); 
+                      if (isPlatformSuperAdmin) {
+                        setSelectedCountyId(undefined);
+                      }
+                      setIsPermitTypeDialogOpen(true); 
+                    }}
                     className="w-full sm:w-auto min-h-[44px] shrink-0"
                   >
                     <Plus className="mr-2 h-4 w-4" />
@@ -769,6 +811,31 @@ export default function SettingsPage() {
               <DialogDescription className="text-xs sm:text-sm">Configure permit type details and pricing</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              {/* County selection for super admins */}
+              {isPlatformSuperAdmin && !selectedPermitType && (
+                <div className="space-y-2">
+                  <Label>County *</Label>
+                  <Select 
+                    value={selectedCountyId || ''} 
+                    onValueChange={(value) => setSelectedCountyId(value)}
+                  >
+                    <SelectTrigger className="min-h-[44px]">
+                      <SelectValue placeholder="Select a County" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {counties.map((county) => (
+                        <SelectItem key={county.id} value={county.id}>
+                          {county.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedCountyId && (
+                    <p className="text-xs text-destructive">Please select a county</p>
+                  )}
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input
@@ -812,13 +879,27 @@ export default function SettingsPage() {
               </div>
             </div>
             <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setIsPermitTypeDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={() => createPermitTypeMutation.mutate({
-                name: permitTypeForm.name,
-                description: permitTypeForm.description,
-                amount: parseFloat(permitTypeForm.amount),
-                duration_days: parseInt(permitTypeForm.duration_days),
-              })} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || createPermitTypeMutation.isPending} className="w-full sm:w-auto min-h-[44px]">
+              <Button variant="outline" onClick={() => {
+                setIsPermitTypeDialogOpen(false);
+                // Reset selected county when closing
+                if (isPlatformSuperAdmin && !selectedPermitType) {
+                  setSelectedCountyId(undefined);
+                }
+              }} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={() => {
+                const finalCountyId = selectedCountyId || countyId;
+                if (!finalCountyId && !selectedPermitType) {
+                  toast.error('Please select a county');
+                  return;
+                }
+                createPermitTypeMutation.mutate({
+                  name: permitTypeForm.name,
+                  description: permitTypeForm.description,
+                  amount: parseFloat(permitTypeForm.amount),
+                  duration_days: parseInt(permitTypeForm.duration_days),
+                  county_id: finalCountyId,
+                });
+              }} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || (!selectedCountyId && !countyId && !selectedPermitType) || createPermitTypeMutation.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {createPermitTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {selectedPermitType ? 'Update' : 'Create'}
               </Button>

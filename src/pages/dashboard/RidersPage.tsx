@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,10 +23,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-// Demo county ID for now - will be dynamic based on user's county
-const DEMO_COUNTY_ID = '550e8400-e29b-41d4-a716-446655440001';
-
 export default function RidersPage() {
+  const { profile, roles } = useAuth();
+  
+  // Get county_id from profile or first role
+  const countyId = useMemo(() => {
+    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+  }, [profile, roles]);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -34,7 +39,7 @@ export default function RidersPage() {
   const [complianceFilter, setComplianceFilter] = useState<string>('all');
 
   const queryClient = useQueryClient();
-  const { data: riders = [], isLoading } = useRiders(DEMO_COUNTY_ID);
+  const { data: riders = [], isLoading } = useRiders(countyId);
 
   // Filter riders
   const filteredRiders = useMemo(() => {
@@ -154,7 +159,7 @@ export default function RidersPage() {
           open={isFormOpen}
           onOpenChange={setIsFormOpen}
           rider={selectedRider}
-          countyId={DEMO_COUNTY_ID}
+          countyId={countyId}
         />
 
         {/* Detail Sheet */}

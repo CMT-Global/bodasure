@@ -179,18 +179,30 @@ const getColumns = (onViewPayments: (permitId: string, permitNumber: string) => 
 ];
 
 export default function PermitsPage() {
-  const { profile, roles } = useAuth();
+  const { profile, roles, hasRole } = useAuth();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedPermitId, setSelectedPermitId] = useState<string | null>(null);
   const [selectedPermitNumber, setSelectedPermitNumber] = useState<string>('');
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
 
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-  }, [profile, roles]);
+  // Check if user is platform super admin
+  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
 
-  const { data: permits = [], isLoading } = usePermits(countyId);
+  // Get county_id from profile or first role
+  // For super admins, countyId can be undefined (they'll select it in the dialog)
+  const countyId = useMemo(() => {
+    if (isPlatformSuperAdmin) {
+      // Super admins can work across counties, so countyId is optional
+      return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+    }
+    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+  }, [profile, roles, isPlatformSuperAdmin]);
+
+  // Only fetch permits if we have a countyId (for non-super-admins or super-admins with selected county)
+  const { data: permits = [], isLoading } = usePermits(countyId || '');
+  
+  // Show message for super admins without county selection
+  const showCountySelectionMessage = isPlatformSuperAdmin && !countyId;
 
   const handleViewPayments = (permitId: string, permitNumber: string) => {
     setSelectedPermitId(permitId);
@@ -274,12 +286,28 @@ export default function PermitsPage() {
         </div>
 
         {/* Data Table */}
-        <DataTable
-          columns={getColumns(handleViewPayments)}
-          data={permits as PermitRow[]}
-          searchPlaceholder="Search by permit number, rider..."
-          isLoading={isLoading}
-        />
+        {showCountySelectionMessage ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  Select a county when creating a permit to view permits for that county.
+                </p>
+                <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Issue Permit
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <DataTable
+            columns={getColumns(handleViewPayments)}
+            data={permits as PermitRow[]}
+            searchPlaceholder="Search by permit number, rider..."
+            isLoading={isLoading}
+          />
+        )}
 
         {/* Payment Dialog for new permits */}
         <PaymentDialog

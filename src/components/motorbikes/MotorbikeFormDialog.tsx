@@ -25,39 +25,38 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSaccos, useStages, useOwners, Rider, useCounties } from '@/hooks/useData';
+import { useOwners, useRiders, Motorbike, useCounties } from '@/hooks/useData';
 
 // Base schema - county_id will be conditionally required
-const createRiderFormSchema = (needsCountySelection: boolean) => z.object({
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
-  id_number: z.string().min(6, 'ID number must be at least 6 characters'),
-  phone: z.string().min(10, 'Phone number must be at least 10 characters'),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  date_of_birth: z.string().optional(),
-  address: z.string().optional(),
-  license_number: z.string().optional(),
-  license_expiry: z.string().optional(),
-  sacco_id: z.string().optional(),
-  stage_id: z.string().optional(),
-  owner_id: z.string().optional(),
+const createMotorbikeFormSchema = (needsCountySelection: boolean) => z.object({
+  registration_number: z.string().min(1, 'Registration number is required'),
+  owner_id: z.string().min(1, 'Owner is required'),
+  rider_id: z.string().optional(),
+  make: z.string().optional(),
+  model: z.string().optional(),
+  year: z.string().optional(),
+  color: z.string().optional(),
+  chassis_number: z.string().optional(),
+  engine_number: z.string().optional(),
+  photo_url: z.string().optional(),
   status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
   county_id: needsCountySelection 
     ? z.string().min(1, 'County is required')
     : z.string().optional(),
 });
 
-type RiderFormValues = z.infer<ReturnType<typeof createRiderFormSchema>>;
+type MotorbikeFormValues = z.infer<ReturnType<typeof createMotorbikeFormSchema>>;
 
-interface RiderFormDialogProps {
+interface MotorbikeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  rider?: Rider | null;
+  motorbike?: Motorbike | null;
   countyId?: string;
 }
 
-export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFormDialogProps) {
+export function MotorbikeFormDialog({ open, onOpenChange, motorbike, countyId }: MotorbikeFormDialogProps) {
   const queryClient = useQueryClient();
-  const isEditing = !!rider;
+  const isEditing = !!motorbike;
   const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
   
   // For superadmins, allow county selection
@@ -67,9 +66,8 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
   // Use selected county or provided countyId
   const effectiveCountyId = selectedCountyId || countyId;
   
-  const { data: saccos = [] } = useSaccos(effectiveCountyId);
-  const { data: stages = [] } = useStages(effectiveCountyId);
   const { data: owners = [] } = useOwners(effectiveCountyId);
+  const { data: riders = [] } = useRiders(effectiveCountyId);
 
   // Reset selected county when dialog opens or countyId changes
   useEffect(() => {
@@ -78,66 +76,66 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
     }
   }, [open, countyId]);
 
-  const form = useForm<RiderFormValues>({
-    resolver: zodResolver(createRiderFormSchema(needsCountySelection)),
+  const form = useForm<MotorbikeFormValues>({
+    resolver: zodResolver(createMotorbikeFormSchema(needsCountySelection)),
     defaultValues: {
-      full_name: rider?.full_name || '',
-      id_number: rider?.id_number || '',
-      phone: rider?.phone || '',
-      email: rider?.email || '',
-      date_of_birth: rider?.date_of_birth || '',
-      address: rider?.address || '',
-      license_number: rider?.license_number || '',
-      license_expiry: rider?.license_expiry || '',
-      sacco_id: rider?.sacco_id || '',
-      stage_id: rider?.stage_id || '',
-      owner_id: rider?.owner_id || '',
-      status: rider?.status || 'pending',
-      county_id: countyId || rider?.county_id || '',
+      registration_number: motorbike?.registration_number || '',
+      owner_id: motorbike?.owner_id || '',
+      rider_id: motorbike?.rider_id || '',
+      make: motorbike?.make || '',
+      model: motorbike?.model || '',
+      year: motorbike?.year?.toString() || '',
+      color: motorbike?.color || '',
+      chassis_number: motorbike?.chassis_number || '',
+      engine_number: motorbike?.engine_number || '',
+      photo_url: motorbike?.photo_url || '',
+      status: (motorbike?.status as 'pending' | 'approved' | 'rejected' | 'suspended') || 'pending',
+      county_id: countyId || motorbike?.county_id || '',
     },
   });
 
   const mutation = useMutation({
-    mutationFn: async (values: RiderFormValues) => {
+    mutationFn: async (values: MotorbikeFormValues) => {
       // Determine the county_id to use
-      const finalCountyId = values.county_id || selectedCountyId || countyId || rider?.county_id;
+      const finalCountyId = values.county_id || selectedCountyId || countyId || motorbike?.county_id;
       
       if (!finalCountyId) {
         throw new Error('County is required. Please select a county.');
       }
 
       const payload = {
-        full_name: values.full_name,
-        id_number: values.id_number,
-        phone: values.phone,
+        registration_number: values.registration_number,
+        owner_id: values.owner_id,
+        rider_id: values.rider_id === 'none' || !values.rider_id ? null : values.rider_id,
+        make: values.make || null,
+        model: values.model || null,
+        year: values.year ? parseInt(values.year, 10) : null,
+        color: values.color || null,
+        chassis_number: values.chassis_number || null,
+        engine_number: values.engine_number || null,
+        photo_url: values.photo_url || null,
         status: values.status,
         county_id: finalCountyId,
-        email: values.email || null,
-        date_of_birth: values.date_of_birth || null,
-        address: values.address || null,
-        license_number: values.license_number || null,
-        license_expiry: values.license_expiry || null,
-        sacco_id: values.sacco_id === 'none' ? null : values.sacco_id || null,
-        stage_id: values.stage_id === 'none' ? null : values.stage_id || null,
-        owner_id: values.owner_id === 'none' ? null : values.owner_id || null,
       };
 
-      if (isEditing && rider) {
+      if (isEditing && motorbike) {
         const { error } = await supabase
-          .from('riders')
+          .from('motorbikes')
           .update(payload)
-          .eq('id', rider.id);
+          .eq('id', motorbike.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('riders')
+          .from('motorbikes')
           .insert([payload]);
         if (error) throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['riders'] });
-      toast.success(isEditing ? 'Rider updated successfully' : 'Rider added successfully');
+    onSuccess: async () => {
+      // Invalidate and refetch all motorbike queries to ensure the list refreshes
+      await queryClient.invalidateQueries({ queryKey: ['motorbikes'] });
+      queryClient.refetchQueries({ queryKey: ['motorbikes'] });
+      toast.success(isEditing ? 'Motorbike updated successfully' : 'Motorbike added successfully');
       onOpenChange(false);
       form.reset();
     },
@@ -146,7 +144,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
     },
   });
 
-  const onSubmit = (values: RiderFormValues) => {
+  const onSubmit = (values: MotorbikeFormValues) => {
     mutation.mutate(values);
   };
 
@@ -154,9 +152,9 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Rider' : 'Add New Rider'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Motorbike' : 'Add New Motorbike'}</DialogTitle>
           <DialogDescription>
-            {isEditing ? 'Update rider information' : 'Register a new rider in the system'}
+            {isEditing ? 'Update motorbike information' : 'Register a new motorbike in the system'}
           </DialogDescription>
         </DialogHeader>
 
@@ -199,163 +197,13 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
 
               <FormField
                 control={form.control}
-                name="full_name"
+                name="registration_number"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full Name *</FormLabel>
+                    <FormLabel>Registration Number *</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} />
+                      <Input placeholder="KCA 123A" {...field} />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="id_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>ID Number *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="12345678" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="+254700000000" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="email@example.com" type="email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="date_of_birth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Birth</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Kisumu, Kenya" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="license_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>License Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="DL-123456" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="license_expiry"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>License Expiry</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="sacco_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sacco</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a Sacco" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {saccos.map((sacco) => (
-                          <SelectItem key={sacco.id} value={sacco.id}>
-                            {sacco.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="stage_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stage</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a Stage" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {stages.map((stage) => (
-                          <SelectItem key={stage.id} value={stage.id}>
-                            {stage.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -366,7 +214,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                 name="owner_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bike Owner</FormLabel>
+                    <FormLabel>Owner *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger>
@@ -374,7 +222,6 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="none">Self-owned</SelectItem>
                         {owners.map((owner) => (
                           <SelectItem key={owner.id} value={owner.id}>
                             {owner.full_name}
@@ -382,6 +229,130 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="rider_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rider</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a Rider" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {riders.map((rider) => (
+                          <SelectItem key={rider.id} value={rider.id}>
+                            {rider.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="make"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Make</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Honda" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Model</FormLabel>
+                    <FormControl>
+                      <Input placeholder="CG 125" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="year"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Year</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="2020" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="color"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Color</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Red" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="chassis_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Chassis Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="CH123456789" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="engine_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Engine Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="EN123456789" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="photo_url"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Photo URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://example.com/photo.jpg" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -418,7 +389,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
               </Button>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? 'Update Rider' : 'Add Rider'}
+                {isEditing ? 'Update Motorbike' : 'Add Motorbike'}
               </Button>
             </DialogFooter>
           </form>
