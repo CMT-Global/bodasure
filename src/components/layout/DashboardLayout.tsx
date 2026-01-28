@@ -61,7 +61,7 @@ const navItems: NavItem[] = [
   { title: 'Verification', href: '/dashboard/verification', icon: QrCode, roles: ['county_super_admin', 'county_admin', 'county_enforcement_officer'] },
   { title: 'Reports', href: '/dashboard/reports', icon: BarChart3, roles: ['county_super_admin', 'county_admin', 'county_finance_officer', 'county_analyst'] },
   { title: 'User Management', href: '/dashboard/users', icon: UserCog, roles: ['county_super_admin', 'county_admin'] },
-  { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin', 'county_admin'] },
+  { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['platform_super_admin', 'county_super_admin', 'county_admin'] },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
