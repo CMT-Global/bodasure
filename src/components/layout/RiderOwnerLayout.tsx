@@ -13,8 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2 } from 'lucide-react';
+import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUserNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
+import { format } from 'date-fns';
 
 interface RiderOwnerLayoutProps {
   children: ReactNode;
@@ -25,7 +27,11 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut, hasRole } = useAuth();
+  const { user, profile, signOut, hasRole } = useAuth();
+  const { data: notifications = [] } = useUserNotifications(15, !!user);
+  const unreadCount = notifications.filter((n) => !n.read_at).length;
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
   const handleSignOut = async () => {
     await signOut();
@@ -161,6 +167,28 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               {!isCollapsed && <span className="truncate">Penalties &amp; Payments</span>}
             </Link>
             <Link
+              to="/rider-owner/notifications"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/notifications'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <MessageSquare className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/notifications' && 'text-primary')} />
+              {!isCollapsed && (
+                <span className="truncate flex items-center gap-2">
+                  Notifications &amp; Communication
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </span>
+              )}
+            </Link>
+            <Link
               to="/rider-owner/profile"
               onClick={() => setIsMobileOpen(false)}
               className={cn(
@@ -241,9 +269,77 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
-            <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 sm:w-96">
+                <div className="flex items-center justify-between px-2 py-2">
+                  <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+                  <div className="flex items-center gap-1">
+                    {unreadCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => markAllRead.mutate()}
+                        disabled={markAllRead.isPending}
+                      >
+                        Mark all read
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        navigate('/rider-owner/notifications');
+                      }}
+                    >
+                      View all
+                    </Button>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                {notifications.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    No notifications
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[280px]">
+                    <div className="space-y-0">
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={cn(
+                            'px-3 py-2.5 cursor-pointer hover:bg-accent transition-colors border-b border-border/50 last:border-0',
+                            !n.read_at && 'bg-primary/5'
+                          )}
+                          onClick={() => {
+                            if (!n.read_at) markRead.mutate(n.id);
+                          }}
+                        >
+                          <p className="font-medium text-sm truncate">{n.title}</p>
+                          {n.body && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(new Date(n.created_at), 'PPp')}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Separator orientation="vertical" className="h-6 hidden sm:block" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

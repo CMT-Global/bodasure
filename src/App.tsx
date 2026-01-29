@@ -45,6 +45,7 @@ import PenaltiesPaymentsPage from "./pages/rider-owner/PenaltiesPaymentsPage";
 import ComplianceStatusPage from "./pages/rider-owner/ComplianceStatusPage";
 import QRIdVerificationPage from "./pages/rider-owner/QRIdVerificationPage";
 import SaccoStageInfoPage from "./pages/rider-owner/SaccoStageInfoPage";
+import NotificationsPage from "./pages/rider-owner/NotificationsPage";
 import PublicVerificationPage from "./pages/PublicVerificationPage";
 
 const queryClient = new QueryClient();
@@ -314,6 +315,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
                   <SaccoStageInfoPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rider-owner/notifications"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <NotificationsPage />
                 </ProtectedRoute>
               }
             />

@@ -55,6 +55,28 @@ export function useMarkNotificationRead() {
   });
 }
 
+export function useMarkNotificationUnread() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (notificationId: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('user_notifications')
+        .update({ read_at: null })
+        .eq('id', notificationId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
+    },
+  });
+}
+
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
 
