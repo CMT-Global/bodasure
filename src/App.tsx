@@ -41,6 +41,7 @@ import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
 import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
 import ProfileRegistrationPage from "./pages/rider-owner/ProfileRegistrationPage";
 import PermitPaymentsPage from "./pages/rider-owner/PermitPaymentsPage";
+import PenaltiesPaymentsPage from "./pages/rider-owner/PenaltiesPaymentsPage";
 
 const queryClient = new QueryClient();
 
@@ -276,6 +277,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
                   <PermitPaymentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rider-owner/penalties-payments"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <PenaltiesPaymentsPage />
                 </ProtectedRoute>
               }
             />

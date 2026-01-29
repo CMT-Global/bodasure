@@ -246,7 +246,7 @@ function RiderOwnerDashboardContent() {
             variant="outline"
             className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
             size="lg"
-            onClick={() => toast.info('Pay penalty — coming soon')}
+            onClick={() => navigate('/rider-owner/penalties-payments')}
           >
             <CreditCard className="h-5 w-5 shrink-0" />
             Pay Penalty

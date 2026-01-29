@@ -10,10 +10,13 @@ interface InitializeRequest {
   amount: number;
   email: string;
   phone?: string;
-  permit_type_id: string;
+  /** Permit payment: required with motorbike_id */
+  permit_type_id?: string;
   rider_id: string;
-  motorbike_id: string;
+  motorbike_id?: string;
   county_id: string;
+  /** Penalty payment: when set, this is a penalty payment */
+  penalty_id?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -56,12 +59,25 @@ Deno.serve(async (req) => {
       rider_id,
       motorbike_id,
       county_id,
+      penalty_id,
       metadata,
     } = body;
 
-    if (!amount || !email || !permit_type_id || !rider_id || !motorbike_id || !county_id) {
+    const isPenaltyPayment = !!penalty_id;
+    const isPermitPayment = !!permit_type_id && !!motorbike_id;
+
+    if (!amount || !email || !rider_id || !county_id) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+    if (!isPenaltyPayment && !isPermitPayment) {
+      return new Response(
+        JSON.stringify({ error: "Either penalty_id or (permit_type_id and motorbike_id) required" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -83,8 +99,23 @@ Deno.serve(async (req) => {
     // Generate unique reference
     const reference = `BDS-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // Generate permit number
-    const permitNumber = `PRM-${county_id.substring(0, 4).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+    const permitNumber = isPermitPayment
+      ? `PRM-${county_id.substring(0, 4).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`
+      : null;
+
+    const paymentMetadata: Record<string, unknown> = {
+      ...metadata,
+      email,
+      phone: phone || null,
+    };
+    if (isPenaltyPayment) {
+      paymentMetadata.penalty_id = penalty_id;
+      paymentMetadata.payment_type = "penalty";
+    } else {
+      paymentMetadata.permit_type_id = permit_type_id;
+      paymentMetadata.motorbike_id = motorbike_id;
+      paymentMetadata.permit_number = permitNumber;
+    }
 
     // Create pending payment record
     const { data: payment, error: paymentError } = await supabase
@@ -97,15 +128,8 @@ Deno.serve(async (req) => {
         payment_reference: reference,
         provider: "paystack",
         payment_method: phone ? "mobile_money" : "card",
-        description: `Permit payment for rider`,
-        metadata: {
-          ...metadata,
-          permit_type_id,
-          motorbike_id,
-          permit_number: permitNumber,
-          email,
-          phone,
-        },
+        description: isPenaltyPayment ? "Penalty payment" : "Permit payment for rider",
+        metadata: paymentMetadata,
       })
       .select()
       .single();
@@ -121,6 +145,16 @@ Deno.serve(async (req) => {
       );
     }
 
+    const customFields: Array<{ display_name: string; variable_name: string; value: string }> = [
+      { display_name: "Rider ID", variable_name: "rider_id", value: rider_id },
+    ];
+    if (permitNumber) {
+      customFields.push({ display_name: "Permit Number", variable_name: "permit_number", value: permitNumber });
+    }
+    if (penalty_id) {
+      customFields.push({ display_name: "Penalty ID", variable_name: "penalty_id", value: penalty_id });
+    }
+
     // Initialize Paystack transaction
     const paystackPayload: Record<string, unknown> = {
       email,
@@ -130,23 +164,10 @@ Deno.serve(async (req) => {
       callback_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/paystack-callback?reference=${reference}`,
       metadata: {
         payment_id: payment.id,
-        permit_type_id,
         rider_id,
-        motorbike_id,
         county_id,
-        permit_number: permitNumber,
-        custom_fields: [
-          {
-            display_name: "Rider ID",
-            variable_name: "rider_id",
-            value: rider_id,
-          },
-          {
-            display_name: "Permit Number",
-            variable_name: "permit_number",
-            value: permitNumber,
-          },
-        ],
+        ...(isPenaltyPayment ? { penalty_id } : { permit_type_id, motorbike_id, permit_number: permitNumber }),
+        custom_fields: customFields,
       },
     };
 

@@ -282,12 +282,45 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get permit details from payment metadata
-      const paymentMetadata = payment.metadata as Record<string, unknown>;
-      const permitTypeId = paymentMetadata?.permit_type_id as string;
-      const motorbike_id = paymentMetadata?.motorbike_id as string;
-      const permitNumber = paymentMetadata?.permit_number as string;
+      // Get payment details from metadata
+      const paymentMetadata = (payment.metadata || {}) as Record<string, unknown>;
+      const penaltyId = paymentMetadata?.penalty_id as string | undefined;
+      const permitTypeId = paymentMetadata?.permit_type_id as string | undefined;
+      const motorbike_id = paymentMetadata?.motorbike_id as string | undefined;
+      const permitNumber = paymentMetadata?.permit_number as string | undefined;
 
+      // Penalty payment: mark penalty paid and update compliance if no other unpaid penalties
+      if (penaltyId) {
+        const { error: penaltyUpdateError } = await supabase
+          .from("penalties")
+          .update({
+            is_paid: true,
+            payment_id: payment.id,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", penaltyId);
+
+        if (penaltyUpdateError) {
+          console.error("Failed to update penalty:", penaltyUpdateError);
+        } else {
+          // Check if rider has any other unpaid penalties; if none, set compliance to compliant
+          const { data: unpaidPenalties } = await supabase
+            .from("penalties")
+            .select("id")
+            .eq("rider_id", payment.rider_id)
+            .eq("is_paid", false);
+
+          if (!unpaidPenalties || unpaidPenalties.length === 0) {
+            await supabase
+              .from("riders")
+              .update({ compliance_status: "compliant" })
+              .eq("id", payment.rider_id);
+          }
+          console.log("Penalty marked paid:", penaltyId);
+        }
+      }
+
+      // Permit payment: create permit and update compliance
       if (permitTypeId && motorbike_id && permitNumber) {
         // Get permit type for duration
         const { data: permitType } = await supabase
@@ -337,7 +370,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Calculate and record revenue sharing
+      // Calculate and record revenue sharing (for permit payments; penalty payments may skip or use same rules per product)
       await calculateRevenueShare(supabase, payment);
 
       return new Response(JSON.stringify({ received: true }), {
