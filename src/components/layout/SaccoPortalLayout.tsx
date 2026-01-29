@@ -78,7 +78,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 lg:relative lg:flex-shrink-0',
-          isCollapsed ? 'w-16' : 'w-64',
+          isCollapsed ? 'w-16' : 'w-72',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
