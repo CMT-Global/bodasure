@@ -253,14 +253,14 @@ export default function CompliancePenaltiesPage() {
         return (
           <div>
             <div className="flex items-center gap-2">
-              <p className="font-medium">{rider.full_name}</p>
+              <p className="font-semibold text-foreground">{rider.full_name}</p>
               {row.original.repeat_offender && (
                 <Badge variant="destructive" className="text-xs">
                   Repeat ({row.original.penalty_count})
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{rider.phone}</p>
+            <p className="text-xs font-medium text-muted-foreground">{rider.phone}</p>
             <p className="text-xs text-muted-foreground font-mono">{rider.id_number}</p>
             <div className="flex gap-1 mt-1">
               {rider.compliance_status === 'blacklisted' && (
@@ -278,14 +278,14 @@ export default function CompliancePenaltiesPage() {
       accessorKey: 'penalty_type',
       header: 'Penalty Type',
       cell: ({ row }) => (
-        <Badge variant="outline">{row.original.penalty_type}</Badge>
+        <Badge variant="outline" className="text-foreground">{row.original.penalty_type}</Badge>
       ),
     },
     {
       accessorKey: 'amount',
       header: 'Amount',
       cell: ({ row }) => (
-        <span className="font-semibold">
+        <span className="font-semibold text-foreground">
           {new Intl.NumberFormat('en-KE', {
             style: 'currency',
             currency: 'KES',
@@ -302,15 +302,19 @@ export default function CompliancePenaltiesPage() {
       accessorKey: 'due_date',
       header: 'Due Date',
       cell: ({ row }) => (
-        row.original.due_date
-          ? format(new Date(row.original.due_date), 'MMM d, yyyy')
-          : '-'
+        <span className="text-foreground">
+          {row.original.due_date
+            ? format(new Date(row.original.due_date), 'MMM d, yyyy')
+            : '-'}
+        </span>
       ),
     },
     {
       accessorKey: 'created_at',
       header: 'Issued',
-      cell: ({ row }) => format(new Date(row.original.created_at), 'MMM d, yyyy'),
+      cell: ({ row }) => (
+        <span className="text-foreground">{format(new Date(row.original.created_at), 'MMM d, yyyy')}</span>
+      ),
     },
     {
       id: 'actions',
@@ -342,11 +346,11 @@ export default function CompliancePenaltiesPage() {
         {/* Page header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Compliance & Penalties</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl font-bold lg:text-3xl text-foreground">Compliance & Penalties</h1>
+            <p className="text-muted-foreground mt-1">
               View penalties, permit alerts, and compliance status for your members
             </p>
-            <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200 dark:border-amber-800">
+            <div className="mt-2 flex items-center gap-2 text-sm font-medium text-amber-300 bg-amber-950/60 px-3 py-2 rounded-md border border-amber-600/60">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>Sacco officials cannot issue county penalties, only view and escalate.</span>
             </div>
@@ -357,7 +361,7 @@ export default function CompliancePenaltiesPage() {
               onValueChange={(v) => setSaccoId(v || undefined)}
               disabled={saccosLoading || saccos.length === 0}
             >
-              <SelectTrigger className="min-h-[44px] touch-target">
+              <SelectTrigger className="min-h-[44px] touch-target text-foreground">
                 <SelectValue placeholder={saccosLoading ? 'Loading…' : 'Select sacco'} />
               </SelectTrigger>
               <SelectContent>
@@ -389,12 +393,12 @@ export default function CompliancePenaltiesPage() {
             <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Unpaid</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Unpaid</CardTitle>
                   <XCircle className="h-4 w-4 text-red-500 shrink-0" />
                 </CardHeader>
                 <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                   <div className="text-xl sm:text-2xl font-bold text-red-500">{stats.unpaid}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {new Intl.NumberFormat('en-KE', {
                       style: 'currency',
                       currency: 'KES',
@@ -405,37 +409,37 @@ export default function CompliancePenaltiesPage() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Paid</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Paid</CardTitle>
                   <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
                 </CardHeader>
                 <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                   <div className="text-xl sm:text-2xl font-bold text-green-500">{stats.paid}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">settled</p>
+                  <p className="text-xs text-muted-foreground mt-1">settled</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Waived</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Waived</CardTitle>
                   <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
                 </CardHeader>
                 <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-                  <div className="text-xl sm:text-2xl font-bold">{stats.waived}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">admin waived</p>
+                  <div className="text-xl sm:text-2xl font-bold text-foreground">{stats.waived}</div>
+                  <p className="text-xs text-muted-foreground mt-1">admin waived</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Repeat Offenders</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Repeat Offenders</CardTitle>
                   <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
                 </CardHeader>
                 <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                   <div className="text-xl sm:text-2xl font-bold text-yellow-500">{stats.repeatOffenders}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">multiple violations</p>
+                  <p className="text-xs text-muted-foreground mt-1">multiple violations</p>
                 </CardContent>
               </Card>
               <Card className="col-span-2 md:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Total Outstanding</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium text-foreground">Total Outstanding</CardTitle>
                   <Clock className="h-4 w-4 text-primary shrink-0" />
                 </CardHeader>
                 <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
@@ -446,7 +450,7 @@ export default function CompliancePenaltiesPage() {
                       maximumFractionDigits: 0,
                     }).format(stats.totalAmount)}
                   </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">unpaid amount</p>
+                  <p className="text-xs text-muted-foreground mt-1">unpaid amount</p>
                 </CardContent>
               </Card>
             </div>
@@ -454,7 +458,7 @@ export default function CompliancePenaltiesPage() {
             {/* Permit Expiry Alerts */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-foreground">
                   <FileX className="h-5 w-5" />
                   Permit Expiry Alerts
                 </CardTitle>
@@ -475,7 +479,7 @@ export default function CompliancePenaltiesPage() {
                         className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"
                       >
                         <div>
-                          <p className="font-medium">{alert.rider_name}</p>
+                          <p className="font-semibold text-foreground">{alert.rider_name}</p>
                           <p className="text-xs text-muted-foreground font-mono">{alert.permit_number}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {format(new Date(alert.expires_at), 'PP')}
@@ -505,7 +509,7 @@ export default function CompliancePenaltiesPage() {
             {/* Member Compliance Scores */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-foreground">
                   <Shield className="h-5 w-5" />
                   Member Compliance Scores
                 </CardTitle>
@@ -521,36 +525,36 @@ export default function CompliancePenaltiesPage() {
                 ) : (
                   <div className="space-y-2">
                     {memberComplianceScores.slice(0, 15).map((item) => {
-                      const scoreColor = item.score >= 80 ? 'text-green-600' : item.score >= 50 ? 'text-yellow-600' : 'text-red-600';
-                      const scoreBg = item.score >= 80 ? 'bg-green-50 dark:bg-green-950/20' : item.score >= 50 ? 'bg-yellow-50 dark:bg-yellow-950/20' : 'bg-red-50 dark:bg-red-950/20';
+                      const scoreColor = item.score >= 80 ? 'text-green-400' : item.score >= 50 ? 'text-yellow-400' : 'text-red-400';
+                      const scoreBg = item.score >= 80 ? 'bg-green-950/30' : item.score >= 50 ? 'bg-yellow-950/30' : 'bg-red-950/30';
                       
                       return (
                         <div
                           key={item.member.id}
-                          className={`flex items-center justify-between rounded-lg border border-border p-3 text-sm ${scoreBg}`}
+                          className={`flex items-center justify-between gap-4 rounded-lg border border-border p-3 text-sm ${scoreBg}`}
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{item.member.full_name}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-foreground truncate">{item.member.full_name}</p>
+                            <p className="text-sm font-medium text-muted-foreground mt-0.5">{item.member.phone}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                               {item.isRepeatOffender && (
-                                <Badge variant="destructive" className="text-xs">Repeat</Badge>
+                                <Badge variant="destructive" className="text-xs shrink-0">Repeat</Badge>
                               )}
                               {item.hasExpiredPermit && (
-                                <Badge variant="destructive" className="text-xs">Expired Permit</Badge>
+                                <Badge variant="destructive" className="text-xs shrink-0">Expired Permit</Badge>
                               )}
                               {!item.hasActivePermit && !item.hasExpiredPermit && (
-                                <Badge variant="outline" className="text-xs">No Permit</Badge>
+                                <Badge variant="secondary" className="text-xs shrink-0">No Permit</Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground">{item.member.phone}</p>
-                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
-                              <span>{item.unpaidPenalties} unpaid penalty{item.unpaidPenalties !== 1 ? 'ies' : ''}</span>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {item.unpaidPenalties} unpaid {item.unpaidPenalties === 1 ? 'penalty' : 'penalties'}
                               {item.totalPenalties > 0 && (
-                                <span>• {item.totalPenalties} total</span>
+                                <span> • {item.totalPenalties} total</span>
                               )}
-                            </div>
+                            </p>
                           </div>
-                          <div className="text-right ml-4">
+                          <div className="text-right shrink-0 w-14">
                             <div className={`text-2xl font-bold ${scoreColor}`}>
                               {Math.round(item.score)}
                             </div>
@@ -572,7 +576,7 @@ export default function CompliancePenaltiesPage() {
             {/* Penalties Table */}
             <Card>
               <CardHeader>
-                <CardTitle>All Penalties</CardTitle>
+                <CardTitle className="text-foreground">All Penalties</CardTitle>
                 <CardDescription>
                   View all penalties issued to your members • {filteredPenalties.length} penalties
                 </CardDescription>
@@ -587,14 +591,14 @@ export default function CompliancePenaltiesPage() {
                       placeholder="Search by member name, phone, ID, penalty type..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 min-h-[44px] text-base sm:text-sm"
+                      className="pl-10 min-h-[44px] text-base sm:text-sm bg-background text-foreground placeholder:text-muted-foreground"
                     />
                   </div>
 
                   {/* Filter Row */}
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-full sm:w-[150px] min-h-[44px]">
+                      <SelectTrigger className="w-full sm:w-[150px] min-h-[44px] text-foreground">
                         <Filter className="mr-2 h-4 w-4 shrink-0" />
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
@@ -607,7 +611,7 @@ export default function CompliancePenaltiesPage() {
                     </Select>
 
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger className="w-full sm:w-[265px] min-h-[44px]">
+                      <SelectTrigger className="w-full sm:w-[265px] min-h-[44px] text-foreground">
                         <SelectValue placeholder="Penalty Type" />
                       </SelectTrigger>
                       <SelectContent className="w-[var(--radix-select-trigger-width)]">
@@ -621,7 +625,7 @@ export default function CompliancePenaltiesPage() {
                     </Select>
 
                     <Select value={repeatOffenderFilter} onValueChange={setRepeatOffenderFilter}>
-                      <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
+                      <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] text-foreground">
                         <SelectValue placeholder="Offender Type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -645,14 +649,14 @@ export default function CompliancePenaltiesPage() {
 
             {/* Escalate Confirmation */}
             <AlertDialog open={isEscalateOpen} onOpenChange={setIsEscalateOpen}>
-              <AlertDialogContent>
+              <AlertDialogContent className="max-w-md">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Escalate Penalty</AlertDialogTitle>
-                  <AlertDialogDescription>
+                  <AlertDialogTitle className="text-foreground">Escalate Penalty</AlertDialogTitle>
+                  <AlertDialogDescription className="text-muted-foreground">
                     Are you sure you want to escalate this penalty to county officials? This will notify them about the issue.
                     {selectedPenalty?.riders && (
-                      <div className="mt-2 p-2 bg-muted rounded">
-                        <p className="font-medium">{selectedPenalty.riders.full_name}</p>
+                      <div className="mt-2 p-2 bg-muted rounded-md">
+                        <p className="font-medium text-foreground">{selectedPenalty.riders.full_name}</p>
                         <p className="text-xs text-muted-foreground">{selectedPenalty.penalty_type}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Intl.NumberFormat('en-KE', {

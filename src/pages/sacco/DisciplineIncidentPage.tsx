@@ -48,34 +48,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { useSaccos, useSaccoMembers, RiderWithDetails } from '@/hooks/useData';
+import { useSaccos, useSaccoMembers, useDisciplineIncidents, DisciplineIncidentRow } from '@/hooks/useData';
+import { supabase } from '@/integrations/supabase/client';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-// Types for discipline and incident records
+// Types for discipline and incident records (align with DB)
 type IncidentType = 'warning' | 'disciplinary_action' | 'incident_report';
 type IncidentStatus = 'pending' | 'acknowledged' | 'resolved' | 'escalated' | 'dismissed';
-
-interface DisciplineIncident {
-  id: string;
-  type: IncidentType;
-  member_id: string;
-  member_name: string;
-  member_phone: string;
-  title: string;
-  description: string;
-  status: IncidentStatus;
-  severity?: 'low' | 'medium' | 'high' | 'critical';
-  submitted_to_county: boolean;
-  county_submission_date?: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  notes?: string;
-  attachments?: string[];
-}
+type DisciplineIncident = DisciplineIncidentRow;
 
 export default function DisciplineIncidentPage() {
   const { profile, roles, user } = useAuth();
@@ -97,9 +81,8 @@ export default function DisciplineIncidentPage() {
   }, [saccos, saccoId]);
 
   const { data: members = [], isLoading: membersLoading } = useSaccoMembers(saccoId, countyId);
-
-  // Mock data - in production, this would come from a database
-  const [incidents, setIncidents] = useState<DisciplineIncident[]>([]);
+  const { data: incidents = [], isLoading: incidentsLoading } = useDisciplineIncidents(saccoId, countyId);
+  const queryClient = useQueryClient();
 
   // Dialog states
   const [isWarningDialogOpen, setIsWarningDialogOpen] = useState(false);
@@ -193,9 +176,13 @@ export default function DisciplineIncidentPage() {
     });
   }, [incidents, searchQuery, typeFilter, statusFilter, severityFilter]);
 
-  const handleIssueWarning = () => {
+  const handleIssueWarning = async () => {
     if (!warningForm.member_id || !warningForm.title || !warningForm.description) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!saccoId || !countyId || !user?.id) {
+      toast.error('Missing sacco, county, or user');
       return;
     }
 
@@ -205,23 +192,24 @@ export default function DisciplineIncidentPage() {
       return;
     }
 
-    const newIncident: DisciplineIncident = {
-      id: `inc_${Date.now()}`,
+    const { error } = await supabase.from('sacco_discipline_incidents').insert({
+      county_id: countyId,
+      sacco_id: saccoId,
+      rider_id: warningForm.member_id,
       type: 'warning',
-      member_id: warningForm.member_id,
-      member_name: member.full_name,
-      member_phone: member.phone,
       title: warningForm.title,
       description: warningForm.description,
       status: 'pending',
       severity: warningForm.severity,
       submitted_to_county: false,
-      created_by: user?.id || '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+      created_by: user.id,
+    });
 
-    setIncidents(prev => [newIncident, ...prev]);
+    if (error) {
+      toast.error(error.message || 'Failed to issue warning');
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
     toast.success('Internal warning issued successfully');
     setIsWarningDialogOpen(false);
     setWarningForm({
@@ -232,9 +220,13 @@ export default function DisciplineIncidentPage() {
     });
   };
 
-  const handleRecordDisciplinary = () => {
+  const handleRecordDisciplinary = async () => {
     if (!disciplinaryForm.member_id || !disciplinaryForm.title || !disciplinaryForm.description) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!saccoId || !countyId || !user?.id) {
+      toast.error('Missing sacco, county, or user');
       return;
     }
 
@@ -244,24 +236,26 @@ export default function DisciplineIncidentPage() {
       return;
     }
 
-    const newIncident: DisciplineIncident = {
-      id: `inc_${Date.now()}`,
+    const descriptionWithAction = `${disciplinaryForm.description}\n\nAction Taken: ${disciplinaryForm.action_taken}`;
+    const { error } = await supabase.from('sacco_discipline_incidents').insert({
+      county_id: countyId,
+      sacco_id: saccoId,
+      rider_id: disciplinaryForm.member_id,
       type: 'disciplinary_action',
-      member_id: disciplinaryForm.member_id,
-      member_name: member.full_name,
-      member_phone: member.phone,
       title: disciplinaryForm.title,
-      description: `${disciplinaryForm.description}\n\nAction Taken: ${disciplinaryForm.action_taken}`,
+      description: descriptionWithAction,
+      notes: disciplinaryForm.action_taken,
       status: 'acknowledged',
       severity: disciplinaryForm.severity,
       submitted_to_county: false,
-      created_by: user?.id || '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      notes: disciplinaryForm.action_taken,
-    };
+      created_by: user.id,
+    });
 
-    setIncidents(prev => [newIncident, ...prev]);
+    if (error) {
+      toast.error(error.message || 'Failed to record disciplinary action');
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
     toast.success('Disciplinary action recorded successfully');
     setIsDisciplinaryDialogOpen(false);
     setDisciplinaryForm({
@@ -273,9 +267,13 @@ export default function DisciplineIncidentPage() {
     });
   };
 
-  const handleSubmitIncident = () => {
+  const handleSubmitIncident = async () => {
     if (!incidentForm.member_id || !incidentForm.title || !incidentForm.description) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!saccoId || !countyId || !user?.id) {
+      toast.error('Missing sacco, county, or user');
       return;
     }
 
@@ -285,24 +283,25 @@ export default function DisciplineIncidentPage() {
       return;
     }
 
-    const newIncident: DisciplineIncident = {
-      id: `inc_${Date.now()}`,
+    const { error } = await supabase.from('sacco_discipline_incidents').insert({
+      county_id: countyId,
+      sacco_id: saccoId,
+      rider_id: incidentForm.member_id,
       type: 'incident_report',
-      member_id: incidentForm.member_id,
-      member_name: member.full_name,
-      member_phone: member.phone,
       title: incidentForm.title,
       description: incidentForm.description,
       status: incidentForm.submit_to_county ? 'escalated' : 'pending',
       severity: incidentForm.severity,
       submitted_to_county: incidentForm.submit_to_county,
-      county_submission_date: incidentForm.submit_to_county ? new Date().toISOString() : undefined,
-      created_by: user?.id || '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+      county_submission_date: incidentForm.submit_to_county ? new Date().toISOString() : null,
+      created_by: user.id,
+    });
 
-    setIncidents(prev => [newIncident, ...prev]);
+    if (error) {
+      toast.error(error.message || 'Failed to submit incident report');
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
     if (incidentForm.submit_to_county) {
       toast.success('Incident report submitted to county successfully');
     } else {
@@ -323,14 +322,21 @@ export default function DisciplineIncidentPage() {
     setIsViewDialogOpen(true);
   };
 
-  const handleUpdateStatus = (incidentId: string, newStatus: IncidentStatus) => {
-    setIncidents(prev =>
-      prev.map(inc =>
-        inc.id === incidentId
-          ? { ...inc, status: newStatus, updated_at: new Date().toISOString() }
-          : inc
-      )
-    );
+  const handleUpdateStatus = async (incidentId: string, newStatus: IncidentStatus, extra?: { submitted_to_county?: boolean; county_submission_date?: string }) => {
+    if (!saccoId || !countyId) return;
+    const payload: { status: IncidentStatus; submitted_to_county?: boolean; county_submission_date?: string; updated_at: string } = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (extra?.submitted_to_county != null) payload.submitted_to_county = extra.submitted_to_county;
+    if (extra?.county_submission_date != null) payload.county_submission_date = extra.county_submission_date;
+
+    const { error } = await supabase.from('sacco_discipline_incidents').update(payload).eq('id', incidentId);
+    if (error) {
+      toast.error(error.message || 'Failed to update status');
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
     toast.success('Status updated successfully');
     setIsViewDialogOpen(false);
     setSelectedIncident(null);
@@ -884,7 +890,7 @@ export default function DisciplineIncidentPage() {
                   columns={columns}
                   data={filteredIncidents}
                   searchPlaceholder="Search incidents..."
-                  isLoading={false}
+                  isLoading={incidentsLoading}
                 />
               </CardContent>
             </Card>
@@ -967,16 +973,12 @@ export default function DisciplineIncidentPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              handleUpdateStatus(selectedIncident.id, 'escalated');
-                              setIncidents(prev =>
-                                prev.map(inc =>
-                                  inc.id === selectedIncident.id
-                                    ? { ...inc, submitted_to_county: true, county_submission_date: new Date().toISOString() }
-                                    : inc
-                                )
-                              );
-                            }}
+                            onClick={() =>
+                              handleUpdateStatus(selectedIncident.id, 'escalated', {
+                                submitted_to_county: true,
+                                county_submission_date: new Date().toISOString(),
+                              })
+                            }
                             className="min-h-[36px]"
                           >
                             <Send className="mr-2 h-4 w-4" />

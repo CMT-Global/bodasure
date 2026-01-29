@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useSaccos, useSaccoMembers, useStages } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,8 +31,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function CommunicationToolsPage() {
+  const queryClient = useQueryClient();
   const { profile, roles } = useAuth();
   const countyId = useMemo(
     () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
@@ -127,13 +130,81 @@ export default function CommunicationToolsPage() {
       return;
     }
 
+    if (!saccoId || !countyId) {
+      toast.error('Sacco or county not selected');
+      return;
+    }
+
     setIsSending(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    const recipientCount = getRecipientCount();
-    toast.success(`Message sent to ${recipientCount} member${recipientCount !== 1 ? 's' : ''}`);
-    
+    try {
+      const {
+        data: { user: currentUser },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !currentUser) {
+        throw new Error('Not authenticated');
+      }
+
+      const recipients = messageType === 'all'
+        ? members
+        : messageType === 'stage'
+        ? members.filter((m) => m.stage_id === selectedStage)
+        : nonCompliantMembers;
+
+      const recipientCount = recipients.length;
+      const recipientUserIds = recipients
+        .map((m) => m.user_id)
+        .filter((id): id is string => !!id);
+
+      // 1. Always save to Supabase (sacco_sent_messages)
+      const { error: msgError } = await supabase.from('sacco_sent_messages').insert({
+        county_id: countyId,
+        sacco_id: saccoId,
+        sender_id: currentUser.id,
+        subject: messageSubject.trim(),
+        body: messageContent.trim(),
+        recipient_type: messageType,
+        stage_id: messageType === 'stage' ? selectedStage || null : null,
+        recipient_count: recipientCount,
+      });
+      if (msgError) throw msgError;
+
+      // 2. Create in-app notifications for each recipient with user_id
+      const notificationsToInsert: { user_id: string; title: string; body: string }[] = recipientUserIds.map(
+        (user_id) => ({
+          user_id,
+          title: messageSubject.trim(),
+          body: messageContent.trim(),
+        })
+      );
+
+      // 3. Always notify the sender so they see the message in the app
+      notificationsToInsert.push({
+        user_id: currentUser.id,
+        title: `Message sent: ${messageSubject.trim()}`,
+        body: `Your message was sent to ${recipientCount} member${recipientCount !== 1 ? 's' : ''}.${recipientUserIds.length < recipientCount && recipientCount > 0 ? ` ${recipientUserIds.length} received in-app notification.` : ''}`,
+      });
+
+      if (notificationsToInsert.length > 0) {
+        const { error: notifError } = await supabase.from('user_notifications').insert(notificationsToInsert);
+        if (notifError) throw notifError;
+        queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
+      }
+
+      if (recipientUserIds.length < recipientCount && recipientCount > 0) {
+        toast.success(
+          `Message saved. Sent to ${recipientCount} member${recipientCount !== 1 ? 's' : ''}; ${recipientUserIds.length} in-app notification${recipientUserIds.length !== 1 ? 's' : ''} delivered.`
+        );
+      } else {
+        toast.success(`Message sent to ${recipientCount} member${recipientCount !== 1 ? 's' : ''}. Check your notifications.`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send message';
+      toast.error(message);
+      setIsSending(false);
+      return;
+    }
+
     setMessageSubject('');
     setMessageContent('');
     setSelectedStage('');

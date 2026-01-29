@@ -641,6 +641,82 @@ export type Database = {
           },
         ]
       }
+      sacco_discipline_incidents: {
+        Row: {
+          id: string
+          county_id: string
+          sacco_id: string
+          rider_id: string
+          type: string
+          title: string
+          description: string
+          notes: string | null
+          status: string
+          severity: string | null
+          submitted_to_county: boolean
+          county_submission_date: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          county_id: string
+          sacco_id: string
+          rider_id: string
+          type: string
+          title: string
+          description: string
+          notes?: string | null
+          status?: string
+          severity?: string | null
+          submitted_to_county?: boolean
+          county_submission_date?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          county_id?: string
+          sacco_id?: string
+          rider_id?: string
+          type?: string
+          title?: string
+          description?: string
+          notes?: string | null
+          status?: string
+          severity?: string | null
+          submitted_to_county?: boolean
+          county_submission_date?: string | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sacco_discipline_incidents_county_id_fkey"
+            columns: ["county_id"]
+            isOneToOne: false
+            referencedRelation: "counties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sacco_discipline_incidents_sacco_id_fkey"
+            columns: ["sacco_id"]
+            isOneToOne: false
+            referencedRelation: "saccos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sacco_discipline_incidents_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saccos: {
         Row: {
           address: string | null
@@ -782,6 +858,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          body: string | null
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          body?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          body?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      sacco_sent_messages: {
+        Row: {
+          id: string
+          county_id: string
+          sacco_id: string
+          sender_id: string
+          subject: string
+          body: string | null
+          recipient_type: string
+          stage_id: string | null
+          recipient_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          county_id: string
+          sacco_id: string
+          sender_id: string
+          subject: string
+          body?: string | null
+          recipient_type: string
+          stage_id?: string | null
+          recipient_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          county_id?: string
+          sacco_id?: string
+          sender_id?: string
+          subject?: string
+          body?: string | null
+          recipient_type?: string
+          stage_id?: string | null
+          recipient_count?: number
+          created_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

@@ -44,24 +44,33 @@ export function useSaccoAuditLogs(
         .order('created_at', { ascending: false })
         .limit(500);
 
-      // Filter by entity type if saccoId is provided
+      // Filter by entity type if saccoId is provided (use singular forms to match DB)
+      const saccoRelatedEntityTypes = ['rider', 'sacco', 'stage', 'user_role', 'incident', 'disciplinary_action'];
       if (saccoId) {
-        // Filter for sacco-related actions
-        query = query.or(`entity_type.eq.saccos,entity_type.eq.riders,entity_type.eq.stages,entity_type.eq.user_roles`);
+        query = query.in('entity_type', saccoRelatedEntityTypes);
       }
 
       // Apply additional filters
       if (filters?.actionType) {
-        query = query.ilike('action', `%${filters.actionType}%`);
+        const term = filters.actionType.trim();
+        // Match both "approve" and "approved" (and similar -ed variants) so filter works either way
+        const stem = term.replace(/ed$/i, 'e');
+        if (stem && stem !== term) {
+          query = query.or(`action.ilike.%${term}%,action.ilike.%${stem}%`);
+        } else {
+          query = query.ilike('action', `%${term}%`);
+        }
       }
       if (filters?.entityType) {
         query = query.eq('entity_type', filters.entityType);
       }
       if (filters?.startDate) {
-        query = query.gte('created_at', filters.startDate);
+        // Start of day (inclusive)
+        query = query.gte('created_at', `${filters.startDate}T00:00:00.000Z`);
       }
       if (filters?.endDate) {
-        query = query.lte('created_at', filters.endDate);
+        // End of day (inclusive) so logs on the selected date are included
+        query = query.lte('created_at', `${filters.endDate}T23:59:59.999Z`);
       }
 
       const { data: logs, error } = await query;

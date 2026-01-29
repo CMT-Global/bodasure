@@ -150,22 +150,22 @@ export default function SaccoAuditLogsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="entity-type">Entity Type</Label>
                     <Select
-                      value={filters.entityType || ''}
+                      value={filters.entityType ?? '__all__'}
                       onValueChange={(v) =>
-                        setFilters({ ...filters, entityType: v || undefined })
+                        setFilters({ ...filters, entityType: v === '__all__' ? undefined : v })
                       }
                     >
                       <SelectTrigger id="entity-type">
                         <SelectValue placeholder="All entities" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All entities</SelectItem>
-                        <SelectItem value="riders">Riders</SelectItem>
-                        <SelectItem value="saccos">Saccos</SelectItem>
-                        <SelectItem value="stages">Stages</SelectItem>
-                        <SelectItem value="user_roles">User Roles</SelectItem>
-                        <SelectItem value="incidents">Incidents</SelectItem>
-                        <SelectItem value="disciplinary_actions">Disciplinary Actions</SelectItem>
+                        <SelectItem value="__all__">All entities</SelectItem>
+                        <SelectItem value="rider">Riders</SelectItem>
+                        <SelectItem value="sacco">Saccos</SelectItem>
+                        <SelectItem value="stage">Stages</SelectItem>
+                        <SelectItem value="user_role">User Roles</SelectItem>
+                        <SelectItem value="incident">Incidents</SelectItem>
+                        <SelectItem value="disciplinary_action">Disciplinary Actions</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

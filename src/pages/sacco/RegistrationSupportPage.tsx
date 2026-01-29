@@ -605,14 +605,17 @@ export default function RegistrationSupportPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Stage</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <Select
+                            onValueChange={(v) => field.onChange(v === '__none__' ? '' : v)}
+                            value={field.value || '__none__'}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select Stage (Optional)" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">None</SelectItem>
+                              <SelectItem value="__none__">None</SelectItem>
                               {stages
                                 .filter((s) => s.sacco_id === (form.watch('sacco_id') || saccoId))
                                 .map((stage) => (

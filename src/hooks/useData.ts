@@ -291,6 +291,103 @@ export function useSaccoMembers(saccoId: string | undefined, countyId: string | 
   });
 }
 
+export type DisciplineIncidentType = 'warning' | 'disciplinary_action' | 'incident_report';
+export type DisciplineIncidentStatus = 'pending' | 'acknowledged' | 'resolved' | 'escalated' | 'dismissed';
+
+export interface DisciplineIncidentRow {
+  id: string;
+  type: DisciplineIncidentType;
+  member_id: string;
+  member_name: string;
+  member_phone: string;
+  title: string;
+  description: string;
+  status: DisciplineIncidentStatus;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  submitted_to_county: boolean;
+  county_submission_date?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  notes?: string;
+  attachments?: string[];
+}
+
+// Fetch discipline incidents for a sacco (persisted in DB)
+export function useDisciplineIncidents(saccoId: string | undefined, countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['discipline-incidents', saccoId, countyId],
+    queryFn: async () => {
+      if (!saccoId || !countyId) return [] as DisciplineIncidentRow[];
+
+      const { data, error } = await supabase
+        .from('sacco_discipline_incidents')
+        .select(`
+          id,
+          type,
+          rider_id,
+          title,
+          description,
+          notes,
+          status,
+          severity,
+          submitted_to_county,
+          county_submission_date,
+          created_by,
+          created_at,
+          updated_at,
+          riders(full_name, phone)
+        `)
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!data || data.length === 0) return [] as DisciplineIncidentRow[];
+
+      type RiderRef = { full_name: string; phone: string } | null;
+      type Row = {
+        id: string;
+        type: string;
+        rider_id: string;
+        title: string;
+        description: string;
+        notes: string | null;
+        status: string;
+        severity: string | null;
+        submitted_to_county: boolean;
+        county_submission_date: string | null;
+        created_by: string;
+        created_at: string;
+        updated_at: string;
+        riders?: RiderRef;
+        rider?: RiderRef;
+      };
+      return (data as Row[]).map((row) => {
+        const riderData = row.riders ?? row.rider ?? null;
+        return {
+        id: row.id,
+        type: row.type as DisciplineIncidentType,
+        member_id: row.rider_id,
+        member_name: riderData?.full_name ?? '',
+        member_phone: riderData?.phone ?? '',
+        title: row.title,
+        description: row.description,
+        notes: row.notes ?? undefined,
+        status: row.status as DisciplineIncidentStatus,
+        severity: (row.severity as 'low' | 'medium' | 'high' | 'critical') ?? undefined,
+        submitted_to_county: row.submitted_to_county,
+        county_submission_date: row.county_submission_date ?? undefined,
+        created_by: row.created_by,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+      }) as DisciplineIncidentRow[];
+    },
+    enabled: !!saccoId && !!countyId,
+  });
+}
+
 // Fetch single rider
 export function useRider(riderId: string) {
   return useQuery({
