@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RiderWithDetails } from '@/hooks/useData';
-import { useRiderPenalties } from '@/hooks/usePenalties';
+import { useRiderPenalties, useUpdateRiderCompliance } from '@/hooks/usePenalties';
 import { useStages } from '@/hooks/useData';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +17,6 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -83,6 +82,7 @@ export function MemberProfileDialog({
     countyId
   );
   const { data: stages = [] } = useStages(countyId, saccoId);
+  const updateComplianceMutation = useUpdateRiderCompliance();
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({
@@ -176,7 +176,7 @@ export function MemberProfileDialog({
   const isRejected = rider?.status === 'rejected';
   const canReinstate = isSuspended || isRejected;
   const stagesForTransfer = stages.filter((s) => s.id !== rider?.stage_id);
-  const busy = updateStatusMutation.isPending || transferMutation.isPending;
+  const busy = updateStatusMutation.isPending || transferMutation.isPending || updateComplianceMutation.isPending;
 
   if (!rider) return null;
 
@@ -190,16 +190,16 @@ export function MemberProfileDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Member Profile</DialogTitle>
             <DialogDescription>
               View permit status, penalties, compliance history. Approve, suspend, or transfer members.
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-6">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-6">
+            <div className="space-y-6 pr-2">
               {/* Header */}
               <div className="flex items-start gap-4">
                 <Avatar className="h-16 w-16">
@@ -370,6 +370,41 @@ export function MemberProfileDialog({
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground">Actions</h4>
                 <div className="flex flex-wrap gap-2">
+                  {/* Set compliance status */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Compliance:</span>
+                    <Select
+                      value={rider.compliance_status ?? 'pending_review'}
+                      onValueChange={(value) => {
+                        updateComplianceMutation.mutate(
+                          {
+                            riderId: rider.id,
+                            complianceStatus: value as 'compliant' | 'non_compliant' | 'pending_review' | 'blacklisted',
+                          },
+                          {
+                            onSuccess: () => {
+                              queryClient.invalidateQueries({ queryKey: ['sacco-members'] });
+                              toast.success('Compliance status updated');
+                            },
+                          }
+                        );
+                      }}
+                      disabled={busy}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Set status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compliant">Compliant</SelectItem>
+                        <SelectItem value="non_compliant">Non-compliant</SelectItem>
+                        <SelectItem value="pending_review">Under review</SelectItem>
+                        <SelectItem value="blacklisted">Blacklisted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {updateComplianceMutation.isPending && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
                   {isPending && (
                     <>
                       <Button
@@ -471,7 +506,7 @@ export function MemberProfileDialog({
                 </div>
               </div>
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
