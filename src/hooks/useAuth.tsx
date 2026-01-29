@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
   const [rolesLoaded, setRolesLoaded] = useState(false);
+  const rolesLoadedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     let sessionTimeoutId: NodeJS.Timeout | null = null;
@@ -52,6 +53,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener BEFORE getting initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        // TOKEN_REFRESHED fires when user returns to tab - don't refetch or show loading
+        if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+          setSession(newSession);
+          setUser(newSession.user);
+          if (sessionTimeoutId) {
+            clearTimeout(sessionTimeoutId);
+            sessionTimeoutId = null;
+          }
+          sessionTimeoutId = setTimeout(async () => {
+            console.warn('Session expired due to inactivity');
+            await supabase.auth.signOut();
+            setProfile(null);
+            setRoles([]);
+            setIsLoadingRoles(false);
+            setRolesLoaded(false);
+            rolesLoadedForUserRef.current = null;
+            if (window.location.pathname.startsWith('/dashboard')) {
+              window.location.href = '/login?session=expired';
+            }
+          }, SESSION_TIMEOUT_MS);
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
@@ -75,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setRoles([]);
             setIsLoadingRoles(false);
             setRolesLoaded(false);
+            rolesLoadedForUserRef.current = null;
             // Optionally redirect to login
             if (window.location.pathname.startsWith('/dashboard')) {
               window.location.href = '/login?session=expired';
@@ -85,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRoles([]);
           setIsLoadingRoles(false);
           setRolesLoaded(false);
+          rolesLoadedForUserRef.current = null;
         }
         
         setIsLoading(false);
@@ -107,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRoles([]);
           setIsLoadingRoles(false);
           setRolesLoaded(false);
+          rolesLoadedForUserRef.current = null;
           if (window.location.pathname.startsWith('/dashboard')) {
             window.location.href = '/login?session=expired';
           }
@@ -125,8 +152,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchUserData = async (userId: string) => {
-    setIsLoadingRoles(true);
-    setRolesLoaded(false);
+    const isRefetch = rolesLoadedForUserRef.current === userId;
+    if (!isRefetch) {
+      setIsLoadingRoles(true);
+      setRolesLoaded(false);
+    }
     try {
       // Fetch profile
       const { data: profileData, error: profileError } = await supabase
@@ -160,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoadingRoles(false);
       setRolesLoaded(true);
+      rolesLoadedForUserRef.current = userId;
     }
   };
 
@@ -186,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles([]);
     setIsLoadingRoles(false);
     setRolesLoaded(false);
+    rolesLoadedForUserRef.current = null;
   };
 
   const hasRole = (role: string) => {
