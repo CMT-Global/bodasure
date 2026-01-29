@@ -152,7 +152,7 @@ export function DataTable<TData, TValue>({
   }
 
   return (
-    <div className="space-y-4 w-full overflow-x-hidden">
+    <div className="space-y-4 w-full max-w-full min-w-0 overflow-x-hidden">
       {/* Search */}
       <div className="relative w-full max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -164,9 +164,9 @@ export function DataTable<TData, TValue>({
         />
       </div>
 
-      {/* Table - Mobile scrollable */}
-      <div className="rounded-lg border border-border bg-card overflow-x-auto -webkit-overflow-scrolling-touch">
-        <div className="min-w-full inline-block">
+      {/* Table - contained scroll, no page overflow; touch-friendly on mobile */}
+      <div className="rounded-lg border border-border bg-card overflow-x-auto max-w-full overscroll-x-contain">
+        <div className="min-w-max inline-block">
           <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -236,7 +236,7 @@ export function DataTable<TData, TValue>({
             size="sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="flex-1 sm:flex-initial min-h-[44px]"
+            className="flex-1 sm:flex-initial min-h-[44px] touch-manipulation"
           >
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Previous</span>
@@ -246,7 +246,7 @@ export function DataTable<TData, TValue>({
             size="sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="flex-1 sm:flex-initial min-h-[44px]"
+            className="flex-1 sm:flex-initial min-h-[44px] touch-manipulation"
           >
             <span className="hidden sm:inline">Next</span>
             <ChevronRight className="h-4 w-4" />

@@ -181,20 +181,20 @@ export default function SaccoProfileSettingsPage() {
 
   return (
     <SaccoPortalLayout>
-      <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-3 sm:px-0 max-w-full min-w-0">
         {/* Page header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Sacco Profile & Settings</h1>
-            <p className="text-muted-foreground">Manage your sacco profile, officials, and documents.</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Sacco Profile & Settings</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">Manage your sacco profile, officials, and documents.</p>
           </div>
-          <div className="w-full sm:w-64">
+          <div className="w-full sm:w-64 min-w-0">
             <Select
               value={saccoId ?? ''}
               onValueChange={(v) => setSaccoId(v || undefined)}
               disabled={saccosLoading || saccos.length === 0}
             >
-              <SelectTrigger className="min-h-[44px]">
+              <SelectTrigger className="min-h-[44px] w-full touch-manipulation">
                 <SelectValue placeholder={saccosLoading ? 'Loading…' : 'Select sacco'} />
               </SelectTrigger>
               <SelectContent>
@@ -209,33 +209,58 @@ export default function SaccoProfileSettingsPage() {
         </div>
 
         {!countyId ? (
-          <div className="rounded-lg border border-border bg-card p-6 text-center">
-            <p className="text-muted-foreground">No county assigned. Please contact an administrator.</p>
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-6 text-center">
+            <p className="text-muted-foreground text-sm sm:text-base">No county assigned. Please contact an administrator.</p>
           </div>
         ) : !saccoId ? (
-          <div className="rounded-lg border border-border bg-card p-6 text-center">
-            <p className="text-muted-foreground">Please select a sacco to manage.</p>
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-6 text-center">
+            <p className="text-muted-foreground text-sm sm:text-base">Please select a sacco to manage.</p>
           </div>
         ) : (
           <Tabs defaultValue="profile" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="officials">Officials</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="revenue">Revenue Share</TabsTrigger>
+            {/* Segmented tab bar: all four visible on mobile (2x2 grid), single row on desktop. */}
+            <TabsList className="grid grid-cols-2 sm:flex sm:flex-nowrap h-auto gap-2 p-2 rounded-lg bg-muted/80 text-muted-foreground border-0 shadow-inner w-full sm:w-max">
+              <TabsTrigger
+                value="profile"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-3 min-h-[44px] touch-manipulation text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground"
+              >
+                <Building2 className="h-4 w-4 shrink-0" />
+                <span>Profile</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="officials"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-3 min-h-[44px] touch-manipulation text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground"
+              >
+                <Users className="h-4 w-4 shrink-0" />
+                <span>Officials</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="documents"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-3 min-h-[44px] touch-manipulation text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground"
+              >
+                <FileText className="h-4 w-4 shrink-0" />
+                <span>Documents</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="revenue"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-3 min-h-[44px] touch-manipulation text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground"
+              >
+                <DollarSign className="h-4 w-4 shrink-0" />
+                <span>Revenue Share</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* Profile Tab */}
-            <TabsContent value="profile" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5" />
+            <TabsContent value="profile" className="space-y-4 mt-4">
+              <Card className="overflow-hidden">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <Building2 className="h-5 w-5 shrink-0" />
                     Sacco Profile Information
                   </CardTitle>
-                  <CardDescription>Update your sacco or welfare profile information.</CardDescription>
+                  <CardDescription className="text-sm">Update your sacco or welfare profile information.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="name">Sacco Name *</Label>
@@ -244,6 +269,7 @@ export default function SaccoProfileSettingsPage() {
                         value={profileForm.name}
                         onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                         disabled={updateProfile.isPending}
+                        className="min-h-[44px]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -253,6 +279,7 @@ export default function SaccoProfileSettingsPage() {
                         value={profileForm.registration_number}
                         onChange={(e) => setProfileForm({ ...profileForm, registration_number: e.target.value })}
                         disabled={updateProfile.isPending}
+                        className="min-h-[44px]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -263,6 +290,7 @@ export default function SaccoProfileSettingsPage() {
                         value={profileForm.contact_email}
                         onChange={(e) => setProfileForm({ ...profileForm, contact_email: e.target.value })}
                         disabled={updateProfile.isPending}
+                        className="min-h-[44px]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -272,6 +300,7 @@ export default function SaccoProfileSettingsPage() {
                         value={profileForm.contact_phone}
                         onChange={(e) => setProfileForm({ ...profileForm, contact_phone: e.target.value })}
                         disabled={updateProfile.isPending}
+                        className="min-h-[44px]"
                       />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
@@ -281,6 +310,7 @@ export default function SaccoProfileSettingsPage() {
                         value={profileForm.address}
                         onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
                         disabled={updateProfile.isPending}
+                        className="min-h-[44px]"
                       />
                     </div>
                   </div>
@@ -288,7 +318,7 @@ export default function SaccoProfileSettingsPage() {
                     <Button
                       onClick={handleUpdateProfile}
                       disabled={updateProfile.isPending || !profileForm.name}
-                      className="gap-2"
+                      className="gap-2 min-h-[44px] touch-manipulation"
                     >
                       {updateProfile.isPending ? (
                         <>
@@ -308,25 +338,25 @@ export default function SaccoProfileSettingsPage() {
             </TabsContent>
 
             {/* Officials Tab */}
-            <TabsContent value="officials" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Users className="h-5 w-5" />
+            <TabsContent value="officials" className="space-y-4 mt-4">
+              <Card className="overflow-hidden">
+                <CardHeader className="p-4 sm:p-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Users className="h-5 w-5 shrink-0" />
                         Manage Officials
                       </CardTitle>
-                      <CardDescription>Assign and remove roles for sacco officials.</CardDescription>
+                      <CardDescription className="text-sm">Assign and remove roles for sacco officials.</CardDescription>
                     </div>
                     <Dialog open={showAssignRoleDialog} onOpenChange={setShowAssignRoleDialog}>
                       <DialogTrigger asChild>
-                        <Button className="gap-2">
-                          <UserPlus className="h-4 w-4" />
+                        <Button className="gap-2 min-h-[44px] w-full sm:w-auto touch-manipulation justify-center">
+                          <UserPlus className="h-4 w-4 shrink-0" />
                           Assign Role
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-lg p-4 sm:p-6">
                         <DialogHeader>
                           <DialogTitle>Assign Role to Official</DialogTitle>
                           <DialogDescription>Select a user and role to assign.</DialogDescription>
@@ -335,7 +365,7 @@ export default function SaccoProfileSettingsPage() {
                           <div className="space-y-2">
                             <Label htmlFor="user-select">User</Label>
                             <Select value={selectedUser} onValueChange={setSelectedUser}>
-                              <SelectTrigger id="user-select">
+                              <SelectTrigger id="user-select" className="min-h-[44px]">
                                 <SelectValue placeholder="Select user" />
                               </SelectTrigger>
                               <SelectContent>
@@ -352,7 +382,7 @@ export default function SaccoProfileSettingsPage() {
                           <div className="space-y-2">
                             <Label htmlFor="role-select">Role</Label>
                             <Select value={selectedRole} onValueChange={(v: any) => setSelectedRole(v)}>
-                              <SelectTrigger id="role-select">
+                              <SelectTrigger id="role-select" className="min-h-[44px]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -364,10 +394,10 @@ export default function SaccoProfileSettingsPage() {
                             </Select>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowAssignRoleDialog(false)}>
+                            <Button variant="outline" onClick={() => setShowAssignRoleDialog(false)} className="min-h-[44px] touch-manipulation">
                               Cancel
                             </Button>
-                            <Button onClick={handleAssignRole} disabled={!selectedUser || assignRole.isPending}>
+                            <Button onClick={handleAssignRole} disabled={!selectedUser || assignRole.isPending} className="min-h-[44px] touch-manipulation">
                               {assignRole.isPending ? (
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -383,98 +413,100 @@ export default function SaccoProfileSettingsPage() {
                     </Dialog>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6 pt-0">
                   {officialsLoading ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : officials.length === 0 ? (
-                    <p className="py-8 text-center text-muted-foreground">No officials found.</p>
+                    <p className="py-8 text-center text-muted-foreground text-sm sm:text-base">No officials found.</p>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User</TableHead>
-                          <TableHead>Roles</TableHead>
-                          <TableHead>Granted At</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {officials.map((official) => (
-                          <TableRow key={official.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={official.avatar_url || undefined} />
-                                  <AvatarFallback>
-                                    {(official.full_name || official.email)
-                                      .split(' ')
-                                      .map((n) => n[0])
-                                      .join('')
-                                      .toUpperCase()
-                                      .slice(0, 2)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">{official.full_name || official.email}</p>
-                                  <p className="text-sm text-muted-foreground">{official.email}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {official.roles.map((role) => (
-                                  <Badge key={role.id} variant="secondary">
-                                    {role.role.replace('_', ' ')}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {official.roles[0]?.granted_at
-                                ? format(new Date(official.roles[0].granted_at), 'PPp')
-                                : 'N/A'}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {official.roles.map((role) => (
-                                <Button
-                                  key={role.id}
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setRoleToRemove({ userId: official.user_id, role: role.role })}
-                                  disabled={removeRole.isPending}
-                                  className="ml-2"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              ))}
-                            </TableCell>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs sm:text-sm">User</TableHead>
+                            <TableHead className="text-xs sm:text-sm">Roles</TableHead>
+                            <TableHead className="text-xs sm:text-sm whitespace-nowrap">Granted At</TableHead>
+                            <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {officials.map((official) => (
+                            <TableRow key={official.id}>
+                              <TableCell className="py-3">
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                  <Avatar className="h-8 w-8 shrink-0">
+                                    <AvatarImage src={official.avatar_url || undefined} />
+                                    <AvatarFallback className="text-xs">
+                                      {(official.full_name || official.email)
+                                        .split(' ')
+                                        .map((n) => n[0])
+                                        .join('')
+                                        .toUpperCase()
+                                        .slice(0, 2)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm truncate">{official.full_name || official.email}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{official.email}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {official.roles.map((role) => (
+                                    <Badge key={role.id} variant="secondary" className="text-xs">
+                                      {role.role.replace('_', ' ')}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-3 text-xs sm:text-sm whitespace-nowrap">
+                                {official.roles[0]?.granted_at
+                                  ? format(new Date(official.roles[0].granted_at), 'PPp')
+                                  : 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-right py-3">
+                                {official.roles.map((role) => (
+                                  <Button
+                                    key={role.id}
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setRoleToRemove({ userId: official.user_id, role: role.role })}
+                                    disabled={removeRole.isPending}
+                                    className="min-h-[44px] min-w-[44px] touch-manipulation"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                ))}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
 
             {/* Documents Tab */}
-            <TabsContent value="documents" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
+            <TabsContent value="documents" className="space-y-4 mt-4">
+              <Card className="overflow-hidden">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <FileText className="h-5 w-5 shrink-0" />
                     Registration Documents
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm">
                     Upload registration documents if required by county.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                   <div className="space-y-2">
-                    <Label htmlFor="registration-doc">Registration Document</Label>
-                    <div className="flex items-center gap-2">
+                    <Label htmlFor="registration-doc" className="text-sm">Registration Document</Label>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <Input
                         id="registration-doc"
                         type="file"
@@ -482,7 +514,7 @@ export default function SaccoProfileSettingsPage() {
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={handleFileUpload}
                         disabled={uploadDocument.isPending}
-                        className="flex-1"
+                        className="flex-1 min-h-[44px] w-full touch-manipulation file:mr-2 file:py-2 file:px-3 file:text-sm"
                       />
                       {uploadDocument.isPending && (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -491,17 +523,17 @@ export default function SaccoProfileSettingsPage() {
                   </div>
                   {documents.length > 0 && (
                     <div className="space-y-2">
-                      <Label>Uploaded Documents</Label>
+                      <Label className="text-sm">Uploaded Documents</Label>
                       <div className="space-y-2">
                         {documents.map((doc: any, index: number) => (
                           <div
                             key={index}
-                            className="flex items-center justify-between rounded-lg border border-border p-3"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-border p-3 min-w-0"
                           >
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-sm font-medium">{doc.type}</p>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{doc.type}</p>
                                 <p className="text-xs text-muted-foreground">
                                   {doc.uploaded_at ? format(new Date(doc.uploaded_at), 'PPp') : 'Unknown'}
                                 </p>
@@ -511,6 +543,7 @@ export default function SaccoProfileSettingsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => window.open(doc.url, '_blank')}
+                              className="min-h-[44px] touch-manipulation w-full sm:w-auto shrink-0"
                             >
                               View
                             </Button>
@@ -524,68 +557,71 @@ export default function SaccoProfileSettingsPage() {
             </TabsContent>
 
             {/* Revenue Share Tab */}
-            <TabsContent value="revenue" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
+            <TabsContent value="revenue" className="space-y-4 mt-4">
+              <Card className="overflow-hidden">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <DollarSign className="h-5 w-5 shrink-0" />
                     Revenue Share Information
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm">
                     View revenue share information (read-only, if enabled by county).
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6 pt-0">
                   {revenueSharesLoading ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : revenueShares.length === 0 ? (
-                    <p className="py-8 text-center text-muted-foreground">
+                    <p className="py-8 text-center text-muted-foreground text-sm sm:text-base">
                       No revenue share data available.
                     </p>
                   ) : (
-                    <ScrollArea className="h-[400px]">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Rider</TableHead>
-                            <TableHead>Base Amount</TableHead>
-                            <TableHead>Share Amount</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {revenueShares.map((share) => (
-                            <TableRow key={share.id}>
-                              <TableCell>
-                                {format(new Date(share.created_at), 'PPp')}
-                              </TableCell>
-                              <TableCell>{share.rider?.full_name || 'N/A'}</TableCell>
-                              <TableCell>KES {Number(share.base_amount).toLocaleString()}</TableCell>
-                              <TableCell>KES {Number(share.share_amount).toLocaleString()}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{share.share_type}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    share.status === 'distributed'
-                                      ? 'default'
-                                      : share.status === 'pending'
-                                      ? 'secondary'
-                                      : 'destructive'
-                                  }
-                                >
-                                  {share.status}
-                                </Badge>
-                              </TableCell>
+                    <ScrollArea className="h-[400px] w-full">
+                      <div className="overflow-x-auto min-w-0">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs sm:text-sm whitespace-nowrap">Date</TableHead>
+                              <TableHead className="text-xs sm:text-sm">Rider</TableHead>
+                              <TableHead className="text-xs sm:text-sm whitespace-nowrap">Base Amount</TableHead>
+                              <TableHead className="text-xs sm:text-sm whitespace-nowrap">Share Amount</TableHead>
+                              <TableHead className="text-xs sm:text-sm">Type</TableHead>
+                              <TableHead className="text-xs sm:text-sm">Status</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {revenueShares.map((share) => (
+                              <TableRow key={share.id}>
+                                <TableCell className="text-xs sm:text-sm whitespace-nowrap py-3">
+                                  {format(new Date(share.created_at), 'PPp')}
+                                </TableCell>
+                                <TableCell className="py-3 text-xs sm:text-sm min-w-0 max-w-[120px] sm:max-w-none truncate">{share.rider?.full_name || 'N/A'}</TableCell>
+                                <TableCell className="text-xs sm:text-sm whitespace-nowrap py-3">KES {Number(share.base_amount).toLocaleString()}</TableCell>
+                                <TableCell className="text-xs sm:text-sm whitespace-nowrap py-3">KES {Number(share.share_amount).toLocaleString()}</TableCell>
+                                <TableCell className="py-3">
+                                  <Badge variant="outline" className="text-xs">{share.share_type}</Badge>
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  <Badge
+                                    variant={
+                                      share.status === 'distributed'
+                                        ? 'default'
+                                        : share.status === 'pending'
+                                        ? 'secondary'
+                                        : 'destructive'
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {share.status}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </ScrollArea>
                   )}
                 </CardContent>
@@ -599,7 +635,7 @@ export default function SaccoProfileSettingsPage() {
           open={!!roleToRemove}
           onOpenChange={(open) => !open && setRoleToRemove(null)}
         >
-          <AlertDialogContent>
+          <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-lg p-4 sm:p-6">
             <AlertDialogHeader>
               <AlertDialogTitle>Remove Role</AlertDialogTitle>
               <AlertDialogDescription>

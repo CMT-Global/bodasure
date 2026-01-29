@@ -456,17 +456,17 @@ export default function DisciplineIncidentPage() {
 
   return (
     <SaccoPortalLayout>
-      <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-3 sm:px-0 max-w-full min-w-0">
         {/* Page header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Internal Discipline & Incident Reporting</h1>
-            <p className="text-muted-foreground">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Internal Discipline & Incident Reporting</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">
               Issue warnings, record disciplinary actions, and submit incident reports to county
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="w-full sm:w-64">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <div className="w-full sm:w-64 min-w-0">
               <Select
                 value={saccoId ?? ''}
                 onValueChange={(v) => setSaccoId(v || undefined)}
@@ -484,15 +484,15 @@ export default function DisciplineIncidentPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Dialog open={isWarningDialogOpen} onOpenChange={setIsWarningDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="min-h-[44px]">
-                    <FileWarning className="mr-2 h-4 w-4" />
+                  <Button variant="outline" className="min-h-[44px] w-full sm:w-auto touch-manipulation justify-center">
+                    <FileWarning className="mr-2 h-4 w-4 shrink-0" />
                     Issue Warning
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 w-[calc(100vw-1.5rem)] sm:w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Issue Internal Warning</DialogTitle>
                     <DialogDescription>
@@ -570,12 +570,12 @@ export default function DisciplineIncidentPage() {
 
               <Dialog open={isDisciplinaryDialogOpen} onOpenChange={setIsDisciplinaryDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="min-h-[44px]">
-                    <Gavel className="mr-2 h-4 w-4" />
+                  <Button variant="outline" className="min-h-[44px] w-full sm:w-auto touch-manipulation justify-center">
+                    <Gavel className="mr-2 h-4 w-4 shrink-0" />
                     Record Disciplinary
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 w-[calc(100vw-1.5rem)] sm:w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Record Disciplinary Action</DialogTitle>
                     <DialogDescription>
@@ -664,12 +664,12 @@ export default function DisciplineIncidentPage() {
 
               <Dialog open={isIncidentDialogOpen} onOpenChange={setIsIncidentDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="min-h-[44px]">
-                    <Flag className="mr-2 h-4 w-4" />
+                  <Button className="min-h-[44px] w-full sm:w-auto touch-manipulation justify-center">
+                    <Flag className="mr-2 h-4 w-4 shrink-0" />
                     Submit Incident
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 w-[calc(100vw-1.5rem)] sm:w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Submit Incident Report to County</DialogTitle>
                     <DialogDescription>
@@ -762,15 +762,15 @@ export default function DisciplineIncidentPage() {
         </div>
 
         {!countyId ? (
-          <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6 text-center text-muted-foreground text-sm sm:text-base">
             No county linked to your account. Contact an administrator.
           </div>
         ) : saccos.length === 0 && !saccosLoading ? (
-          <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6 text-center text-muted-foreground text-sm sm:text-base">
             No saccos in your county.
           </div>
         ) : !saccoId ? (
-          <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6 text-center text-muted-foreground text-sm sm:text-base">
             Select a sacco to manage discipline and incidents.
           </div>
         ) : (
@@ -820,14 +820,14 @@ export default function DisciplineIncidentPage() {
             </div>
 
             {/* Incidents Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>All Incidents & Disciplinary Actions</CardTitle>
-                <CardDescription>
+            <Card className="overflow-hidden">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">All Incidents & Disciplinary Actions</CardTitle>
+                <CardDescription className="text-sm">
                   View all warnings, disciplinary actions, and incident reports • {filteredIncidents.length} records
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0">
                 {/* Search and Filters */}
                 <div className="space-y-4 mb-4">
                   {/* Search Bar */}
@@ -891,17 +891,50 @@ export default function DisciplineIncidentPage() {
                   data={filteredIncidents}
                   searchPlaceholder="Search incidents..."
                   isLoading={incidentsLoading}
+                  mobileCardRender={(incident) => (
+                    <Card className="overflow-hidden">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start gap-2 flex-wrap">
+                          {getTypeIcon(incident.type)}
+                          {getTypeBadge(incident.type)}
+                          {getSeverityBadge(incident.severity)}
+                          <StatusBadge status={incident.status} />
+                        </div>
+                        <div>
+                          <p className="font-semibold truncate">{incident.title}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{incident.description}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{incident.member_name}</p>
+                          <p className="text-xs text-muted-foreground">{incident.member_phone}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(incident.created_at), 'MMM d, yyyy')}
+                          {incident.submitted_to_county && ' • Submitted to county'}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full min-h-[44px] touch-manipulation"
+                          onClick={() => handleViewIncident(incident)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View details
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                 />
               </CardContent>
             </Card>
 
             {/* View Incident Dialog */}
             <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 w-[calc(100vw-1.5rem)] sm:w-full max-w-[calc(100vw-1.5rem)] sm:max-w-3xl">
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 text-base sm:text-lg break-words">
                     {selectedIncident && getTypeIcon(selectedIncident.type)}
-                    {selectedIncident?.title}
+                    <span className="min-w-0 break-words">{selectedIncident?.title}</span>
                   </DialogTitle>
                   <DialogDescription>
                     {selectedIncident && (
@@ -920,15 +953,15 @@ export default function DisciplineIncidentPage() {
                 </DialogHeader>
                 {selectedIncident && (
                   <div className="space-y-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="min-w-0">
                         <Label className="text-xs text-muted-foreground">Member</Label>
-                        <p className="font-medium">{selectedIncident.member_name}</p>
-                        <p className="text-sm text-muted-foreground">{selectedIncident.member_phone}</p>
+                        <p className="font-medium break-words">{selectedIncident.member_name}</p>
+                        <p className="text-sm text-muted-foreground break-all">{selectedIncident.member_phone}</p>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <Label className="text-xs text-muted-foreground">Created</Label>
-                        <p className="font-medium">{format(new Date(selectedIncident.created_at), 'PPp')}</p>
+                        <p className="font-medium text-sm sm:text-base">{format(new Date(selectedIncident.created_at), 'PPp')}</p>
                         {selectedIncident.county_submission_date && (
                           <p className="text-sm text-muted-foreground">
                             Submitted: {format(new Date(selectedIncident.county_submission_date), 'PPp')}
@@ -954,7 +987,7 @@ export default function DisciplineIncidentPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleUpdateStatus(selectedIncident.id, 'acknowledged')}
-                            className="min-h-[36px]"
+                            className="min-h-[44px] touch-manipulation"
                           >
                             Mark Acknowledged
                           </Button>
@@ -964,7 +997,7 @@ export default function DisciplineIncidentPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleUpdateStatus(selectedIncident.id, 'resolved')}
-                            className="min-h-[36px]"
+                            className="min-h-[44px] touch-manipulation"
                           >
                             Mark Resolved
                           </Button>
@@ -979,9 +1012,9 @@ export default function DisciplineIncidentPage() {
                                 county_submission_date: new Date().toISOString(),
                               })
                             }
-                            className="min-h-[36px]"
+                            className="min-h-[44px] touch-manipulation"
                           >
-                            <Send className="mr-2 h-4 w-4" />
+                            <Send className="mr-2 h-4 w-4 shrink-0" />
                             Escalate to County
                           </Button>
                         )}
@@ -990,7 +1023,7 @@ export default function DisciplineIncidentPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleUpdateStatus(selectedIncident.id, 'dismissed')}
-                            className="min-h-[36px]"
+                            className="min-h-[44px] touch-manipulation"
                           >
                             Dismiss
                           </Button>
@@ -999,8 +1032,8 @@ export default function DisciplineIncidentPage() {
                     </div>
                   </div>
                 )}
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} className="min-h-[44px]">
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} className="min-h-[44px] w-full sm:w-auto touch-manipulation">
                     Close
                   </Button>
                 </DialogFooter>

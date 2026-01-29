@@ -35,6 +35,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function SaccoAuditLogsPage() {
   const { profile, roles } = useAuth();
@@ -46,6 +47,7 @@ export default function SaccoAuditLogsPage() {
   const { data: saccos = [], isLoading: saccosLoading } = useSaccos(countyId);
   const [saccoId, setSaccoId] = useState<string | undefined>(undefined);
 
+  const isMobile = useIsMobile();
   const [filters, setFilters] = useState<{
     actionType?: string;
     entityType?: string;
@@ -145,6 +147,7 @@ export default function SaccoAuditLogsPage() {
                       onChange={(e) =>
                         setFilters({ ...filters, actionType: e.target.value || undefined })
                       }
+                      className="min-h-[44px]"
                     />
                   </div>
                   <div className="space-y-2">
@@ -155,7 +158,7 @@ export default function SaccoAuditLogsPage() {
                         setFilters({ ...filters, entityType: v === '__all__' ? undefined : v })
                       }
                     >
-                      <SelectTrigger id="entity-type">
+                      <SelectTrigger id="entity-type" className="min-h-[44px]">
                         <SelectValue placeholder="All entities" />
                       </SelectTrigger>
                       <SelectContent>
@@ -178,6 +181,7 @@ export default function SaccoAuditLogsPage() {
                       onChange={(e) =>
                         setFilters({ ...filters, startDate: e.target.value || undefined })
                       }
+                      className="min-h-[44px]"
                     />
                   </div>
                   <div className="space-y-2">
@@ -189,6 +193,7 @@ export default function SaccoAuditLogsPage() {
                       onChange={(e) =>
                         setFilters({ ...filters, endDate: e.target.value || undefined })
                       }
+                      className="min-h-[44px]"
                     />
                   </div>
                 </div>
@@ -197,6 +202,7 @@ export default function SaccoAuditLogsPage() {
                     variant="outline"
                     onClick={() => setFilters({})}
                     disabled={!filters.actionType && !filters.entityType && !filters.startDate && !filters.endDate}
+                    className="min-h-[44px] touch-manipulation"
                   >
                     Clear Filters
                   </Button>
@@ -225,8 +231,70 @@ export default function SaccoAuditLogsPage() {
                     <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" />
                     <p>No audit logs found.</p>
                   </div>
+                ) : isMobile ? (
+                  <ScrollArea className="h-[600px] max-w-full overflow-x-hidden">
+                    <div className="space-y-3 pr-2">
+                      {auditLogs.map((log) => (
+                        <div
+                          key={log.id}
+                          className="rounded-lg border border-border p-4 space-y-2 text-sm"
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="font-medium">
+                              {format(new Date(log.created_at), 'PPp')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {log.user ? (
+                              <>
+                                <Avatar className="h-6 w-6">
+                                  <AvatarFallback className="text-xs">
+                                    {(log.user.full_name || log.user.email)
+                                      .split(' ')
+                                      .map((n) => n[0])
+                                      .join('')
+                                      .toUpperCase()
+                                      .slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium truncate">
+                                  {log.user.full_name || log.user.email}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">System</span>
+                            )}
+                            {log.role && (
+                              <Badge variant="outline" className="text-xs">
+                                {log.role.replace('_', ' ')}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {getActionIcon(log.action)}
+                            <Badge variant={getActionBadgeVariant(log.action)}>{log.action}</Badge>
+                            <Badge variant="secondary">{log.entity_type}</Badge>
+                          </div>
+                          {log.new_values && Object.keys(log.new_values).length > 0 && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {Object.entries(log.new_values)
+                                .slice(0, 2)
+                                .map(([key, value]) => (
+                                  <span key={key}>
+                                    <span className="font-medium">{key}:</span>{' '}
+                                    {String(value).substring(0, 40)}
+                                    {String(value).length > 40 ? '...' : ''}
+                                  </span>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 ) : (
-                  <ScrollArea className="h-[600px]">
+                  <ScrollArea className="h-[600px] max-w-full overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>

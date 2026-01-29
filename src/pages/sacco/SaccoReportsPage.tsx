@@ -236,7 +236,7 @@ export default function SaccoReportsPage() {
           size="sm"
           onClick={() => exportToCSV(data || [], filename)}
           disabled={disabled}
-          className="flex-1 sm:flex-initial min-h-[44px]"
+          className="flex-1 sm:flex-initial min-h-[44px] touch-manipulation"
         >
           <FileDown className="mr-2 h-4 w-4" />
           CSV
@@ -246,7 +246,7 @@ export default function SaccoReportsPage() {
           size="sm"
           onClick={() => exportToExcel(data || [], filename)}
           disabled={disabled}
-          className="flex-1 sm:flex-initial min-h-[44px]"
+          className="flex-1 sm:flex-initial min-h-[44px] touch-manipulation"
         >
           <FileSpreadsheet className="mr-2 h-4 w-4" />
           Excel
@@ -256,7 +256,7 @@ export default function SaccoReportsPage() {
           size="sm"
           onClick={() => exportToPDF(data || [], filename, title || filename)}
           disabled={disabled}
-          className="flex-1 sm:flex-initial min-h-[44px]"
+          className="flex-1 sm:flex-initial min-h-[44px] touch-manipulation"
         >
           <FileText className="mr-2 h-4 w-4" />
           PDF

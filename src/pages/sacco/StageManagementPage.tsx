@@ -45,6 +45,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const PROBLEMATIC_COMPLIANCE_THRESHOLD = 50;
 const PROBLEMATIC_PENALTIES_THRESHOLD = 3;
@@ -244,12 +245,67 @@ export default function StageManagementPage() {
                   {PROBLEMATIC_PENALTIES_THRESHOLD}+ penalties are flagged as at risk.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-w-full min-w-0">
                 <DataTable
                   columns={columns}
                   data={stagesForSacco}
                   searchPlaceholder="Search stages..."
                   isLoading={stagesLoading}
+                  mobileCardRender={(stage) => {
+                    const isProblematic =
+                      (stage.compliance_rate ?? 100) < PROBLEMATIC_COMPLIANCE_THRESHOLD ||
+                      (stage.penalties_count ?? 0) >= PROBLEMATIC_PENALTIES_THRESHOLD;
+                    return (
+                      <Card className="overflow-hidden">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <MapPin className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold truncate">{stage.name}</p>
+                              <p className="text-xs text-muted-foreground">{stage.location || 'No location'}</p>
+                              {isProblematic && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive mt-1">
+                                  <AlertTriangle className="h-3 w-3" /> At risk
+                                </span>
+                              )}
+                            </div>
+                            <StatusBadge status={stage.status} />
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Users className="h-4 w-4" />
+                              {stage.member_count ?? 0}
+                              {stage.capacity != null && ` / ${stage.capacity}`}
+                            </span>
+                            <span>Compliance: {stage.compliance_rate ?? 100}%</span>
+                            <span>Penalties: {stage.penalties_count ?? 0}</span>
+                          </div>
+                          <div className="flex flex-col gap-2 pt-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full min-h-[44px] touch-manipulation"
+                              onClick={() => setViewStage(stage)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View members
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full min-h-[44px] touch-manipulation"
+                              onClick={() => setAssignStage(stage)}
+                            >
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Assign members
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>
@@ -306,7 +362,7 @@ function RequestStageDialog({
         capacity: capacity ? parseInt(capacity, 10) : null,
         county_id: countyId,
         sacco_id: saccoId,
-        status: 'pending',
+        status: 'pending' as const,
       };
       const { error } = await supabase.from('stages').insert([payload]);
       if (error) throw error;
@@ -360,12 +416,13 @@ function RequestStageDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation">
             Cancel
           </Button>
           <Button
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending || !name.trim()}
+            className="min-h-[44px] touch-manipulation"
           >
             {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Submit request
@@ -424,7 +481,7 @@ function ViewStageMembersDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation">
             Close
           </Button>
         </DialogFooter>
@@ -449,6 +506,7 @@ function AssignMembersDialog({
   stages: Stage[];
 }) {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [assignments, setAssignments] = useState<Record<string, string>>({}); // rider_id -> stage_id or NO_STAGE_VALUE
 
   useEffect(() => {
@@ -490,7 +548,7 @@ function AssignMembersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] flex flex-col mx-4 sm:mx-6 overflow-hidden">
         <DialogHeader>
           <DialogTitle>Assign members to {stage.name}</DialogTitle>
           <DialogDescription>
@@ -498,55 +556,87 @@ function AssignMembersDialog({
             members.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-auto rounded-md border min-h-0">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 sticky top-0">
-              <tr>
-                <th className="text-left p-3 font-medium">Member</th>
-                <th className="text-left p-3 font-medium">Current stage</th>
-                <th className="text-left p-3 font-medium">Assign to</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+        <div className="flex-1 overflow-auto rounded-md border min-h-0 overflow-x-hidden">
+          {isMobile ? (
+            <ul className="divide-y divide-border p-2">
               {members.map((m) => (
-                <tr key={m.id}>
-                  <td className="p-3">
-                    <p className="font-medium">{m.full_name}</p>
-                    <p className="text-muted-foreground">{m.phone}</p>
-                  </td>
-                  <td className="p-3 text-muted-foreground">
-                    {m.stage_id ? stages.find((s) => s.id === m.stage_id)?.name ?? '—' : 'No stage'}
-                  </td>
-                  <td className="p-3">
-                    <Select
-                      value={assignments[m.id] ?? (m.stage_id ?? NO_STAGE_VALUE)}
-                      onValueChange={(v) =>
-                        setAssignments((prev) => ({ ...prev, [m.id]: v }))
-                      }
-                    >
-                      <SelectTrigger className="h-9 w-full max-w-[180px]">
-                        <SelectValue placeholder="Stage" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NO_STAGE_VALUE}>No stage</SelectItem>
-                        {stageOptions.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                </tr>
+                <li key={m.id} className="p-3 space-y-2">
+                  <p className="font-medium truncate">{m.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{m.phone}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Current: {m.stage_id ? stages.find((s) => s.id === m.stage_id)?.name ?? '—' : 'No stage'}
+                  </p>
+                  <Select
+                    value={assignments[m.id] ?? (m.stage_id ?? NO_STAGE_VALUE)}
+                    onValueChange={(v) =>
+                      setAssignments((prev) => ({ ...prev, [m.id]: v }))
+                    }
+                  >
+                    <SelectTrigger className="w-full min-h-[44px] touch-manipulation">
+                      <SelectValue placeholder="Assign to stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_STAGE_VALUE} className="min-h-[44px]">No stage</SelectItem>
+                      {stageOptions.map((s) => (
+                        <SelectItem key={s.id} value={s.id} className="min-h-[44px]">
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          ) : (
+            <table className="w-full text-sm min-w-0">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr>
+                  <th className="text-left p-3 font-medium">Member</th>
+                  <th className="text-left p-3 font-medium">Current stage</th>
+                  <th className="text-left p-3 font-medium">Assign to</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {members.map((m) => (
+                  <tr key={m.id}>
+                    <td className="p-3">
+                      <p className="font-medium">{m.full_name}</p>
+                      <p className="text-muted-foreground">{m.phone}</p>
+                    </td>
+                    <td className="p-3 text-muted-foreground">
+                      {m.stage_id ? stages.find((s) => s.id === m.stage_id)?.name ?? '—' : 'No stage'}
+                    </td>
+                    <td className="p-3">
+                      <Select
+                        value={assignments[m.id] ?? (m.stage_id ?? NO_STAGE_VALUE)}
+                        onValueChange={(v) =>
+                          setAssignments((prev) => ({ ...prev, [m.id]: v }))
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-full max-w-[180px] min-h-[44px]">
+                          <SelectValue placeholder="Stage" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_STAGE_VALUE}>No stage</SelectItem>
+                          {stageOptions.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-shrink-0 gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation">
             Cancel
           </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="min-h-[44px] touch-manipulation">
             {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save assignments
           </Button>

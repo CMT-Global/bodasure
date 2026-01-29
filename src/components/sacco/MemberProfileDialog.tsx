@@ -190,7 +190,7 @@ export function MemberProfileDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl h-[90vh] max-h-[90dvh] overflow-hidden flex flex-col p-0 gap-0 mx-4 sm:mx-6">
           <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Member Profile</DialogTitle>
             <DialogDescription>
@@ -198,8 +198,8 @@ export function MemberProfileDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-6">
-            <div className="space-y-6 pr-2">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 pb-6 min-w-0">
+            <div className="space-y-6 pr-2 max-w-full">
               {/* Header */}
               <div className="flex items-start gap-4">
                 <Avatar className="h-16 w-16">
@@ -391,7 +391,7 @@ export function MemberProfileDialog({
                       }}
                       disabled={busy}
                     >
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] touch-manipulation">
                         <SelectValue placeholder="Set status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -411,7 +411,7 @@ export function MemberProfileDialog({
                         size="sm"
                         onClick={() => setShowApproveConfirm(true)}
                         disabled={busy}
-                        className="gap-2"
+                        className="gap-2 min-h-[44px] touch-manipulation"
                       >
                         {pendingAction === 'approve' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -425,7 +425,7 @@ export function MemberProfileDialog({
                         variant="destructive"
                         onClick={() => setShowRejectConfirm(true)}
                         disabled={busy}
-                        className="gap-2"
+                        className="gap-2 min-h-[44px] touch-manipulation"
                       >
                         {pendingAction === 'reject' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -442,7 +442,7 @@ export function MemberProfileDialog({
                       variant="outline"
                       onClick={() => setShowSuspendConfirm(true)}
                       disabled={busy}
-                      className="gap-2"
+                      className="gap-2 min-h-[44px] touch-manipulation"
                     >
                       {pendingAction === 'suspend' ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -458,7 +458,7 @@ export function MemberProfileDialog({
                       variant="outline"
                       onClick={() => setShowReinstateConfirm(true)}
                       disabled={busy}
-                      className="gap-2"
+                      className="gap-2 min-h-[44px] touch-manipulation"
                     >
                       {pendingAction === 'reinstate' ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -475,7 +475,7 @@ export function MemberProfileDialog({
                         onValueChange={setTransferStageId}
                         disabled={busy}
                       >
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] touch-manipulation">
                           <SelectValue placeholder="Transfer to stage…" />
                         </SelectTrigger>
                         <SelectContent>
@@ -494,7 +494,7 @@ export function MemberProfileDialog({
                           else toast.error('Select a stage first');
                         }}
                         disabled={!transferStageId || busy}
-                        className="gap-2"
+                        className="gap-2 min-h-[44px] touch-manipulation"
                       >
                         {pendingAction === 'transfer' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />

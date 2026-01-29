@@ -423,7 +423,7 @@ export default function CommunicationToolsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <Button
                         variant={messageType === 'all' ? 'default' : 'outline'}
-                        className="h-auto py-4 flex flex-col items-start gap-2"
+                        className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
                         onClick={() => {
                           setMessageType('all');
                           setSelectedStage('');
@@ -439,7 +439,7 @@ export default function CommunicationToolsPage() {
                       </Button>
                       <Button
                         variant={messageType === 'stage' ? 'default' : 'outline'}
-                        className="h-auto py-4 flex flex-col items-start gap-2"
+                        className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
                         onClick={() => setMessageType('stage')}
                       >
                         <MapPin className="h-5 w-5" />
@@ -450,7 +450,7 @@ export default function CommunicationToolsPage() {
                       </Button>
                       <Button
                         variant={messageType === 'non-compliant' ? 'default' : 'outline'}
-                        className="h-auto py-4 flex flex-col items-start gap-2"
+                        className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
                         onClick={() => {
                           setMessageType('non-compliant');
                           setSelectedStage('');

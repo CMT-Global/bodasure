@@ -320,15 +320,15 @@ export default function RegistrationSupportPage() {
   if (!countyId) {
     return (
       <SaccoPortalLayout>
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 px-3 sm:px-0 max-w-full min-w-0">
           <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Registration Support</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Registration Support</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">
               Assist with rider registration • Validate identity • Confirm membership • Flag duplicates
             </p>
           </div>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
+          <Alert className="text-sm sm:text-base">
+            <AlertCircle className="h-4 w-4 shrink-0" />
             <AlertDescription>
               County information is required to access registration support. Please ensure your account is associated with a county.
             </AlertDescription>
@@ -340,24 +340,24 @@ export default function RegistrationSupportPage() {
 
   return (
     <SaccoPortalLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-3 sm:px-0 max-w-full min-w-0">
         {/* Page header */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Registration Support</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Registration Support</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">
               Assist with rider registration • Validate identity • Confirm membership • Flag duplicates
             </p>
           </div>
 
           {/* Sacco selector */}
-          <div className="w-full max-w-xs">
+          <div className="w-full sm:max-w-xs">
             <Select
               value={saccoId ?? ''}
               onValueChange={(v) => setSaccoId(v || undefined)}
               disabled={saccosLoading || saccos.length === 0}
             >
-              <SelectTrigger className="min-h-[44px]">
+              <SelectTrigger className="min-h-[44px] w-full touch-manipulation">
                 <SelectValue placeholder={saccosLoading ? 'Loading…' : saccos.length === 0 ? 'No saccos available' : 'Select sacco'} />
               </SelectTrigger>
               <SelectContent>
@@ -376,19 +376,19 @@ export default function RegistrationSupportPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Registration Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
+          <Card className="overflow-hidden">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <UserPlus className="h-5 w-5 shrink-0" />
                 Register New Rider
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm">
                 Enter rider information. The system will automatically check for duplicates.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   {/* Duplicate Alert */}
@@ -656,7 +656,7 @@ export default function RegistrationSupportPage() {
                     />
                   </div>
 
-                  <div className="flex gap-2 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-2 pt-4">
                     <Button
                       type="button"
                       variant="outline"
@@ -664,14 +664,14 @@ export default function RegistrationSupportPage() {
                         form.reset();
                         setDuplicateCheck(null);
                       }}
-                      className="flex-1"
+                      className="flex-1 w-full sm:w-auto min-h-[44px] touch-manipulation"
                     >
                       Clear
                     </Button>
                     <Button
                       type="submit"
                       disabled={registrationMutation.isPending || hasDuplicate || isCheckingDuplicate}
-                      className="flex-1"
+                      className="flex-1 w-full sm:w-auto min-h-[44px] touch-manipulation"
                     >
                       {registrationMutation.isPending ? (
                         <>
@@ -692,31 +692,31 @@ export default function RegistrationSupportPage() {
           </Card>
 
           {/* Recent Registrations */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
+          <Card className="overflow-hidden">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Users className="h-5 w-5 shrink-0" />
                 Recent Registrations
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm">
                 View and manage recently registered riders for this sacco
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <div className="space-y-4">
                 {/* Search */}
-                <div className="relative">
+                <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Search by name, ID, phone, or plate..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 min-h-[44px]"
+                    className="pl-10 min-h-[44px] w-full text-base sm:text-sm touch-manipulation"
                   />
                 </div>
 
                 {/* Stats */}
-                <div className="flex gap-4 text-sm">
+                <div className="flex flex-wrap gap-3 sm:gap-4 text-sm">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{filteredRiders.length}</Badge>
                     <span className="text-muted-foreground">Total</span>
@@ -736,7 +736,7 @@ export default function RegistrationSupportPage() {
                 </div>
 
                 {/* Registration Table */}
-                <div className="max-h-[600px] overflow-y-auto">
+                <div className="max-h-[500px] sm:max-h-[600px] overflow-y-auto overflow-x-hidden -mx-1 px-1 sm:mx-0 sm:px-0">
                   <RegistrationTable
                     riders={filteredRiders}
                     onView={(rider) => {

@@ -643,6 +643,48 @@ export default function CompliancePenaltiesPage() {
                   data={filteredPenalties}
                   searchPlaceholder="Search penalties..."
                   isLoading={penaltiesLoading}
+                  mobileCardRender={(penalty) => {
+                    const rider = penalty.riders;
+                    return (
+                      <Card className="overflow-hidden">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="text-foreground">{penalty.penalty_type}</Badge>
+                            {getPenaltyStatusBadge(penalty)}
+                          </div>
+                          {rider && (
+                            <div>
+                              <p className="font-semibold text-foreground truncate">{rider.full_name}</p>
+                              <p className="text-xs text-muted-foreground">{rider.phone}</p>
+                              {penalty.repeat_offender && (
+                                <Badge variant="destructive" className="text-xs mt-1">Repeat ({penalty.penalty_count})</Badge>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-semibold text-foreground">
+                              {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
+                            </span>
+                            <span className="text-muted-foreground">
+                              Due: {penalty.due_date ? format(new Date(penalty.due_date), 'MMM d, yyyy') : '-'}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full min-h-[44px] touch-manipulation"
+                            onClick={() => {
+                              setSelectedPenalty(penalty);
+                              setIsEscalateOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Escalate to County
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>

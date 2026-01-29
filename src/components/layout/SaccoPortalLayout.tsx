@@ -65,7 +65,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden min-w-0">
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div
@@ -271,23 +271,25 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
             <Menu className="h-6 w-6" />
           </Button>
 
-          {/* Portal Tabs */}
-          <div className="flex items-center gap-2 ml-2 sm:ml-4">
+          {/* Portal Tabs - touch targets 44px on mobile */}
+          <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4 flex-shrink min-w-0">
             <Button
               variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
               size="sm"
               onClick={() => navigate('/dashboard')}
-              className="min-h-[36px]"
+              className="min-h-[44px] min-w-0 px-3 touch-manipulation"
             >
-              County Portal
+              <span className="hidden sm:inline">County Portal</span>
+              <span className="sm:hidden">County</span>
             </Button>
             <Button
               variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
               size="sm"
               onClick={() => navigate('/sacco')}
-              className="min-h-[36px]"
+              className="min-h-[44px] min-w-0 px-3 touch-manipulation"
             >
-              Sacco Portal
+              <span className="hidden sm:inline">Sacco Portal</span>
+              <span className="sm:hidden">Sacco</span>
             </Button>
           </div>
 
@@ -392,9 +394,9 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6">
-          <div className="w-full max-w-full mx-auto">
+        {/* Page content - no horizontal scroll, touch-friendly */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 p-3 sm:p-4 lg:p-6">
+          <div className="w-full max-w-full min-w-0 mx-auto [overflow-x:clip]">
             {children}
           </div>
         </main>
