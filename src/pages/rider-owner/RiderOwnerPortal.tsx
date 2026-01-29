@@ -10,6 +10,7 @@ import {
 import { PaymentHistoryDialog } from '@/components/payments/PaymentHistoryDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { QuickActionCard } from '@/components/dashboard/QuickActionCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -101,7 +102,7 @@ function RiderOwnerDashboardContent() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 sm:space-y-6 max-w-lg mx-auto">
+      <div className="space-y-4 sm:space-y-6 max-w-full min-w-0">
         <div className="flex items-center gap-4">
           <Skeleton className="h-16 w-16 rounded-full" />
           <div className="space-y-2">
@@ -120,22 +121,102 @@ function RiderOwnerDashboardContent() {
     );
   }
 
-  // No rider linked to this user
+  // Owner-only: linked as owner but not as rider – show owner summary + quick actions
+  if (!data?.rider && data?.owner) {
+    const ownerName = data.owner.full_name ?? profile?.full_name ?? 'Owner';
+    return (
+      <div className="space-y-4 sm:space-y-6 max-w-full min-w-0">
+        <Card className="overflow-hidden">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-border">
+                <AvatarImage src={profile?.avatar_url} alt={ownerName} />
+                <AvatarFallback className="text-lg bg-primary/10 text-primary">
+                  {getInitials(ownerName)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl font-bold truncate">{ownerName}</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">Linked as owner</p>
+                {data.ownedBikesCount > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {data.ownedBikesCount} bike{data.ownedBikesCount !== 1 ? 's' : ''} registered
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-2">
+          <h2 className="text-xl sm:text-2xl font-bold px-1">Quick actions</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <QuickActionCard
+              title="Profile & Registration"
+              description="Complete or update your profile"
+              icon={<Shield className="h-5 w-5 sm:h-6 sm:w-6" />}
+              statusColor="default"
+              onClick={() => navigate('/rider-owner/profile')}
+            />
+            <QuickActionCard
+              title="Support & Help"
+              description="Get assistance"
+              icon={<HelpCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+              statusColor="green"
+              onClick={() => navigate('/rider-owner/support-help')}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No rider and no owner – show message + quick actions so the page is still useful
   if (!data?.rider) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center max-w-md mx-auto">
-        <Bike className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-lg font-semibold mb-2">No rider profile linked</h2>
-        <p className="text-sm text-muted-foreground">
-          Your account is not linked to a rider or owner record. Contact your Sacco or county
-          admin to link your profile.
-        </p>
+      <div className="space-y-4 sm:space-y-6 max-w-full min-w-0">
+        <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center">
+          <Bike className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <h2 className="text-lg font-semibold mb-2">No rider profile linked</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Your account is not linked to a rider or owner record. Contact your Sacco or county
+            admin to link your profile, or complete your profile below.
+          </p>
+          <Button
+            variant="default"
+            onClick={() => navigate('/rider-owner/profile')}
+            className="gap-2"
+          >
+            <Shield className="h-4 w-4" />
+            Profile & Registration
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-xl sm:text-2xl font-bold px-1">Quick actions</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <QuickActionCard
+              title="Profile & Registration"
+              description="Complete or update your profile"
+              icon={<Shield className="h-5 w-5 sm:h-6 sm:w-6" />}
+              statusColor="default"
+              onClick={() => navigate('/rider-owner/profile')}
+            />
+            <QuickActionCard
+              title="Support & Help"
+              description="Get assistance"
+              icon={<HelpCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+              statusColor="green"
+              onClick={() => navigate('/rider-owner/support-help')}
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-lg mx-auto">
+    <div className="space-y-4 sm:space-y-6 max-w-full min-w-0">
       {/* Rider name + photo */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 sm:p-5">
@@ -230,64 +311,52 @@ function RiderOwnerDashboardContent() {
         </CardContent>
       </Card>
 
-      {/* Quick actions */}
+      {/* Quick actions - card grid matching county portal dashboard */}
       <div className="space-y-2">
-        <h2 className="text-base font-medium px-1">Quick actions</h2>
-        <div className="grid gap-2">
-          <Button
-            variant="outline"
-            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
-            size="lg"
+        <h2 className="text-xl sm:text-2xl font-bold px-1">Quick actions</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <QuickActionCard
+            title="Compliance Status"
+            description="Check your compliance"
+            icon={<Shield className="h-5 w-5 sm:h-6 sm:w-6" />}
+            statusColor="green"
             onClick={() => navigate('/rider-owner/compliance-status')}
-          >
-            <Shield className="h-5 w-5 shrink-0" />
-            Compliance Status
-          </Button>
-          <Button
-            variant="outline"
-            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
-            size="lg"
+          />
+          <QuickActionCard
+            title="Pay Permit"
+            description="Renew or pay for permit"
+            icon={<CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />}
+            statusColor="default"
             onClick={() => navigate('/rider-owner/permit-payments')}
-          >
-            <CreditCard className="h-5 w-5 shrink-0" />
-            Pay Permit
-          </Button>
-          <Button
-            variant="outline"
-            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
-            size="lg"
+          />
+          <QuickActionCard
+            title="Pay Penalty"
+            description="Settle outstanding penalties"
+            icon={<CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />}
+            statusColor={outstandingTotal > 0 ? 'amber' : 'green'}
             onClick={() => navigate('/rider-owner/penalties-payments')}
-          >
-            <CreditCard className="h-5 w-5 shrink-0" />
-            Pay Penalty
-          </Button>
-          <Button
-            variant="outline"
-            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
-            size="lg"
+          />
+          <QuickActionCard
+            title="View My QR ID"
+            description="Show at checkpoints"
+            icon={<QrCode className="h-5 w-5 sm:h-6 sm:w-6" />}
+            statusColor="green"
             onClick={() => setQrOpen(true)}
-          >
-            <QrCode className="h-5 w-5 shrink-0" />
-            View My QR ID
-          </Button>
-          <Button
-            variant="outline"
-            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
-            size="lg"
+          />
+          <QuickActionCard
+            title="View Receipts / Payments"
+            description="Payment history"
+            icon={<Receipt className="h-5 w-5 sm:h-6 sm:w-6" />}
+            statusColor="green"
             onClick={() => setReceiptsOpen(true)}
-          >
-            <Receipt className="h-5 w-5 shrink-0" />
-            View Receipts / Payments
-          </Button>
-          <Button
-            variant="outline"
-            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
-            size="lg"
+          />
+          <QuickActionCard
+            title="Support / Help"
+            description="Get assistance"
+            icon={<HelpCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+            statusColor="green"
             onClick={() => navigate('/rider-owner/support-help')}
-          >
-            <HelpCircle className="h-5 w-5 shrink-0" />
-            Support / Help
-          </Button>
+          />
         </div>
       </div>
 

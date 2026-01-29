@@ -129,7 +129,7 @@ function ComplianceStatusContent() {
 
   if (state.isLoading) {
     return (
-      <div className="space-y-4 max-w-lg mx-auto">
+      <div className="space-y-4 max-w-full min-w-0">
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -178,7 +178,7 @@ function ComplianceStatusContent() {
   const StatusIcon = config.icon;
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
+    <div className="space-y-6 max-w-full min-w-0">
       {/* Overall status */}
       <Card className={cn('border-2', config.className)}>
         <CardHeader className="pb-2">

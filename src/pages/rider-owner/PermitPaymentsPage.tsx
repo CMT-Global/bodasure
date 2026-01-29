@@ -143,7 +143,7 @@ function PermitPaymentsContent() {
   );
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6 max-w-full min-w-0">
       {/* Pay for permit */}
       <Card>
         <CardHeader>

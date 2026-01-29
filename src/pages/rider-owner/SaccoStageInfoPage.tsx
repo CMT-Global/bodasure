@@ -107,7 +107,7 @@ function SaccoStageContent() {
 
   if (dashboardLoading || !user) {
     return (
-      <div className="space-y-4 max-w-lg">
+      <div className="space-y-4 max-w-full min-w-0">
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -131,7 +131,7 @@ function SaccoStageContent() {
   const stageName = rider.stage?.name ?? null;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-full min-w-0">
       {/* Current assignment */}
       <Card>
         <CardHeader>

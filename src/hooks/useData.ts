@@ -148,7 +148,9 @@ export function useRiders(countyId?: string) {
 /** Dashboard data for rider/owner portal: rider by user_id + bikes, permits, penalties, last payment */
 export interface RiderOwnerDashboardData {
   rider: Rider | null;
+  owner: Owner | null;
   motorbikes: Array<{ id: string; registration_number: string }>;
+  ownedBikesCount: number;
   permits: Array<{
     id: string;
     permit_number: string;
@@ -189,7 +191,9 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
       if (!userId) {
         return {
           rider: null,
+          owner: null,
           motorbikes: [],
+          ownedBikesCount: 0,
           permits: [],
           outstandingPenalties: [],
           outstandingPenaltiesTotal: 0,
@@ -197,28 +201,109 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
         };
       }
 
-      const { data: riderRow, error: riderError } = await supabase
-        .from('riders')
-        .select(`
+      const riderSelect = `
           *,
           owner:owners(full_name),
           sacco:saccos(name),
           stage:stages(name)
-        `)
+        `;
+
+      let riderRow = await supabase
+        .from('riders')
+        .select(riderSelect)
         .eq('user_id', userId)
         .maybeSingle();
+      if (riderRow.error) throw riderRow.error;
+      let rider = riderRow.data as Rider | null;
 
-      if (riderError) throw riderError;
-      const rider = riderRow as Rider | null;
+      // If no rider, check for owner so owner-only users see dashboard content
+      let owner: Owner | null = null;
+      let ownedBikesCount = 0;
       if (!rider) {
-        return {
-          rider: null,
-          motorbikes: [],
-          permits: [],
-          outstandingPenalties: [],
-          outstandingPenaltiesTotal: 0,
-          lastPayment: null,
-        };
+        const { data: ownerRow, error: ownerError } = await supabase
+          .from('owners')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (!ownerError) owner = ownerRow as Owner | null;
+        if (owner) {
+          const { count } = await supabase
+            .from('motorbikes')
+            .select('id', { count: 'exact', head: true })
+            .eq('owner_id', owner.id);
+          ownedBikesCount = count ?? 0;
+        }
+        if (owner) {
+          return {
+            rider: null,
+            owner,
+            motorbikes: [],
+            ownedBikesCount,
+            permits: [],
+            outstandingPenalties: [],
+            outstandingPenaltiesTotal: 0,
+            lastPayment: null,
+          };
+        }
+
+        // Fallback: link by email when user_id is not set (e.g. existing rider/owner records)
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userEmail = authUser?.email?.trim();
+        if (userEmail) {
+          const { data: riderByEmail, error: riderEmailErr } = await supabase
+            .from('riders')
+            .select('id')
+            .eq('email', userEmail)
+            .maybeSingle();
+          if (!riderEmailErr && riderByEmail) {
+            await supabase.from('riders').update({ user_id: userId }).eq('id', riderByEmail.id);
+            const { data: linkedRider, error: linkedErr } = await supabase
+              .from('riders')
+              .select(riderSelect)
+              .eq('id', riderByEmail.id)
+              .single();
+            if (!linkedErr) rider = linkedRider as Rider;
+          }
+          if (!rider) {
+            const { data: ownerByEmail, error: ownerEmailErr } = await supabase
+              .from('owners')
+              .select('*')
+              .eq('email', userEmail)
+              .maybeSingle();
+            if (!ownerEmailErr && ownerByEmail) {
+              await supabase.from('owners').update({ user_id: userId }).eq('id', ownerByEmail.id);
+              owner = ownerByEmail as Owner;
+              const { count } = await supabase
+                .from('motorbikes')
+                .select('id', { count: 'exact', head: true })
+                .eq('owner_id', owner.id);
+              ownedBikesCount = count ?? 0;
+              return {
+                rider: null,
+                owner,
+                motorbikes: [],
+                ownedBikesCount,
+                permits: [],
+                outstandingPenalties: [],
+                outstandingPenaltiesTotal: 0,
+                lastPayment: null,
+              };
+            }
+          }
+        }
+
+        if (!rider) {
+          return {
+            rider: null,
+            owner: null,
+            motorbikes: [],
+            ownedBikesCount: 0,
+            permits: [],
+            outstandingPenalties: [],
+            outstandingPenaltiesTotal: 0,
+            lastPayment: null,
+          };
+        }
       }
 
       const [motorbikesRes, permitsRes, penaltiesRes, lastPaymentRes] = await Promise.all([
@@ -271,7 +356,9 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
 
       return {
         rider,
+        owner: null,
         motorbikes,
+        ownedBikesCount: 0,
         permits,
         outstandingPenalties,
         outstandingPenaltiesTotal,
@@ -281,6 +368,14 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
     enabled: !!userId,
   });
 }
+
+const riderProfileSelect = `
+          *,
+          owner:owners(full_name),
+          sacco:saccos(name),
+          stage:stages(name),
+          county:counties(name)
+        `;
 
 export function useRiderOwnerProfile(userId: string | undefined) {
   return useQuery({
@@ -292,20 +387,54 @@ export function useRiderOwnerProfile(userId: string | undefined) {
 
       const { data: riderRow, error: riderError } = await supabase
         .from('riders')
-        .select(
-          `
-          *,
-          owner:owners(full_name),
-          sacco:saccos(name),
-          stage:stages(name),
-          county:counties(name)
-        `
-        )
+        .select(riderProfileSelect)
         .eq('user_id', userId)
         .maybeSingle();
 
       if (riderError) throw riderError;
-      const rider = riderRow as (Rider & { county?: { name: string } | null }) | null;
+      let rider = riderRow as (Rider & { county?: { name: string } | null }) | null;
+
+      const { data: ownerRow, error: ownerError } = await supabase
+        .from('owners')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (ownerError) throw ownerError;
+      let owner = ownerRow as Owner | null;
+
+      // Fallback: link by email when user_id is not set (e.g. existing rider/owner records)
+      if (!rider && !owner) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userEmail = authUser?.email?.trim();
+        if (userEmail) {
+          const { data: riderByEmail, error: riderEmailErr } = await supabase
+            .from('riders')
+            .select('id')
+            .eq('email', userEmail)
+            .maybeSingle();
+          if (!riderEmailErr && riderByEmail) {
+            await supabase.from('riders').update({ user_id: userId }).eq('id', riderByEmail.id);
+            const { data: linkedRider, error: linkedErr } = await supabase
+              .from('riders')
+              .select(riderProfileSelect)
+              .eq('id', riderByEmail.id)
+              .single();
+            if (!linkedErr) rider = linkedRider as (Rider & { county?: { name: string } | null }) | null;
+          }
+          if (!rider) {
+            const { data: ownerByEmail, error: ownerEmailErr } = await supabase
+              .from('owners')
+              .select('*')
+              .eq('email', userEmail)
+              .maybeSingle();
+            if (!ownerEmailErr && ownerByEmail) {
+              await supabase.from('owners').update({ user_id: userId }).eq('id', ownerByEmail.id);
+              owner = ownerByEmail as Owner | null;
+            }
+          }
+        }
+      }
 
       let motorbikes: RiderOwnerProfileBike[] = [];
       if (rider) {
@@ -325,15 +454,6 @@ export function useRiderOwnerProfile(userId: string | undefined) {
           rider: (m.rider as { full_name: string } | null) ?? null,
         }));
       }
-
-      const { data: ownerRow, error: ownerError } = await supabase
-        .from('owners')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (ownerError) throw ownerError;
-      const owner = ownerRow as Owner | null;
 
       let ownedBikes: RiderOwnerProfileBike[] = [];
       if (owner) {

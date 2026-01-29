@@ -413,7 +413,7 @@ function ProfileRegistrationContent() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 max-w-2xl">
+      <div className="space-y-4 max-w-full min-w-0">
         <Skeleton className="h-48 w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-24 w-full rounded-xl" />
@@ -435,7 +435,7 @@ function ProfileRegistrationContent() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-full min-w-0">
       {rider && (
         <>
           <ProfileView data={data!} />
