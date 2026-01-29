@@ -43,7 +43,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, hasRole } = useAuth();
   const { data: notifications = [] } = useUserNotifications(15, !!user);
   const unreadCount = notifications.filter((n) => !n.read_at).length;
   const markRead = useMarkNotificationRead();
@@ -291,6 +291,17 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
               <span className="hidden sm:inline">Sacco Portal</span>
               <span className="sm:hidden">Sacco</span>
             </Button>
+            {(hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin')) && (
+              <Button
+                variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/rider-owner')}
+                className="min-h-[44px] min-w-0 px-3 touch-manipulation"
+              >
+                <span className="hidden sm:inline">Rider & Owner Portal</span>
+                <span className="sm:hidden">Rider & Owner</span>
+              </Button>
+            )}
           </div>
 
           {/* Spacer to push right side content to the right */}

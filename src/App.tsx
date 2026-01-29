@@ -38,6 +38,7 @@ import SaccoProfileSettingsPage from "./pages/sacco/SaccoProfileSettingsPage";
 import SaccoAuditLogsPage from "./pages/sacco/SaccoAuditLogsPage";
 import CommunicationToolsPage from "./pages/sacco/CommunicationToolsPage";
 import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
+import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
 
 const queryClient = new QueryClient();
 
@@ -247,6 +248,16 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <SaccoAuditLogsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Rider & Owner Portal - platform super admin and county admin */}
+            <Route
+              path="/rider-owner"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <RiderOwnerPortal />
                 </ProtectedRoute>
               }
             />
