@@ -145,6 +145,223 @@ export function useRiders(countyId?: string) {
   });
 }
 
+/** Dashboard data for rider/owner portal: rider by user_id + bikes, permits, penalties, last payment */
+export interface RiderOwnerDashboardData {
+  rider: Rider | null;
+  motorbikes: Array<{ id: string; registration_number: string }>;
+  permits: Array<{
+    id: string;
+    permit_number: string;
+    status: 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled';
+    expires_at: string | null;
+  }>;
+  outstandingPenalties: Array<{ id: string; amount: number; penalty_type: string; description: string | null }>;
+  outstandingPenaltiesTotal: number;
+  lastPayment: { paid_at: string | null; amount: number } | null;
+}
+
+/** Profile & Registration: rider + county, bikes with make/model, owner + owned bikes when applicable */
+export interface RiderOwnerProfileBike {
+  id: string;
+  registration_number: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  color: string | null;
+  chassis_number: string | null;
+  engine_number: string | null;
+  rider?: { full_name: string } | null;
+}
+
+export interface RiderOwnerProfileData {
+  rider: (Rider & { county?: { name: string } | null }) | null;
+  motorbikes: RiderOwnerProfileBike[];
+  owner: (Owner & {}) | null;
+  ownedBikes: RiderOwnerProfileBike[];
+}
+
+const EXPIRING_SOON_DAYS = 30;
+
+export function useRiderOwnerDashboard(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['rider-owner-dashboard', userId],
+    queryFn: async (): Promise<RiderOwnerDashboardData> => {
+      if (!userId) {
+        return {
+          rider: null,
+          motorbikes: [],
+          permits: [],
+          outstandingPenalties: [],
+          outstandingPenaltiesTotal: 0,
+          lastPayment: null,
+        };
+      }
+
+      const { data: riderRow, error: riderError } = await supabase
+        .from('riders')
+        .select(`
+          *,
+          owner:owners(full_name),
+          sacco:saccos(name),
+          stage:stages(name)
+        `)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (riderError) throw riderError;
+      const rider = riderRow as Rider | null;
+      if (!rider) {
+        return {
+          rider: null,
+          motorbikes: [],
+          permits: [],
+          outstandingPenalties: [],
+          outstandingPenaltiesTotal: 0,
+          lastPayment: null,
+        };
+      }
+
+      const [motorbikesRes, permitsRes, penaltiesRes, lastPaymentRes] = await Promise.all([
+        supabase
+          .from('motorbikes')
+          .select('id, registration_number')
+          .eq('rider_id', rider.id),
+        supabase
+          .from('permits')
+          .select('id, permit_number, status, expires_at')
+          .eq('rider_id', rider.id)
+          .order('expires_at', { ascending: false }),
+        supabase
+          .from('penalties')
+          .select('id, amount, penalty_type, description')
+          .eq('rider_id', rider.id)
+          .eq('is_paid', false),
+        supabase
+          .from('payments')
+          .select('paid_at, amount')
+          .eq('rider_id', rider.id)
+          .order('paid_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const motorbikes = (motorbikesRes.data || []).map((m) => ({
+        id: m.id,
+        registration_number: m.registration_number,
+      }));
+      const permits = (permitsRes.data || []).map((p) => ({
+        id: p.id,
+        permit_number: p.permit_number,
+        status: p.status as 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled',
+        expires_at: p.expires_at,
+      }));
+      const outstandingPenalties = (penaltiesRes.data || []).map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        penalty_type: p.penalty_type,
+        description: p.description,
+      }));
+      const outstandingPenaltiesTotal = outstandingPenalties.reduce((sum, p) => sum + p.amount, 0);
+      const lastPayment = lastPaymentRes.data
+        ? {
+            paid_at: lastPaymentRes.data.paid_at,
+            amount: lastPaymentRes.data.amount,
+          }
+        : null;
+
+      return {
+        rider,
+        motorbikes,
+        permits,
+        outstandingPenalties,
+        outstandingPenaltiesTotal,
+        lastPayment,
+      };
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useRiderOwnerProfile(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['rider-owner-profile', userId],
+    queryFn: async (): Promise<RiderOwnerProfileData> => {
+      if (!userId) {
+        return { rider: null, motorbikes: [], owner: null, ownedBikes: [] };
+      }
+
+      const { data: riderRow, error: riderError } = await supabase
+        .from('riders')
+        .select(
+          `
+          *,
+          owner:owners(full_name),
+          sacco:saccos(name),
+          stage:stages(name),
+          county:counties(name)
+        `
+        )
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (riderError) throw riderError;
+      const rider = riderRow as (Rider & { county?: { name: string } | null }) | null;
+
+      let motorbikes: RiderOwnerProfileBike[] = [];
+      if (rider) {
+        const { data: bikes } = await supabase
+          .from('motorbikes')
+          .select('id, registration_number, make, model, year, color, chassis_number, engine_number, rider:riders(full_name)')
+          .eq('rider_id', rider.id);
+        motorbikes = (bikes || []).map((m: Record<string, unknown>) => ({
+          id: m.id as string,
+          registration_number: m.registration_number as string,
+          make: (m.make as string | null) ?? null,
+          model: (m.model as string | null) ?? null,
+          year: (m.year as number | null) ?? null,
+          color: (m.color as string | null) ?? null,
+          chassis_number: (m.chassis_number as string | null) ?? null,
+          engine_number: (m.engine_number as string | null) ?? null,
+          rider: (m.rider as { full_name: string } | null) ?? null,
+        }));
+      }
+
+      const { data: ownerRow, error: ownerError } = await supabase
+        .from('owners')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (ownerError) throw ownerError;
+      const owner = ownerRow as Owner | null;
+
+      let ownedBikes: RiderOwnerProfileBike[] = [];
+      if (owner) {
+        const { data: bikes } = await supabase
+          .from('motorbikes')
+          .select('id, registration_number, make, model, year, color, chassis_number, engine_number, rider:riders(full_name)')
+          .eq('owner_id', owner.id);
+        ownedBikes = (bikes || []).map((m: Record<string, unknown>) => ({
+          id: m.id as string,
+          registration_number: m.registration_number as string,
+          make: (m.make as string | null) ?? null,
+          model: (m.model as string | null) ?? null,
+          year: (m.year as number | null) ?? null,
+          color: (m.color as string | null) ?? null,
+          chassis_number: (m.chassis_number as string | null) ?? null,
+          engine_number: (m.engine_number as string | null) ?? null,
+          rider: (m.rider as { full_name: string } | null) ?? null,
+        }));
+      }
+
+      return { rider, motorbikes, owner, ownedBikes };
+    },
+    enabled: !!userId,
+  });
+}
+
+export { EXPIRING_SOON_DAYS };
+
 // Fetch riders with permit and motorbike details for registration management
 export function useRidersWithDetails(countyId?: string) {
   return useQuery({

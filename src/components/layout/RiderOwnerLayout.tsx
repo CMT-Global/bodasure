@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu } from 'lucide-react';
+import { LayoutDashboard, UserCircle, CreditCard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RiderOwnerLayoutProps {
@@ -79,7 +79,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
           )}
         </div>
 
-        {/* Navigation - only Dashboard */}
+        {/* Navigation */}
         <ScrollArea className="flex-1 py-4">
           <nav className="space-y-1 px-2">
             <Link
@@ -87,13 +87,39 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               onClick={() => setIsMobileOpen(false)}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
-                location.pathname === '/rider-owner' || location.pathname.startsWith('/rider-owner')
+                location.pathname === '/rider-owner'
                   ? 'bg-sidebar-accent text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
               )}
             >
-              <LayoutDashboard className={cn('h-5 w-5 shrink-0', (location.pathname === '/rider-owner' || location.pathname.startsWith('/rider-owner')) && 'text-primary')} />
+              <LayoutDashboard className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner' && 'text-primary')} />
               {!isCollapsed && <span className="truncate">Dashboard</span>}
+            </Link>
+            <Link
+              to="/rider-owner/permit-payments"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/permit-payments'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <CreditCard className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/permit-payments' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Permit Payments</span>}
+            </Link>
+            <Link
+              to="/rider-owner/profile"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/profile'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <UserCircle className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/profile' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Profile &amp; Registration</span>}
             </Link>
           </nav>
         </ScrollArea>
