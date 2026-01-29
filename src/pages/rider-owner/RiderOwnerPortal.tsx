@@ -283,7 +283,7 @@ function RiderOwnerDashboardContent() {
             variant="outline"
             className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
             size="lg"
-            onClick={() => toast.info('Support — coming soon')}
+            onClick={() => navigate('/rider-owner/support-help')}
           >
             <HelpCircle className="h-5 w-5 shrink-0" />
             Support / Help

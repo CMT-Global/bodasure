@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2, MessageSquare, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
@@ -187,6 +187,19 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   )}
                 </span>
               )}
+            </Link>
+            <Link
+              to="/rider-owner/support-help"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/support-help'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <HelpCircle className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/support-help' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Support &amp; Help</span>}
             </Link>
             <Link
               to="/rider-owner/profile"

@@ -28,6 +28,7 @@ import VerificationPage from "./pages/dashboard/VerificationPage";
 import ReportsPage from "./pages/dashboard/ReportsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import UsersPage from "./pages/dashboard/UsersPage";
+import SupportTicketsPage from "./pages/dashboard/SupportTicketsPage";
 import SaccoPortal from "./pages/sacco/SaccoPortal";
 import MemberManagementPage from "./pages/sacco/MemberManagementPage";
 import RegistrationSupportPage from "./pages/sacco/RegistrationSupportPage";
@@ -46,6 +47,7 @@ import ComplianceStatusPage from "./pages/rider-owner/ComplianceStatusPage";
 import QRIdVerificationPage from "./pages/rider-owner/QRIdVerificationPage";
 import SaccoStageInfoPage from "./pages/rider-owner/SaccoStageInfoPage";
 import NotificationsPage from "./pages/rider-owner/NotificationsPage";
+import SupportHelpPage from "./pages/rider-owner/SupportHelpPage";
 import PublicVerificationPage from "./pages/PublicVerificationPage";
 
 const queryClient = new QueryClient();
@@ -175,6 +177,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
                   <UsersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/support-tickets"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <SupportTicketsPage />
                 </ProtectedRoute>
               }
             />
@@ -323,6 +333,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
                   <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rider-owner/support-help"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <SupportHelpPage />
                 </ProtectedRoute>
               }
             />
