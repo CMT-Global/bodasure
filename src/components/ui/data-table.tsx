@@ -164,9 +164,9 @@ export function DataTable<TData, TValue>({
         />
       </div>
 
-      {/* Table - contained scroll, no page overflow; touch-friendly on mobile */}
-      <div className="rounded-lg border border-border bg-card overflow-x-auto max-w-full overscroll-x-contain">
-        <div className="min-w-max inline-block">
+      {/* Table - full width on big screens, horizontal scroll when needed */}
+      <div className="rounded-lg border border-border bg-card overflow-x-auto max-w-full overscroll-x-contain w-full">
+        <div className="w-full min-w-0">
           <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
