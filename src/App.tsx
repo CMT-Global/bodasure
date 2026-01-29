@@ -42,6 +42,10 @@ import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
 import ProfileRegistrationPage from "./pages/rider-owner/ProfileRegistrationPage";
 import PermitPaymentsPage from "./pages/rider-owner/PermitPaymentsPage";
 import PenaltiesPaymentsPage from "./pages/rider-owner/PenaltiesPaymentsPage";
+import ComplianceStatusPage from "./pages/rider-owner/ComplianceStatusPage";
+import QRIdVerificationPage from "./pages/rider-owner/QRIdVerificationPage";
+import SaccoStageInfoPage from "./pages/rider-owner/SaccoStageInfoPage";
+import PublicVerificationPage from "./pages/PublicVerificationPage";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +62,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/verify/:qrCode" element={<PublicVerificationPage />} />
 
             {/* Protected dashboard routes — platform_super_admin and county_super_admin only */}
             <Route
@@ -285,6 +290,30 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
                   <PenaltiesPaymentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rider-owner/qr-id"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <QRIdVerificationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rider-owner/compliance-status"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <ComplianceStatusPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rider-owner/sacco-stage"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                  <SaccoStageInfoPage />
                 </ProtectedRoute>
               }
             />

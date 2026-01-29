@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu } from 'lucide-react';
+import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RiderOwnerLayoutProps {
@@ -94,6 +94,45 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
             >
               <LayoutDashboard className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner' && 'text-primary')} />
               {!isCollapsed && <span className="truncate">Dashboard</span>}
+            </Link>
+            <Link
+              to="/rider-owner/qr-id"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/qr-id'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <QrCode className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/qr-id' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">QR ID &amp; Verification</span>}
+            </Link>
+            <Link
+              to="/rider-owner/sacco-stage"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/sacco-stage'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Building2 className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/sacco-stage' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Sacco &amp; Stage</span>}
+            </Link>
+            <Link
+              to="/rider-owner/compliance-status"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/rider-owner/compliance-status'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Shield className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/compliance-status' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Compliance Status</span>}
             </Link>
             <Link
               to="/rider-owner/permit-payments"

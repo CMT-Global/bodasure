@@ -29,6 +29,7 @@ import {
   Receipt,
   HelpCircle,
   Copy,
+  Shield,
 } from 'lucide-react';
 import { format, parseISO, isAfter, addDays } from 'date-fns';
 import { toast } from 'sonner';
@@ -233,6 +234,15 @@ function RiderOwnerDashboardContent() {
       <div className="space-y-2">
         <h2 className="text-base font-medium px-1">Quick actions</h2>
         <div className="grid gap-2">
+          <Button
+            variant="outline"
+            className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"
+            size="lg"
+            onClick={() => navigate('/rider-owner/compliance-status')}
+          >
+            <Shield className="h-5 w-5 shrink-0" />
+            Compliance Status
+          </Button>
           <Button
             variant="outline"
             className="h-12 sm:h-14 justify-start gap-3 text-left px-4 touch-manipulation"

@@ -72,6 +72,7 @@ export function useSubmitRiderUpdateRequest() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rider-update-requests'] });
       qc.invalidateQueries({ queryKey: ['rider-owner-profile'] });
+      qc.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
     },
   });
 }
