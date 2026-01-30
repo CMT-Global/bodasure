@@ -203,13 +203,26 @@ export default function CountyConfigurationPage() {
                   <CardDescription>Permit types, fees, validity rules, grace periods, and auto-renew.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid gap-2">
+                  <div className="space-y-2">
                     <Label>Permit types & fees</Label>
+                    {/* Table header */}
+                    {permitConfig.permitTypes.length > 0 && (
+                      <div className="grid gap-3 px-3 py-2.5 text-xs font-medium text-muted-foreground border rounded-t-lg bg-muted/50 grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                        <span>Name</span>
+                        <span>Type</span>
+                        <span>Fee (KES)</span>
+                        <span>Validity (days)</span>
+                        <span className="text-right">Actions</span>
+                      </div>
+                    )}
                     {permitConfig.permitTypes.map((pt, i) => (
-                      <div key={pt.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                      <div
+                        key={pt.id}
+                        className="grid gap-3 items-center rounded-lg border p-3 grid-cols-[2fr_1fr_1fr_1fr_auto] last:rounded-b-lg"
+                      >
                         <Input
-                          className="w-32"
-                          placeholder="Name"
+                          className="w-full min-w-0"
+                          placeholder="e.g. Weekly, Monthly"
                           value={pt.name}
                           onChange={e => updatePermitType(i, { name: e.target.value })}
                         />
@@ -217,7 +230,7 @@ export default function CountyConfigurationPage() {
                           value={pt.type}
                           onValueChange={v => updatePermitType(i, { type: v as PermitTypeConfig['type'] })}
                         >
-                          <SelectTrigger className="w-28">
+                          <SelectTrigger className="w-full min-w-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -227,23 +240,25 @@ export default function CountyConfigurationPage() {
                             <SelectItem value="custom">Custom</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Label className="text-muted-foreground shrink-0">Fee (KES):</Label>
                         <Input
                           type="number"
-                          className="w-28"
+                          className="w-full min-w-0"
+                          placeholder="0"
                           value={pt.feeCents / 100}
                           onChange={e => updatePermitType(i, { feeCents: Math.round(Number(e.target.value) * 100) })}
                         />
-                        <Label className="text-muted-foreground shrink-0">Validity (days):</Label>
                         <Input
                           type="number"
-                          className="w-24"
+                          className="w-full min-w-0"
+                          placeholder="0"
                           value={pt.validityDays}
                           onChange={e => updatePermitType(i, { validityDays: Number(e.target.value) || 0 })}
                         />
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removePermitType(i)}>
-                          Remove
-                        </Button>
+                        <div className="flex justify-end">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => removePermitType(i)}>
+                            Remove
+                          </Button>
+                        </div>
                       </div>
                     ))}
                     <Button type="button" variant="outline" size="sm" onClick={addPermitType}>

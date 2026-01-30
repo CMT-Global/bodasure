@@ -1258,10 +1258,56 @@ export interface CountyComplianceRules {
   complianceScoringEnabled: boolean;
   complianceScoringLogic?: string;
 }
+
+// Revenue & Commercial Configuration (platform-critical, per county)
+export interface CountyRevenueModelConfig {
+  chargeAmountCents: number;
+  frequency: 'weekly' | 'monthly';
+  effectiveFrom: string; // ISO date
+  effectiveTo?: string; // ISO date, optional
+  description?: string;
+}
+export interface PlatformFeeModelConfig {
+  modelType: 'fixed' | 'percentage' | 'hybrid';
+  fixedFeeCentsPerRider?: number;
+  percentageFee?: number;
+  hybridFixedCents?: number;
+  hybridPercentage?: number;
+  feeReviewDate?: string; // ISO date
+  notes?: string;
+}
+export interface RevenueSharingRuleConfig {
+  applyBy: 'sacco' | 'welfare_group';
+  shareType: 'percentage' | 'fixed_per_rider';
+  percentageShare?: number;
+  fixedAmountCents?: number;
+  activePermitsOnly: boolean;
+  complianceThresholdRequired: boolean;
+  complianceThresholdPercent?: number;
+}
+export interface RevenueSharingVisibilityConfig {
+  saccosSeeAmounts: boolean;
+  saccosSeeBreakdown: boolean;
+  countiesSeeAmounts: boolean;
+  countiesSeeBreakdown: boolean;
+  ridersNeverSeeRevenueShare: boolean; // always true in UI, configurable for audit
+}
+export interface SaccoWelfareRevenueSharingConfig {
+  enabled: boolean;
+  rules: RevenueSharingRuleConfig[];
+  visibility: RevenueSharingVisibilityConfig;
+}
+export interface CountyRevenueCommercialConfig {
+  countyRevenueModel: CountyRevenueModelConfig;
+  platformFeeModel: PlatformFeeModelConfig;
+  saccoWelfareRevenueSharing: SaccoWelfareRevenueSharingConfig;
+}
+
 export interface CountyConfig {
   permitConfig: CountyPermitConfig;
   penaltyConfig: CountyPenaltyConfig;
   complianceRules: CountyComplianceRules;
+  revenueCommercialConfig?: CountyRevenueCommercialConfig;
 }
 
 const DEFAULT_PERMIT_CONFIG: CountyPermitConfig = {
@@ -1297,6 +1343,39 @@ const DEFAULT_COMPLIANCE_RULES: CountyComplianceRules = {
   complianceScoringLogic: 'Optional: score 0–100 based on permit validity, penalty history, and payments.',
 };
 
+const DEFAULT_COUNTY_REVENUE_MODEL: CountyRevenueModelConfig = {
+  chargeAmountCents: 0,
+  frequency: 'monthly',
+  effectiveFrom: new Date().toISOString().slice(0, 10),
+  description: '',
+};
+const DEFAULT_PLATFORM_FEE_MODEL: PlatformFeeModelConfig = {
+  modelType: 'fixed',
+  fixedFeeCentsPerRider: 0,
+  feeReviewDate: undefined,
+  notes: '',
+};
+const DEFAULT_REVENUE_SHARING_VISIBILITY: RevenueSharingVisibilityConfig = {
+  saccosSeeAmounts: true,
+  saccosSeeBreakdown: false,
+  countiesSeeAmounts: true,
+  countiesSeeBreakdown: true,
+  ridersNeverSeeRevenueShare: true,
+};
+const DEFAULT_SACCO_WELFARE_REVENUE_SHARING: SaccoWelfareRevenueSharingConfig = {
+  enabled: false,
+  rules: [],
+  visibility: { ...DEFAULT_REVENUE_SHARING_VISIBILITY },
+};
+const DEFAULT_REVENUE_COMMERCIAL_CONFIG: CountyRevenueCommercialConfig = {
+  countyRevenueModel: { ...DEFAULT_COUNTY_REVENUE_MODEL },
+  platformFeeModel: { ...DEFAULT_PLATFORM_FEE_MODEL },
+  saccoWelfareRevenueSharing: {
+    ...DEFAULT_SACCO_WELFARE_REVENUE_SHARING,
+    visibility: { ...DEFAULT_REVENUE_SHARING_VISIBILITY },
+  },
+};
+
 export function getDefaultCountyConfig(): CountyConfig {
   return {
     permitConfig: { ...DEFAULT_PERMIT_CONFIG, permitTypes: DEFAULT_PERMIT_CONFIG.permitTypes.map(t => ({ ...t })) },
@@ -1306,6 +1385,15 @@ export function getDefaultCountyConfig(): CountyConfig {
       escalationLogic: DEFAULT_PENALTY_CONFIG.escalationLogic.map(e => ({ ...e })),
     },
     complianceRules: { ...DEFAULT_COMPLIANCE_RULES },
+    revenueCommercialConfig: {
+      countyRevenueModel: { ...DEFAULT_COUNTY_REVENUE_MODEL },
+      platformFeeModel: { ...DEFAULT_PLATFORM_FEE_MODEL },
+      saccoWelfareRevenueSharing: {
+        enabled: DEFAULT_SACCO_WELFARE_REVENUE_SHARING.enabled,
+        rules: [],
+        visibility: { ...DEFAULT_REVENUE_SHARING_VISIBILITY },
+      },
+    },
   };
 }
 
@@ -1315,6 +1403,8 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
   const permit = settings.permitConfig as Partial<CountyPermitConfig> | undefined;
   const penalty = settings.penaltyConfig as Partial<CountyPenaltyConfig> | undefined;
   const compliance = settings.complianceRules as Partial<CountyComplianceRules> | undefined;
+  const revenue = settings.revenueCommercialConfig as Partial<CountyRevenueCommercialConfig> | undefined;
+  const defRev = defaultConfig.revenueCommercialConfig!;
   return {
     permitConfig: {
       permitTypes: permit?.permitTypes ?? defaultConfig.permitConfig.permitTypes,
@@ -1338,6 +1428,37 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
       complianceScoringEnabled: compliance?.complianceScoringEnabled ?? defaultConfig.complianceRules.complianceScoringEnabled,
       complianceScoringLogic: compliance?.complianceScoringLogic ?? defaultConfig.complianceRules.complianceScoringLogic,
     },
+    revenueCommercialConfig: {
+      countyRevenueModel: {
+        chargeAmountCents: revenue?.countyRevenueModel?.chargeAmountCents ?? defRev.countyRevenueModel.chargeAmountCents,
+        frequency: revenue?.countyRevenueModel?.frequency ?? defRev.countyRevenueModel.frequency,
+        effectiveFrom: revenue?.countyRevenueModel?.effectiveFrom ?? defRev.countyRevenueModel.effectiveFrom,
+        effectiveTo: revenue?.countyRevenueModel?.effectiveTo ?? defRev.countyRevenueModel.effectiveTo,
+        description: revenue?.countyRevenueModel?.description ?? defRev.countyRevenueModel.description,
+      },
+      platformFeeModel: {
+        modelType: revenue?.platformFeeModel?.modelType ?? defRev.platformFeeModel.modelType,
+        fixedFeeCentsPerRider: revenue?.platformFeeModel?.fixedFeeCentsPerRider ?? defRev.platformFeeModel.fixedFeeCentsPerRider,
+        percentageFee: revenue?.platformFeeModel?.percentageFee ?? defRev.platformFeeModel.percentageFee,
+        hybridFixedCents: revenue?.platformFeeModel?.hybridFixedCents ?? defRev.platformFeeModel.hybridFixedCents,
+        hybridPercentage: revenue?.platformFeeModel?.hybridPercentage ?? defRev.platformFeeModel.hybridPercentage,
+        feeReviewDate: revenue?.platformFeeModel?.feeReviewDate ?? defRev.platformFeeModel.feeReviewDate,
+        notes: revenue?.platformFeeModel?.notes ?? defRev.platformFeeModel.notes,
+      },
+      saccoWelfareRevenueSharing: {
+        enabled: revenue?.saccoWelfareRevenueSharing?.enabled ?? defRev.saccoWelfareRevenueSharing.enabled,
+        rules: revenue?.saccoWelfareRevenueSharing?.rules?.length
+          ? revenue.saccoWelfareRevenueSharing.rules
+          : defRev.saccoWelfareRevenueSharing.rules,
+        visibility: {
+          saccosSeeAmounts: revenue?.saccoWelfareRevenueSharing?.visibility?.saccosSeeAmounts ?? defRev.saccoWelfareRevenueSharing.visibility.saccosSeeAmounts,
+          saccosSeeBreakdown: revenue?.saccoWelfareRevenueSharing?.visibility?.saccosSeeBreakdown ?? defRev.saccoWelfareRevenueSharing.visibility.saccosSeeBreakdown,
+          countiesSeeAmounts: revenue?.saccoWelfareRevenueSharing?.visibility?.countiesSeeAmounts ?? defRev.saccoWelfareRevenueSharing.visibility.countiesSeeAmounts,
+          countiesSeeBreakdown: revenue?.saccoWelfareRevenueSharing?.visibility?.countiesSeeBreakdown ?? defRev.saccoWelfareRevenueSharing.visibility.countiesSeeBreakdown,
+          ridersNeverSeeRevenueShare: revenue?.saccoWelfareRevenueSharing?.visibility?.ridersNeverSeeRevenueShare ?? defRev.saccoWelfareRevenueSharing.visibility.ridersNeverSeeRevenueShare,
+        },
+      },
+    },
   };
 }
 
@@ -1351,7 +1472,7 @@ export function useUpdateCountyConfig() {
     }: {
       countyId: string;
       config: Partial<CountyConfig>;
-      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules';
+      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules' | 'revenueCommercialConfig';
     }) => {
       const { data: row } = await supabase.from('counties').select('settings').eq('id', countyId).single();
       const settings = (row?.settings as Record<string, unknown>) ?? {};
