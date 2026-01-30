@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export interface Rider {
   id: string;
@@ -82,7 +83,14 @@ export interface County {
   id: string;
   name: string;
   code: string;
+  logo_url?: string | null;
   status: 'active' | 'inactive' | 'pending' | 'suspended';
+  settings?: Record<string, unknown> | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  address?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Motorbike {
@@ -1063,7 +1071,7 @@ export function useMotorbikes(countyId?: string) {
   });
 }
 
-// Fetch counties
+// Fetch counties (active only — for dropdowns / county-scoped views)
 export function useCounties() {
   return useQuery({
     queryKey: ['counties'],
@@ -1077,6 +1085,327 @@ export function useCounties() {
       if (error) throw error;
       return data as County[];
     },
+  });
+}
+
+// Fetch all counties (no status filter — for Super Admin multi-county management)
+export function useAllCounties() {
+  return useQuery({
+    queryKey: ['counties', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('counties')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      return data as County[];
+    },
+  });
+}
+
+// Stats for a single county (used by Super Admin county list)
+export async function fetchDashboardStatsForCounty(countyId: string): Promise<DashboardStats & { complianceRate: number }> {
+  const now = new Date().toISOString();
+  let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId);
+  let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('status', 'active');
+  let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('compliance_status', 'non_compliant');
+  let paymentsQuery = supabase.from('payments').select('amount').eq('status', 'completed').eq('county_id', countyId);
+
+  const [riders, activePermits, nonCompliantRiders, payments] = await Promise.all([
+    ridersQuery,
+    activePermitsQuery,
+    nonCompliantRidersQuery,
+    paymentsQuery,
+  ]);
+
+  const totalRiders = riders.count ?? 0;
+  const totalRevenue = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) ?? 0;
+  const complianceRate = totalRiders > 0 ? Math.round(((totalRiders - (nonCompliantRiders.count ?? 0)) / totalRiders) * 100) : 100;
+
+  return {
+    totalRiders,
+    activePermits: activePermits.count ?? 0,
+    expiredPermits: 0,
+    nonCompliantRiders: nonCompliantRiders.count ?? 0,
+    penaltiesIssued: 0,
+    penaltiesUnpaid: 0,
+    penaltiesPaid: 0,
+    totalRevenue,
+    complianceRate,
+  };
+}
+
+// County mutations (Super Admin)
+export type CountyInsert = Pick<County, 'name' | 'code' | 'status'> & Partial<Pick<County, 'logo_url' | 'contact_email' | 'contact_phone' | 'address' | 'settings'>>;
+export type CountyUpdate = Partial<Omit<County, 'id'>>;
+
+export function useCreateCounty() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CountyInsert) => {
+      const row = { ...payload, settings: payload.settings ?? null };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await supabase.from('counties').insert(row as any).select('id').single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['counties'] });
+      queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
+      toast.success('County created successfully');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to create county'),
+  });
+}
+
+export function useUpdateCounty() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: CountyUpdate }) => {
+      const row = payload.settings !== undefined ? { ...payload, settings: payload.settings ?? null } : payload;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.from('counties').update(row as any).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['counties'] });
+      queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
+      toast.success('County updated successfully');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update county'),
+  });
+}
+
+export function useDeleteCounty() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('counties').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['counties'] });
+      queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
+      toast.success('County data deleted');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to delete county'),
+  });
+}
+
+export function useSetCountyLocked() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, locked }: { id: string; locked: boolean }) => {
+      const { data: row } = await supabase.from('counties').select('settings').eq('id', id).single();
+      const settings = (row?.settings as Record<string, unknown>) ?? {};
+      const { error } = await supabase.from('counties').update({ settings: { ...settings, locked } }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['counties'] });
+      queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
+      toast.success('County lock status updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update lock status'),
+  });
+}
+
+// County-specific configuration (permit, penalty, compliance) — stored in county.settings
+export interface PermitTypeConfig {
+  id: string;
+  name: string;
+  type: 'weekly' | 'monthly' | 'annual' | 'custom';
+  feeCents: number;
+  validityDays: number;
+  description?: string;
+}
+export interface CountyPermitConfig {
+  permitTypes: PermitTypeConfig[];
+  gracePeriodDays: number;
+  autoRenewEnabled: boolean;
+  validityRulesNote?: string;
+}
+export interface PenaltyCategoryConfig {
+  id: string;
+  name: string;
+  amountCents: number;
+  description?: string;
+}
+export interface EscalationRule {
+  repeatCount: number;
+  multiplier: number;
+  maxAmountCents?: number;
+}
+export interface WaiverRule {
+  roles: string[];
+  maxWaiverAmountCents?: number;
+  requireApproval: boolean;
+}
+export interface CountyPenaltyConfig {
+  categories: PenaltyCategoryConfig[];
+  autoPenaltyEnabled: boolean;
+  autoPenaltyRulesNote?: string;
+  escalationLogic: EscalationRule[];
+  waiverRules: WaiverRule;
+}
+export interface CountyComplianceRules {
+  nonCompliantDefinition: string;
+  suspensionThresholdPenalties: number;
+  blacklistThresholdPenalties: number;
+  suspensionThresholdUnpaidDays?: number;
+  blacklistThresholdUnpaidDays?: number;
+  complianceScoringEnabled: boolean;
+  complianceScoringLogic?: string;
+}
+export interface CountyConfig {
+  permitConfig: CountyPermitConfig;
+  penaltyConfig: CountyPenaltyConfig;
+  complianceRules: CountyComplianceRules;
+}
+
+const DEFAULT_PERMIT_CONFIG: CountyPermitConfig = {
+  permitTypes: [
+    { id: 'weekly', name: 'Weekly', type: 'weekly', feeCents: 50000, validityDays: 7, description: '7-day permit' },
+    { id: 'monthly', name: 'Monthly', type: 'monthly', feeCents: 150000, validityDays: 30, description: '30-day permit' },
+    { id: 'annual', name: 'Annual', type: 'annual', feeCents: 1200000, validityDays: 365, description: 'Annual permit' },
+  ],
+  gracePeriodDays: 7,
+  autoRenewEnabled: false,
+  validityRulesNote: 'Applied prospectively to new and renewed permits.',
+};
+const DEFAULT_PENALTY_CONFIG: CountyPenaltyConfig = {
+  categories: [
+    { id: 'no-permit', name: 'Operating without valid permit', amountCents: 500000, description: 'Default penalty' },
+    { id: 'expired-permit', name: 'Expired permit', amountCents: 250000 },
+  ],
+  autoPenaltyEnabled: false,
+  autoPenaltyRulesNote: 'Configure when to apply penalties automatically.',
+  escalationLogic: [
+    { repeatCount: 2, multiplier: 1.5, maxAmountCents: 1000000 },
+    { repeatCount: 3, multiplier: 2, maxAmountCents: 2000000 },
+  ],
+  waiverRules: { roles: ['county_super_admin', 'county_admin'], maxWaiverAmountCents: 500000, requireApproval: true },
+};
+const DEFAULT_COMPLIANCE_RULES: CountyComplianceRules = {
+  nonCompliantDefinition: 'Rider with expired permit, unpaid penalty, or suspended status.',
+  suspensionThresholdPenalties: 3,
+  blacklistThresholdPenalties: 5,
+  suspensionThresholdUnpaidDays: 30,
+  blacklistThresholdUnpaidDays: 90,
+  complianceScoringEnabled: false,
+  complianceScoringLogic: 'Optional: score 0–100 based on permit validity, penalty history, and payments.',
+};
+
+export function getDefaultCountyConfig(): CountyConfig {
+  return {
+    permitConfig: { ...DEFAULT_PERMIT_CONFIG, permitTypes: DEFAULT_PERMIT_CONFIG.permitTypes.map(t => ({ ...t })) },
+    penaltyConfig: {
+      ...DEFAULT_PENALTY_CONFIG,
+      categories: DEFAULT_PENALTY_CONFIG.categories.map(c => ({ ...c })),
+      escalationLogic: DEFAULT_PENALTY_CONFIG.escalationLogic.map(e => ({ ...e })),
+    },
+    complianceRules: { ...DEFAULT_COMPLIANCE_RULES },
+  };
+}
+
+export function getCountyConfigFromSettings(settings: Record<string, unknown> | null | undefined): CountyConfig {
+  const defaultConfig = getDefaultCountyConfig();
+  if (!settings) return defaultConfig;
+  const permit = settings.permitConfig as Partial<CountyPermitConfig> | undefined;
+  const penalty = settings.penaltyConfig as Partial<CountyPenaltyConfig> | undefined;
+  const compliance = settings.complianceRules as Partial<CountyComplianceRules> | undefined;
+  return {
+    permitConfig: {
+      permitTypes: permit?.permitTypes ?? defaultConfig.permitConfig.permitTypes,
+      gracePeriodDays: permit?.gracePeriodDays ?? defaultConfig.permitConfig.gracePeriodDays,
+      autoRenewEnabled: permit?.autoRenewEnabled ?? defaultConfig.permitConfig.autoRenewEnabled,
+      validityRulesNote: permit?.validityRulesNote ?? defaultConfig.permitConfig.validityRulesNote,
+    },
+    penaltyConfig: {
+      categories: penalty?.categories ?? defaultConfig.penaltyConfig.categories,
+      autoPenaltyEnabled: penalty?.autoPenaltyEnabled ?? defaultConfig.penaltyConfig.autoPenaltyEnabled,
+      autoPenaltyRulesNote: penalty?.autoPenaltyRulesNote ?? defaultConfig.penaltyConfig.autoPenaltyRulesNote,
+      escalationLogic: penalty?.escalationLogic ?? defaultConfig.penaltyConfig.escalationLogic,
+      waiverRules: penalty?.waiverRules ?? defaultConfig.penaltyConfig.waiverRules,
+    },
+    complianceRules: {
+      nonCompliantDefinition: compliance?.nonCompliantDefinition ?? defaultConfig.complianceRules.nonCompliantDefinition,
+      suspensionThresholdPenalties: compliance?.suspensionThresholdPenalties ?? defaultConfig.complianceRules.suspensionThresholdPenalties,
+      blacklistThresholdPenalties: compliance?.blacklistThresholdPenalties ?? defaultConfig.complianceRules.blacklistThresholdPenalties,
+      suspensionThresholdUnpaidDays: compliance?.suspensionThresholdUnpaidDays ?? defaultConfig.complianceRules.suspensionThresholdUnpaidDays,
+      blacklistThresholdUnpaidDays: compliance?.blacklistThresholdUnpaidDays ?? defaultConfig.complianceRules.blacklistThresholdUnpaidDays,
+      complianceScoringEnabled: compliance?.complianceScoringEnabled ?? defaultConfig.complianceRules.complianceScoringEnabled,
+      complianceScoringLogic: compliance?.complianceScoringLogic ?? defaultConfig.complianceRules.complianceScoringLogic,
+    },
+  };
+}
+
+export function useUpdateCountyConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      countyId,
+      config,
+      section,
+    }: {
+      countyId: string;
+      config: Partial<CountyConfig>;
+      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules';
+    }) => {
+      const { data: row } = await supabase.from('counties').select('settings').eq('id', countyId).single();
+      const settings = (row?.settings as Record<string, unknown>) ?? {};
+      const oldConfig = { [section]: settings[section] ?? null };
+      const newSettings = { ...settings, ...config };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateError } = await supabase.from('counties').update({ settings: newSettings } as any).eq('id', countyId);
+      if (updateError) throw updateError;
+      const { data: { user } } = await supabase.auth.getUser();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await supabase.from('audit_logs').insert({
+        county_id: countyId,
+        user_id: user?.id ?? null,
+        action: 'update',
+        entity_type: 'county_config',
+        entity_id: null,
+        old_values: oldConfig,
+        new_values: config,
+      } as any);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['counties'] });
+      queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
+      queryClient.invalidateQueries({ queryKey: ['county-config-history', variables.countyId] });
+      toast.success('County configuration saved. Changes apply prospectively.');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to save configuration'),
+  });
+}
+
+export function useCountyConfigHistory(countyId: string | null) {
+  return useQuery({
+    queryKey: ['county-config-history', countyId],
+    queryFn: async () => {
+      if (!countyId) return [];
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('id, action, entity_type, old_values, new_values, created_at, user_id')
+        .eq('county_id', countyId)
+        .eq('entity_type', 'county_config')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        action: string;
+        entity_type: string;
+        old_values: Record<string, unknown> | null;
+        new_values: Record<string, unknown> | null;
+        created_at: string;
+        user_id: string | null;
+      }>;
+    },
+    enabled: !!countyId,
   });
 }
 

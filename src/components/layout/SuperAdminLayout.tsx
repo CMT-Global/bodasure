@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SuperAdminLayoutProps {
@@ -90,6 +90,32 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
             >
               <LayoutDashboard className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin' && 'text-primary')} />
               {!isCollapsed && <span className="truncate">Dashboard</span>}
+            </Link>
+            <Link
+              to="/super-admin/counties"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/super-admin/counties'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Map className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/counties' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Multi-County Management</span>}
+            </Link>
+            <Link
+              to="/super-admin/county-config"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/super-admin/county-config'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Sliders className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/county-config' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">County Configuration</span>}
             </Link>
           </nav>
         </ScrollArea>

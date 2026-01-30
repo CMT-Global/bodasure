@@ -41,6 +41,8 @@ import CommunicationToolsPage from "./pages/sacco/CommunicationToolsPage";
 import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
 import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
 import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
+import CountyManagementPage from "./pages/super-admin/CountyManagementPage";
+import CountyConfigurationPage from "./pages/super-admin/CountyConfigurationPage";
 import ProfileRegistrationPage from "./pages/rider-owner/ProfileRegistrationPage";
 import PermitPaymentsPage from "./pages/rider-owner/PermitPaymentsPage";
 import PenaltiesPaymentsPage from "./pages/rider-owner/PenaltiesPaymentsPage";
@@ -74,6 +76,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
                   <SuperAdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/counties"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                  <CountyManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/county-config"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                  <CountyConfigurationPage />
                 </ProtectedRoute>
               }
             />
