@@ -12,15 +12,23 @@ import { Separator } from '@/components/ui/separator';
 import { Phone, Mail, MapPin, Calendar, CreditCard, QrCode, Bike, Building2, MapPin as MapPinIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { RegistrationHistory } from './RegistrationHistory';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { RiderStatusActions } from '@/components/riders/RiderStatusActions';
+import { RiderComplianceActions } from '@/components/riders/RiderComplianceActions';
 
 interface RiderDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rider: RiderWithDetails | null;
+  /** When true, show Approve / Reject / Suspend / Reinstate (e.g. county Registration Management) */
+  showStatusActions?: boolean;
 }
 
-export function RiderDetailDialog({ open, onOpenChange, rider }: RiderDetailDialogProps) {
+export function RiderDetailDialog({
+  open,
+  onOpenChange,
+  rider,
+  showStatusActions = false,
+}: RiderDetailDialogProps) {
   if (!rider) return null;
 
   const initials = rider.full_name
@@ -32,14 +40,14 @@ export function RiderDetailDialog({ open, onOpenChange, rider }: RiderDetailDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl h-[90vh] max-h-[90dvh] overflow-hidden flex flex-col p-0 gap-0 mx-4 sm:mx-6">
+        <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-2">
           <DialogTitle>Rider Profile</DialogTitle>
           <DialogDescription>Complete information about this rider</DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 pb-6 min-w-0">
+          <div className="space-y-6 pr-2 max-w-full">
             {/* Header */}
             <div className="flex items-start gap-4">
               <Avatar className="h-16 w-16">
@@ -211,8 +219,32 @@ export function RiderDetailDialog({ open, onOpenChange, rider }: RiderDetailDial
 
             {/* Registration History */}
             <RegistrationHistory riderId={rider.id} />
+
+            {showStatusActions && (
+              <>
+                <Separator />
+                <div className="space-y-6">
+                  <h4 className="text-sm font-medium text-muted-foreground">Actions</h4>
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-6">
+                    <RiderStatusActions
+                      rider={{ id: rider.id, full_name: rider.full_name, status: rider.status }}
+                      contextLabel="rider"
+                      onSuccess={() => onOpenChange(false)}
+                    />
+                    <RiderComplianceActions
+                      rider={{
+                        id: rider.id,
+                        full_name: rider.full_name,
+                        compliance_status: rider.compliance_status,
+                      }}
+                      onSuccess={() => onOpenChange(false)}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

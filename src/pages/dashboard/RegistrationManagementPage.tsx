@@ -158,6 +158,7 @@ export default function RegistrationManagementPage() {
           open={isDetailOpen}
           onOpenChange={setIsDetailOpen}
           rider={selectedRider}
+          showStatusActions
         />
       </div>
     </DashboardLayout>

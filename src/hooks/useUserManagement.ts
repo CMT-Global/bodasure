@@ -37,30 +37,39 @@ export interface UserActivityLog {
   } | null;
 }
 
-// Fetch all users in a county
+// Fetch all users in a county (or all users when countyId is undefined, e.g. platform admin)
 export function useCountyUsers(countyId?: string) {
   return useQuery({
     queryKey: ['county-users', countyId],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Fetch profiles for the county
-      const { data: profiles, error: profilesError } = await supabase
+      // Fetch profiles: filter by county when countyId provided, otherwise all
+      let query = supabase
         .from('profiles')
         .select('*')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data: profiles, error: profilesError } = await query;
 
       if (profilesError) throw profilesError;
       if (!profiles || profiles.length === 0) return [];
 
-      // Fetch roles for all users
+      // Fetch roles for all users (include county roles and platform-level roles where county_id is null)
       const userIds = profiles.map(p => p.id);
-      const { data: roles, error: rolesError } = await supabase
+      let rolesQuery = supabase
         .from('user_roles')
         .select('id, user_id, role, county_id, granted_at')
-        .in('user_id', userIds)
-        .eq('county_id', countyId);
+        .in('user_id', userIds);
+
+      if (countyId) {
+        // Include both county-specific roles and platform roles (county_id IS NULL)
+        rolesQuery = rolesQuery.or(`county_id.eq.${countyId},county_id.is.null`);
+      }
+
+      const { data: roles, error: rolesError } = await rolesQuery;
 
       if (rolesError) throw rolesError;
 
@@ -78,7 +87,7 @@ export function useCountyUsers(countyId?: string) {
         roles: rolesByUser.get(profile.id) || [],
       })) as CountyUser[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -153,7 +162,8 @@ export function useCreateCountyUser() {
     }) => {
       // Try to create user using admin API (if available)
       let userId: string;
-      
+      let createdUser: { id: string };
+
       try {
         // @ts-ignore - admin API may not be available in client
         const { data: authData, error: authError } = await supabase.auth.admin?.createUser({
@@ -166,6 +176,7 @@ export function useCreateCountyUser() {
         if (authError) throw authError;
         if (!authData?.user) throw new Error('Failed to create user');
         userId = authData.user.id;
+        createdUser = authData.user;
       } catch (error: any) {
         // Fallback: Use regular signup (user will need to confirm email)
         const { data: signupData, error: signupError } = await supabase.auth.signUp({
@@ -180,6 +191,7 @@ export function useCreateCountyUser() {
         if (signupError) throw signupError;
         if (!signupData.user) throw new Error('Failed to create user');
         userId = signupData.user.id;
+        createdUser = signupData.user;
       }
 
       // Update profile with county_id and phone
@@ -213,7 +225,7 @@ export function useCreateCountyUser() {
         if (rolesError) throw rolesError;
       }
 
-      return authData.user;
+      return createdUser;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['county-users', variables.countyId] });

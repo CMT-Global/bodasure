@@ -112,7 +112,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
         phone: values.phone,
         status: values.status,
         county_id: finalCountyId,
-        email: values.email || null,
+        email: (values.email || '').trim().toLowerCase() || null,
         date_of_birth: values.date_of_birth || null,
         address: values.address || null,
         license_number: values.license_number || null,

@@ -184,6 +184,11 @@ export interface RiderOwnerProfileData {
 
 const EXPIRING_SOON_DAYS = 30;
 
+/** Escape % and _ for use in ilike so they match literally (case-insensitive email match). */
+function escapeIlike(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 export function useRiderOwnerDashboard(userId: string | undefined) {
   return useQuery({
     queryKey: ['rider-owner-dashboard', userId],
@@ -248,46 +253,53 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
 
         // Fallback: link by email when user_id is not set (e.g. existing rider/owner records)
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        const userEmail = authUser?.email?.trim();
+        const userEmail = authUser?.email?.trim().toLowerCase();
         if (userEmail) {
-          const { data: riderByEmail, error: riderEmailErr } = await supabase
+          // Case-insensitive match so rider created with different email casing still links
+          const { data: ridersByEmail, error: riderEmailErr } = await supabase
             .from('riders')
             .select('id')
-            .eq('email', userEmail)
-            .maybeSingle();
-          if (!riderEmailErr && riderByEmail) {
-            await supabase.from('riders').update({ user_id: userId }).eq('id', riderByEmail.id);
-            const { data: linkedRider, error: linkedErr } = await supabase
-              .from('riders')
-              .select(riderSelect)
-              .eq('id', riderByEmail.id)
-              .single();
-            if (!linkedErr) rider = linkedRider as Rider;
+            .ilike('email', escapeIlike(userEmail))
+            .limit(1);
+          const riderByEmail = !riderEmailErr && ridersByEmail?.length ? ridersByEmail[0] : null;
+          if (riderByEmail) {
+            const { error: updateErr } = await supabase.from('riders').update({ user_id: userId }).eq('id', riderByEmail.id);
+            if (!updateErr) {
+              const { data: linkedRider, error: linkedErr } = await supabase
+                .from('riders')
+                .select(riderSelect)
+                .eq('id', riderByEmail.id)
+                .single();
+              if (!linkedErr) rider = linkedRider as Rider;
+            }
           }
           if (!rider) {
-            const { data: ownerByEmail, error: ownerEmailErr } = await supabase
+            const { data: ownersByEmail, error: ownerEmailErr } = await supabase
               .from('owners')
               .select('*')
-              .eq('email', userEmail)
-              .maybeSingle();
-            if (!ownerEmailErr && ownerByEmail) {
-              await supabase.from('owners').update({ user_id: userId }).eq('id', ownerByEmail.id);
-              owner = ownerByEmail as Owner;
-              const { count } = await supabase
-                .from('motorbikes')
-                .select('id', { count: 'exact', head: true })
-                .eq('owner_id', owner.id);
-              ownedBikesCount = count ?? 0;
-              return {
-                rider: null,
-                owner,
-                motorbikes: [],
-                ownedBikesCount,
-                permits: [],
-                outstandingPenalties: [],
-                outstandingPenaltiesTotal: 0,
-                lastPayment: null,
-              };
+              .ilike('email', escapeIlike(userEmail))
+              .limit(1);
+            const ownerByEmail = !ownerEmailErr && ownersByEmail?.length ? ownersByEmail[0] : null;
+            if (ownerByEmail) {
+              const { error: ownerUpdateErr } = await supabase.from('owners').update({ user_id: userId }).eq('id', ownerByEmail.id);
+              if (!ownerUpdateErr) {
+                owner = ownerByEmail as Owner;
+                const { count } = await supabase
+                  .from('motorbikes')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('owner_id', owner.id);
+                ownedBikesCount = count ?? 0;
+                return {
+                  rider: null,
+                  owner,
+                  motorbikes: [],
+                  ownedBikesCount,
+                  permits: [],
+                  outstandingPenalties: [],
+                  outstandingPenaltiesTotal: 0,
+                  lastPayment: null,
+                };
+              }
             }
           }
         }
@@ -406,31 +418,35 @@ export function useRiderOwnerProfile(userId: string | undefined) {
       // Fallback: link by email when user_id is not set (e.g. existing rider/owner records)
       if (!rider && !owner) {
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        const userEmail = authUser?.email?.trim();
+        const userEmail = authUser?.email?.trim().toLowerCase();
         if (userEmail) {
-          const { data: riderByEmail, error: riderEmailErr } = await supabase
+          const { data: ridersByEmail, error: riderEmailErr } = await supabase
             .from('riders')
             .select('id')
-            .eq('email', userEmail)
-            .maybeSingle();
-          if (!riderEmailErr && riderByEmail) {
-            await supabase.from('riders').update({ user_id: userId }).eq('id', riderByEmail.id);
-            const { data: linkedRider, error: linkedErr } = await supabase
-              .from('riders')
-              .select(riderProfileSelect)
-              .eq('id', riderByEmail.id)
-              .single();
-            if (!linkedErr) rider = linkedRider as (Rider & { county?: { name: string } | null }) | null;
+            .ilike('email', escapeIlike(userEmail))
+            .limit(1);
+          const riderByEmail = !riderEmailErr && ridersByEmail?.length ? ridersByEmail[0] : null;
+          if (riderByEmail) {
+            const { error: updateErr } = await supabase.from('riders').update({ user_id: userId }).eq('id', riderByEmail.id);
+            if (!updateErr) {
+              const { data: linkedRider, error: linkedErr } = await supabase
+                .from('riders')
+                .select(riderProfileSelect)
+                .eq('id', riderByEmail.id)
+                .single();
+              if (!linkedErr) rider = linkedRider as (Rider & { county?: { name: string } | null }) | null;
+            }
           }
           if (!rider) {
-            const { data: ownerByEmail, error: ownerEmailErr } = await supabase
+            const { data: ownersByEmail, error: ownerEmailErr } = await supabase
               .from('owners')
               .select('*')
-              .eq('email', userEmail)
-              .maybeSingle();
-            if (!ownerEmailErr && ownerByEmail) {
-              await supabase.from('owners').update({ user_id: userId }).eq('id', ownerByEmail.id);
-              owner = ownerByEmail as Owner | null;
+              .ilike('email', escapeIlike(userEmail))
+              .limit(1);
+            const ownerByEmail = !ownerEmailErr && ownersByEmail?.length ? ownersByEmail[0] : null;
+            if (ownerByEmail) {
+              const { error: ownerUpdateErr } = await supabase.from('owners').update({ user_id: userId }).eq('id', ownerByEmail.id);
+              if (!ownerUpdateErr) owner = ownerByEmail as Owner | null;
             }
           }
         }

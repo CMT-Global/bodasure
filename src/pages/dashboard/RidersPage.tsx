@@ -173,6 +173,7 @@ export default function RidersPage() {
             setIsDetailOpen(false);
             setIsFormOpen(true);
           }}
+          showStatusActions
         />
 
         {/* Delete Confirmation */}

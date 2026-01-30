@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import {
   User,
   Bike,
@@ -48,9 +49,37 @@ import {
   Phone,
   ArrowLeftRight,
   UserCog,
+  IdCard,
+  Hash,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-0.5 font-medium text-foreground truncate">
+          {value || '—'}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function BikeDetailsTable({
   bikes,
@@ -61,7 +90,10 @@ function BikeDetailsTable({
 }) {
   if (!bikes.length) {
     return (
-      <p className="text-sm text-muted-foreground py-4">No bikes linked.</p>
+      <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 py-10 text-center">
+        <Bike className="mx-auto h-10 w-10 text-muted-foreground/50" />
+        <p className="mt-2 text-sm text-muted-foreground">No bikes linked</p>
+      </div>
     );
   }
   return (
@@ -69,26 +101,31 @@ function BikeDetailsTable({
       {bikes.map((b) => (
         <div
           key={b.id}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 transition-colors hover:bg-muted/10"
         >
-          <div className="flex items-center gap-2">
-            <Bike className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{b.registration_number}</span>
-            {(b.make || b.model) && (
-              <span className="text-sm text-muted-foreground">
-                {[b.make, b.model].filter(Boolean).join(' ')}
-              </span>
-            )}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Bike className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground">
+                {b.registration_number}
+              </p>
+              {(b.make || b.model) && (
+                <p className="text-sm text-muted-foreground truncate">
+                  {[b.make, b.model].filter(Boolean).join(' ')}
+                  {b.year ? ` · ${b.year}` : ''}
+                  {b.color ? ` · ${b.color}` : ''}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-            {b.year && <span>{b.year}</span>}
-            {b.color && <span> · {b.color}</span>}
-            {showAssignedRider && b.rider?.full_name && (
-              <span className="flex items-center gap-1">
-                · Rider: {b.rider.full_name}
-              </span>
-            )}
-          </div>
+          {showAssignedRider && b.rider?.full_name && (
+            <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground">
+              <User className="h-3.5 w-3.5" />
+              {b.rider.full_name}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -100,6 +137,7 @@ function ProfileView({ data }: { data: RiderOwnerProfileData }) {
   const countyName = rider?.county?.name ?? null;
   const saccoName = rider?.sacco?.name ?? null;
   const stageName = rider?.stage?.name ?? null;
+  const saccoStage = [saccoName, stageName].filter(Boolean).join(' · ') || null;
   const getInitials = (name: string) =>
     name
       .split(' ')
@@ -109,45 +147,32 @@ function ProfileView({ data }: { data: RiderOwnerProfileData }) {
       .slice(0, 2);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-medium flex items-center gap-2">
-          <User className="h-4 w-4" />
-          Rider profile
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-start gap-4">
-          <Avatar className="h-16 w-16 border-2 border-border">
+    <Card className="overflow-hidden border-border/80 shadow-lg">
+      <div className="relative h-20 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent" />
+      <CardContent className="relative pt-0 pb-6">
+        <div className="-mt-12 flex flex-col sm:flex-row sm:items-end gap-6">
+          <Avatar className="h-24 w-24 shrink-0 border-4 border-card shadow-xl ring-2 ring-primary/30">
             <AvatarImage src={rider?.photo_url ?? undefined} alt={rider?.full_name} />
-            <AvatarFallback className="bg-primary/10 text-primary text-lg">
+            <AvatarFallback className="bg-primary/20 text-primary text-2xl font-semibold">
               {rider ? getInitials(rider.full_name) : '—'}
             </AvatarFallback>
           </Avatar>
-          <div className="grid gap-1 text-sm min-w-0 flex-1">
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Full name</span>
-              <span className="font-medium truncate">{rider?.full_name ?? '—'}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">Phone</span>
-              <span className="font-medium">{rider?.phone ?? '—'}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">ID number</span>
-              <span className="font-medium">{rider?.id_number ?? '—'}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">County</span>
-              <span className="font-medium">{countyName ?? '—'}</span>
-            </div>
-            <div className="flex justify-between gap-2 flex-wrap">
-              <span className="text-muted-foreground">Sacco / Stage</span>
-              <span className="font-medium">
-                {[saccoName, stageName].filter(Boolean).join(' · ') || '—'}
-              </span>
-            </div>
+          <div className="min-w-0 flex-1 pb-1">
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              {rider?.full_name ?? '—'}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Rider profile
+            </p>
           </div>
+        </div>
+        <Separator className="my-6 bg-border/60" />
+        <div className="grid gap-0 divide-y divide-border/60">
+          <InfoRow icon={User} label="Full name" value={rider?.full_name ?? undefined} />
+          <InfoRow icon={Phone} label="Phone" value={rider?.phone ?? undefined} />
+          <InfoRow icon={IdCard} label="ID number" value={rider?.id_number ?? undefined} />
+          <InfoRow icon={MapPin} label="County" value={countyName ?? undefined} />
+          <InfoRow icon={Building2} label="Sacco / Stage" value={saccoStage ?? undefined} />
         </div>
       </CardContent>
     </Card>
@@ -403,18 +428,27 @@ function ProfileRegistrationContent() {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-6 text-center">
-        <AlertCircle className="mx-auto h-10 w-10 text-destructive mb-2" />
-        <p className="text-destructive font-medium">Failed to load profile</p>
-        <p className="text-sm text-muted-foreground mt-1">Please try again later.</p>
+      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center max-w-md mx-auto">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 mx-auto mb-4">
+          <AlertCircle className="h-7 w-7 text-destructive" />
+        </div>
+        <p className="text-destructive font-semibold">Failed to load profile</p>
+        <p className="text-sm text-muted-foreground mt-2">Please try again later.</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-4 max-w-full min-w-0">
-        <Skeleton className="h-48 w-full rounded-xl" />
+      <div className="space-y-6 max-w-full min-w-0">
+        <div className="flex gap-4">
+          <Skeleton className="h-24 w-24 rounded-full shrink-0" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </div>
+        <Skeleton className="h-40 w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-24 w-full rounded-xl" />
       </div>
@@ -423,10 +457,12 @@ function ProfileRegistrationContent() {
 
   if (!rider && !owner) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center max-w-md mx-auto">
-        <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-lg font-semibold mb-2">No profile linked</h2>
-        <p className="text-sm text-muted-foreground">
+      <div className="rounded-xl border border-border/80 bg-card shadow-sm p-8 sm:p-10 text-center max-w-md mx-auto">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mx-auto mb-5">
+          <User className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h2 className="text-lg font-semibold text-foreground mb-2">No profile linked</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
           Your account is not linked to a rider or owner record. Contact your Sacco or
           county admin to link your profile.
         </p>
@@ -435,16 +471,21 @@ function ProfileRegistrationContent() {
   }
 
   return (
-    <div className="space-y-6 max-w-full min-w-0">
+    <div className="space-y-6 sm:space-y-8 max-w-full min-w-0">
       {rider && (
         <>
           <ProfileView data={data!} />
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Bike className="h-4 w-4" />
+          <Card className="border-border/80 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Bike className="h-5 w-5" />
+                </div>
                 Bike details
               </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Motorbikes linked to your rider profile
+              </p>
             </CardHeader>
             <CardContent>
               <BikeDetailsTable bikes={motorbikes} showAssignedRider={false} />
@@ -454,31 +495,27 @@ function ProfileRegistrationContent() {
       )}
 
       {owner && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Owner view
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Building2 className="h-5 w-5" />
+              </div>
+              Owner profile
             </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your owner record and owned bikes
+            </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-1 text-sm">
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Name</span>
-                <span className="font-medium">{owner.full_name}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Phone</span>
-                <span className="font-medium">{owner.phone}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">ID number</span>
-                <span className="font-medium">{owner.id_number}</span>
-              </div>
+          <CardContent className="space-y-6">
+            <div className="grid gap-0 divide-y divide-border/60 rounded-xl border border-border/80 bg-muted/5 p-4">
+              <InfoRow icon={User} label="Name" value={owner.full_name} />
+              <InfoRow icon={Phone} label="Phone" value={owner.phone} />
+              <InfoRow icon={IdCard} label="ID number" value={owner.id_number} />
             </div>
             <div>
-              <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                <MapPin className="h-4 w-4" />
+              <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-foreground">
+                <MapPin className="h-4 w-4 text-primary" />
                 Owned bikes
               </h4>
               <BikeDetailsTable bikes={ownedBikes} showAssignedRider />
@@ -487,80 +524,106 @@ function ProfileRegistrationContent() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <UserCog className="h-4 w-4" />
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UserCog className="h-5 w-5" />
+            </div>
             Update requests
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            You cannot edit critical fields directly. Submit a change request for
-            county/sacco approval.
+          <p className="text-sm text-muted-foreground mt-1">
+            Submit a change request for county/sacco approval. Critical fields cannot be edited directly.
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
+        <CardContent className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {rider && (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={() => setRequestDialog({ open: true, type: 'phone' })}
+                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
-                  <Phone className="h-4 w-4 mr-2" />
-                  Phone update
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Phone className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-semibold text-foreground">Phone update</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Change your phone number</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setRequestDialog({ open: true, type: 'photo' })}
+                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
-                  <FileImage className="h-4 w-4 mr-2" />
-                  Photo update
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <FileImage className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-semibold text-foreground">Photo update</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Request a new profile photo</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     setRequestDialog({ open: true, type: 'sacco_stage_transfer' })
                   }
+                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
-                  Sacco / stage transfer
-                </Button>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <ArrowLeftRight className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-semibold text-foreground">Sacco / stage transfer</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Change sacco or stage</p>
+                  </div>
+                </button>
               </>
             )}
             {owner && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() =>
                   setRequestDialog({ open: true, type: 'owner_rider_reassignment' })
                 }
+                className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 sm:col-span-2 lg:col-span-1"
               >
-                <UserCog className="h-4 w-4 mr-2" />
-                Owner / rider reassignment
-              </Button>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <UserCog className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-semibold text-foreground">Owner / rider reassignment</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Reassign rider to a bike</p>
+                </div>
+              </button>
             )}
           </div>
 
           {requests.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium mb-2">Your requests</h4>
-              <ScrollArea className="h-[200px] rounded-lg border">
-                <div className="p-2 space-y-2">
+            <div className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
+              <div className="border-b border-border/60 bg-muted/10 px-4 py-3">
+                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-primary" />
+                  Your requests
+                </h4>
+              </div>
+              <ScrollArea className="h-[220px]">
+                <div className="p-3 space-y-2">
                   {requests.map((r) => (
                     <div
                       key={r.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-4 py-3"
                     >
-                      <div>
-                        <span className="font-medium capitalize">
+                      <div className="min-w-0">
+                        <span className="font-medium text-foreground capitalize">
                           {r.request_type.replace(/_/g, ' ')}
                         </span>
-                        <span className="text-muted-foreground ml-2">
-                          {format(new Date(r.created_at), 'dd MMM yyyy')}
-                        </span>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
+                        </p>
                       </div>
                       <Badge
                         variant={
@@ -570,6 +633,7 @@ function ProfileRegistrationContent() {
                               ? 'destructive'
                               : 'secondary'
                         }
+                        className="shrink-0 capitalize"
                       >
                         {r.status}
                       </Badge>
@@ -602,11 +666,13 @@ function ProfileRegistrationContent() {
 export default function ProfileRegistrationPage() {
   return (
     <RiderOwnerLayout>
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Profile &amp; Registration</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            View your rider profile, bike details, and submit update requests.
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            Profile &amp; Registration
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base max-w-xl">
+            View your rider profile, bike details, and submit update requests for approval.
           </p>
         </div>
         <ProfileRegistrationContent />

@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Building2, MapPin, Mail, Phone, AlertCircle, Loader2, Send, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Building2, MapPin, Mail, Phone, AlertCircle, Loader2, Send, Clock, CheckCircle, XCircle, ArrowRightLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 
@@ -97,10 +97,12 @@ function SaccoStageContent() {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-6 text-center">
-        <AlertCircle className="mx-auto h-10 w-10 text-destructive mb-2" />
-        <p className="text-destructive font-medium">Failed to load</p>
-        <p className="text-sm text-muted-foreground mt-1">Please try again later.</p>
+      <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-8 text-center">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10">
+          <AlertCircle className="h-6 w-6 text-destructive" />
+        </div>
+        <p className="font-semibold text-destructive">Failed to load</p>
+        <p className="mt-1 text-sm text-muted-foreground">Please try again later.</p>
       </div>
     );
   }
@@ -117,10 +119,12 @@ function SaccoStageContent() {
 
   if (!rider) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-center max-w-md mx-auto">
-        <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-lg font-semibold mb-2">No rider profile linked</h2>
-        <p className="text-sm text-muted-foreground">
+      <div className="mx-auto max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
+          <Building2 className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <h2 className="text-lg font-semibold tracking-tight">No rider profile linked</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           Your account is not linked to a rider. Contact your Sacco or county admin to link your profile.
         </p>
       </div>
@@ -133,52 +137,66 @@ function SaccoStageContent() {
   return (
     <div className="space-y-6 max-w-full min-w-0">
       {/* Current assignment */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Building2 className="h-5 w-5" />
-            Sacco / Welfare & Stage
-          </CardTitle>
-          <CardDescription>Your current Sacco (welfare group) and stage assignment.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Assigned Sacco</p>
-              <p className="font-medium">{saccoName ?? '—'}</p>
+      <Card className="overflow-hidden rounded-xl border-border shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Building2 className="h-6 w-6" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Assigned Stage</p>
-              <p className="font-medium">{stageName ?? '—'}</p>
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="text-lg font-semibold tracking-tight">Sacco / Welfare & Stage</CardTitle>
+              <CardDescription className="text-sm">
+                Your current Sacco (welfare group) and stage assignment.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-0">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Assigned Sacco</p>
+              <p className="mt-1.5 text-lg font-semibold">{saccoName ?? '—'}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Assigned Stage</p>
+              <p className="mt-1.5 text-lg font-semibold">{stageName ?? '—'}</p>
             </div>
           </div>
 
           {/* Leadership / contact (optional) */}
           {currentSacco && (currentSacco.contact_email || currentSacco.contact_phone || currentSacco.address) && (
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Sacco contact (leadership)</p>
-              <div className="flex flex-col gap-1.5 text-sm">
+            <div className="rounded-xl border border-border bg-muted/10 p-5">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Sacco contact (leadership)
+              </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
                 {currentSacco.contact_phone && (
                   <a
                     href={`tel:${currentSacco.contact_phone}`}
-                    className="flex items-center gap-2 text-primary hover:underline"
+                    className="flex items-center gap-2.5 text-primary transition-colors hover:underline"
                   >
-                    <Phone className="h-4 w-4" />
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                      <Phone className="h-4 w-4 text-primary" />
+                    </span>
                     {currentSacco.contact_phone}
                   </a>
                 )}
                 {currentSacco.contact_email && (
                   <a
                     href={`mailto:${currentSacco.contact_email}`}
-                    className="flex items-center gap-2 text-primary hover:underline"
+                    className="flex items-center gap-2.5 text-primary transition-colors hover:underline"
                   >
-                    <Mail className="h-4 w-4" />
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                      <Mail className="h-4 w-4 text-primary" />
+                    </span>
                     {currentSacco.contact_email}
                   </a>
                 )}
                 {currentSacco.address && (
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4 shrink-0" />
+                  <span className="flex items-center gap-2.5 text-muted-foreground">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+                      <MapPin className="h-4 w-4 shrink-0" />
+                    </span>
                     {currentSacco.address}
                   </span>
                 )}
@@ -189,24 +207,36 @@ function SaccoStageContent() {
       </Card>
 
       {/* Transfer request */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Transfer request</CardTitle>
-          <CardDescription>
-            Request a change of stage or Sacco (welfare group). Requests are subject to approval by your county or Sacco.
-          </CardDescription>
+      <Card className="overflow-hidden rounded-xl border-border shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <ArrowRightLeft className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="text-lg font-semibold tracking-tight">Transfer request</CardTitle>
+              <CardDescription className="text-sm">
+                Request a change of stage or Sacco (welfare group). Requests are subject to approval by your county or Sacco.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
+        <CardContent className="space-y-5 pt-0">
+          <Button
+            onClick={() => setTransferDialogOpen(true)}
+            className="gap-2 rounded-lg bg-primary px-5 py-2.5 font-medium hover:bg-primary/90"
+          >
             <Send className="h-4 w-4" />
             Request stage or Sacco transfer
           </Button>
 
           {requestsLoading ? (
-            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-20 w-full rounded-xl" />
           ) : transferRequests.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Your transfer requests</p>
+            <div className="space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Your transfer requests
+              </p>
               <ul className="space-y-2">
                 {transferRequests.map((req) => (
                   <TransferRequestItem key={req.id} request={req} saccos={saccos} stages={allStagesInCounty} />
@@ -252,11 +282,11 @@ function TransferRequestItem({
   const label = [sacco?.name, stage?.name].filter(Boolean).join(' · ') || 'Transfer';
 
   return (
-    <li className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
-      <span className="truncate">{label}</span>
-      <div className="flex items-center gap-2 shrink-0">
+    <li className="flex flex-col gap-2 rounded-xl border border-border bg-muted/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <span className="truncate text-sm font-medium">{label}</span>
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
         <StatusBadge status={request.status} />
-        <span className="text-muted-foreground text-xs">
+        <span className="text-xs text-muted-foreground">
           {request.created_at ? format(parseISO(request.created_at), 'dd MMM yyyy') : ''}
         </span>
       </div>
@@ -267,7 +297,7 @@ function TransferRequestItem({
 function StatusBadge({ status }: { status: string }) {
   if (status === 'pending') {
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge variant="secondary" className="gap-1.5 rounded-full px-2.5 py-0.5 font-medium">
         <Clock className="h-3 w-3" />
         Pending
       </Badge>
@@ -275,14 +305,14 @@ function StatusBadge({ status }: { status: string }) {
   }
   if (status === 'approved') {
     return (
-      <Badge variant="default" className="gap-1 bg-green-600">
+      <Badge className="gap-1.5 rounded-full bg-green-600/90 px-2.5 py-0.5 font-medium hover:bg-green-600">
         <CheckCircle className="h-3 w-3" />
         Approved
       </Badge>
     );
   }
   return (
-    <Badge variant="destructive" className="gap-1">
+    <Badge variant="destructive" className="gap-1.5 rounded-full px-2.5 py-0.5 font-medium">
       <XCircle className="h-3 w-3" />
       Rejected
     </Badge>
@@ -330,18 +360,18 @@ function TransferRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? resetAndClose() : onOpenChange(o))}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Request stage or Sacco transfer</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="rounded-xl sm:max-w-md">
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="text-lg font-semibold">Request stage or Sacco transfer</DialogTitle>
+          <DialogDescription className="text-sm">
             Select the new Sacco (welfare group) and/or stage. Your request will be sent for approval.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Sacco / Welfare group</Label>
+            <Label className="text-sm font-medium">Sacco / Welfare group</Label>
             <Select value={transferSaccoId || currentSaccoId || ''} onValueChange={setTransferSaccoId}>
-              <SelectTrigger>
+              <SelectTrigger className="rounded-lg">
                 <SelectValue placeholder="Select Sacco" />
               </SelectTrigger>
               <SelectContent>
@@ -354,13 +384,13 @@ function TransferRequestDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Stage</Label>
+            <Label className="text-sm font-medium">Stage</Label>
             <Select
               value={requestedStageId}
               onValueChange={setRequestedStageId}
               disabled={!effectiveSaccoId && stagesForSacco.length === 0}
             >
-              <SelectTrigger>
+              <SelectTrigger className="rounded-lg">
                 <SelectValue placeholder="Select stage" />
               </SelectTrigger>
               <SelectContent>
@@ -374,14 +404,14 @@ function TransferRequestDialog({
             </Select>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => resetAndClose()} disabled={isSubmitting}>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => resetAndClose()} disabled={isSubmitting} className="rounded-lg">
             Cancel
           </Button>
-          <Button onClick={onSubmit} disabled={isSubmitting || !requestedStageId}>
+          <Button onClick={onSubmit} disabled={isSubmitting || !requestedStageId} className="rounded-lg gap-2">
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Submitting…
               </>
             ) : (
@@ -397,10 +427,10 @@ function TransferRequestDialog({
 export default function SaccoStageInfoPage() {
   return (
     <RiderOwnerLayout>
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Sacco / Welfare & Stage</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
+      <div className="space-y-5 sm:space-y-6">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Sacco / Welfare & Stage</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
             View your assigned Sacco and stage, leadership contacts, and request a transfer.
           </p>
         </div>

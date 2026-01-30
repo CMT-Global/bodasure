@@ -12,15 +12,24 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Phone, Mail, MapPin, Calendar, CreditCard, QrCode, Edit } from 'lucide-react';
 import { format } from 'date-fns';
+import { RiderStatusActions } from '@/components/riders/RiderStatusActions';
 
 interface RiderDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rider: Rider | null;
   onEdit: () => void;
+  /** When true, show Approve / Reject / Suspend / Reinstate (e.g. county portal) */
+  showStatusActions?: boolean;
 }
 
-export function RiderDetailSheet({ open, onOpenChange, rider, onEdit }: RiderDetailSheetProps) {
+export function RiderDetailSheet({
+  open,
+  onOpenChange,
+  rider,
+  onEdit,
+  showStatusActions = false,
+}: RiderDetailSheetProps) {
   if (!rider) return null;
 
   const initials = rider.full_name
@@ -156,6 +165,17 @@ export function RiderDetailSheet({ open, onOpenChange, rider, onEdit }: RiderDet
           )}
 
           <Separator />
+
+          {showStatusActions && (
+            <>
+              <RiderStatusActions
+                rider={rider}
+                contextLabel="rider"
+                onSuccess={() => onOpenChange(false)}
+              />
+              <Separator />
+            </>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2">
