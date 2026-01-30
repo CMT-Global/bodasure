@@ -271,15 +271,27 @@ export function useWaivePenalty() {
   
   return useMutation({
     mutationFn: async (penaltyId: string) => {
-      // For now, we'll mark as paid with a special payment_id or use metadata
-      // In a real system, you'd want a separate 'waived' status field
+      // First, get the current penalty to preserve its description
+      const { data: currentPenalty, error: fetchError } = await supabase
+        .from('penalties')
+        .select('description')
+        .eq('id', penaltyId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Add [WAIVED] marker to description to distinguish from admin-completed
+      const updatedDescription = currentPenalty?.description 
+        ? `${currentPenalty.description} [WAIVED]`
+        : '[WAIVED]';
+
       const { data, error } = await supabase
         .from('penalties')
         .update({
           is_paid: true,
           paid_at: new Date().toISOString(),
-          // We can use a special payment_id pattern or add metadata
-          // For now, we'll use a flag in description or add a waived field
+          description: updatedDescription,
+          payment_id: null, // Ensure payment_id is null for waived penalties
         })
         .eq('id', penaltyId)
         .select()
@@ -366,6 +378,56 @@ export function useUpdateRiderStatus() {
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update rider status');
     },
+  });
+}
+
+// Fetch penalties for sacco members
+export function useSaccoPenalties(saccoId: string | undefined, countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['sacco-penalties', saccoId, countyId],
+    queryFn: async () => {
+      if (!saccoId || !countyId) return [];
+
+      // First, get all member IDs for this sacco
+      const { data: members, error: membersError } = await supabase
+        .from('riders')
+        .select('id')
+        .eq('sacco_id', saccoId)
+        .eq('county_id', countyId);
+
+      if (membersError) throw membersError;
+      if (!members || members.length === 0) return [];
+
+      const memberIds = members.map(m => m.id);
+
+      // Fetch penalties for these members
+      const { data, error } = await supabase
+        .from('penalties')
+        .select(`
+          *,
+          riders(id, full_name, phone, id_number, compliance_status, status)
+        `)
+        .eq('county_id', countyId)
+        .in('rider_id', memberIds)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+
+      // Get penalty counts per rider to identify repeat offenders
+      const penaltyCounts = new Map<string, number>();
+      (data || []).forEach((penalty: any) => {
+        const count = penaltyCounts.get(penalty.rider_id) || 0;
+        penaltyCounts.set(penalty.rider_id, count + 1);
+      });
+
+      // Enrich with repeat offender info
+      return (data || []).map((penalty: any) => ({
+        ...penalty,
+        repeat_offender: (penaltyCounts.get(penalty.rider_id) || 0) > 1,
+        penalty_count: penaltyCounts.get(penalty.rider_id) || 1,
+      })) as PenaltyWithRepeatInfo[];
+    },
+    enabled: !!saccoId && !!countyId,
   });
 }
 

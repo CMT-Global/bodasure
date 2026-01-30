@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -24,6 +24,8 @@ interface AuthContextType {
   profile: Profile | null;
   roles: UserRole[];
   isLoading: boolean;
+  isLoadingRoles: boolean;
+  rolesLoaded: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -40,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
+  const rolesLoadedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     let sessionTimeoutId: NodeJS.Timeout | null = null;
@@ -48,6 +53,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener BEFORE getting initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        // TOKEN_REFRESHED fires when user returns to tab - don't refetch or show loading
+        if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+          setSession(newSession);
+          setUser(newSession.user);
+          if (sessionTimeoutId) {
+            clearTimeout(sessionTimeoutId);
+            sessionTimeoutId = null;
+          }
+          sessionTimeoutId = setTimeout(async () => {
+            console.warn('Session expired due to inactivity');
+            await supabase.auth.signOut();
+            setProfile(null);
+            setRoles([]);
+            setIsLoadingRoles(false);
+            setRolesLoaded(false);
+            rolesLoadedForUserRef.current = null;
+            if (window.location.pathname.startsWith('/dashboard')) {
+              window.location.href = '/login?session=expired';
+            }
+          }, SESSION_TIMEOUT_MS);
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
@@ -69,6 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await supabase.auth.signOut();
             setProfile(null);
             setRoles([]);
+            setIsLoadingRoles(false);
+            setRolesLoaded(false);
+            rolesLoadedForUserRef.current = null;
             // Optionally redirect to login
             if (window.location.pathname.startsWith('/dashboard')) {
               window.location.href = '/login?session=expired';
@@ -77,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setRoles([]);
+          setIsLoadingRoles(false);
+          setRolesLoaded(false);
+          rolesLoadedForUserRef.current = null;
         }
         
         setIsLoading(false);
@@ -97,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase.auth.signOut();
           setProfile(null);
           setRoles([]);
+          setIsLoadingRoles(false);
+          setRolesLoaded(false);
+          rolesLoadedForUserRef.current = null;
           if (window.location.pathname.startsWith('/dashboard')) {
             window.location.href = '/login?session=expired';
           }
@@ -115,29 +152,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchUserData = async (userId: string) => {
+    const isRefetch = rolesLoadedForUserRef.current === userId;
+    if (!isRefetch) {
+      setIsLoadingRoles(true);
+      setRolesLoaded(false);
+    }
     try {
       // Fetch profile
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
       
-      if (profileData) {
-        setProfile(profileData as Profile);
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      } else if (profileData) {
+        const p = profileData as Profile;
+        setProfile(p);
+        // Immediate access revocation on suspension: sign out and redirect
+        if (p && p.is_active === false) {
+          await supabase.auth.signOut();
+          setProfile(null);
+          setRoles([]);
+          setIsLoadingRoles(false);
+          setRolesLoaded(false);
+          rolesLoadedForUserRef.current = null;
+          if (window.location.pathname.startsWith('/dashboard') || window.location.pathname.startsWith('/super-admin') || window.location.pathname.startsWith('/sacco') || window.location.pathname.startsWith('/rider-owner')) {
+            window.location.href = '/login?suspended=1';
+          }
+          return;
+        }
       }
 
       // Fetch roles
-      const { data: rolesData } = await supabase
+      const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select('id, role, county_id')
         .eq('user_id', userId);
       
-      if (rolesData) {
-        setRoles(rolesData as UserRole[]);
+      if (rolesError) {
+        console.error('Error fetching roles:', rolesError);
+        setRoles([]);
+      } else {
+        setRoles(rolesData || []);
+        console.log('Loaded roles:', rolesData);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+      setRoles([]);
+    } finally {
+      setIsLoadingRoles(false);
+      setRolesLoaded(true);
+      rolesLoadedForUserRef.current = userId;
     }
   };
 
@@ -162,6 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setProfile(null);
     setRoles([]);
+    setIsLoadingRoles(false);
+    setRolesLoaded(false);
+    rolesLoadedForUserRef.current = null;
   };
 
   const hasRole = (role: string) => {
@@ -183,6 +253,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       roles,
       isLoading,
+      isLoadingRoles,
+      rolesLoaded,
       signIn,
       signUp,
       signOut,

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { generateRiderQRCode } from '@/lib/qrCode';
 import {
   Dialog,
   DialogContent,
@@ -25,9 +26,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSaccos, useStages, useOwners, Rider } from '@/hooks/useData';
+import { useSaccos, useStages, useOwners, Rider, useCounties } from '@/hooks/useData';
 
-const riderFormSchema = z.object({
+// Base schema - county_id will be conditionally required
+const createRiderFormSchema = (needsCountySelection: boolean) => z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
   id_number: z.string().min(6, 'ID number must be at least 6 characters'),
   phone: z.string().min(10, 'Phone number must be at least 10 characters'),
@@ -40,27 +42,45 @@ const riderFormSchema = z.object({
   stage_id: z.string().optional(),
   owner_id: z.string().optional(),
   status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
+  county_id: needsCountySelection 
+    ? z.string().min(1, 'County is required')
+    : z.string().optional(),
 });
 
-type RiderFormValues = z.infer<typeof riderFormSchema>;
+type RiderFormValues = z.infer<ReturnType<typeof createRiderFormSchema>>;
 
 interface RiderFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rider?: Rider | null;
-  countyId: string;
+  countyId?: string;
 }
 
 export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFormDialogProps) {
   const queryClient = useQueryClient();
   const isEditing = !!rider;
+  const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
   
-  const { data: saccos = [] } = useSaccos(countyId);
-  const { data: stages = [] } = useStages(countyId);
-  const { data: owners = [] } = useOwners(countyId);
+  // For superadmins, allow county selection
+  const needsCountySelection = !countyId;
+  const { data: counties = [] } = useCounties();
+  
+  // Use selected county or provided countyId
+  const effectiveCountyId = selectedCountyId || countyId;
+  
+  const { data: saccos = [] } = useSaccos(effectiveCountyId);
+  const { data: stages = [] } = useStages(effectiveCountyId);
+  const { data: owners = [] } = useOwners(effectiveCountyId);
+
+  // Reset selected county when dialog opens or countyId changes
+  useEffect(() => {
+    if (open) {
+      setSelectedCountyId(countyId);
+    }
+  }, [open, countyId]);
 
   const form = useForm<RiderFormValues>({
-    resolver: zodResolver(riderFormSchema),
+    resolver: zodResolver(createRiderFormSchema(needsCountySelection)),
     defaultValues: {
       full_name: rider?.full_name || '',
       id_number: rider?.id_number || '',
@@ -74,18 +94,26 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
       stage_id: rider?.stage_id || '',
       owner_id: rider?.owner_id || '',
       status: rider?.status || 'pending',
+      county_id: countyId || rider?.county_id || '',
     },
   });
 
   const mutation = useMutation({
     mutationFn: async (values: RiderFormValues) => {
+      // Determine the county_id to use
+      const finalCountyId = values.county_id || selectedCountyId || countyId || rider?.county_id;
+      
+      if (!finalCountyId) {
+        throw new Error('County is required. Please select a county.');
+      }
+
       const payload = {
         full_name: values.full_name,
         id_number: values.id_number,
         phone: values.phone,
         status: values.status,
-        county_id: countyId,
-        email: values.email || null,
+        county_id: finalCountyId,
+        email: (values.email || '').trim().toLowerCase() || null,
         date_of_birth: values.date_of_birth || null,
         address: values.address || null,
         license_number: values.license_number || null,
@@ -93,6 +121,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
         sacco_id: values.sacco_id === 'none' ? null : values.sacco_id || null,
         stage_id: values.stage_id === 'none' ? null : values.stage_id || null,
         owner_id: values.owner_id === 'none' ? null : values.owner_id || null,
+        ...(isEditing ? {} : { qr_code: generateRiderQRCode() }),
       };
 
       if (isEditing && rider) {
@@ -136,6 +165,40 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* County selection for superadmins */}
+              {needsCountySelection && (
+                <FormField
+                  control={form.control}
+                  name="county_id"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>County *</FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          setSelectedCountyId(value);
+                        }} 
+                        value={field.value || ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a County" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {counties.map((county) => (
+                            <SelectItem key={county.id} value={county.id}>
+                              {county.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="full_name"

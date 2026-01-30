@@ -1,5 +1,5 @@
 -- Revenue Shares table for tracking revenue sharing distributions
-CREATE TABLE public.revenue_shares (
+CREATE TABLE IF NOT EXISTS public.revenue_shares (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   county_id UUID NOT NULL REFERENCES public.counties(id) ON DELETE CASCADE,
   sacco_id UUID NOT NULL REFERENCES public.saccos(id) ON DELETE CASCADE,
@@ -34,17 +34,32 @@ CREATE TABLE public.revenue_shares (
 );
 
 -- Indexes for efficient queries
-CREATE INDEX idx_revenue_shares_county ON public.revenue_shares(county_id);
-CREATE INDEX idx_revenue_shares_sacco ON public.revenue_shares(sacco_id);
-CREATE INDEX idx_revenue_shares_payment ON public.revenue_shares(payment_id);
-CREATE INDEX idx_revenue_shares_rider ON public.revenue_shares(rider_id);
-CREATE INDEX idx_revenue_shares_status ON public.revenue_shares(status);
-CREATE INDEX idx_revenue_shares_created ON public.revenue_shares(created_at);
+CREATE INDEX IF NOT EXISTS idx_revenue_shares_county ON public.revenue_shares(county_id);
+CREATE INDEX IF NOT EXISTS idx_revenue_shares_sacco ON public.revenue_shares(sacco_id);
+CREATE INDEX IF NOT EXISTS idx_revenue_shares_payment ON public.revenue_shares(payment_id);
+CREATE INDEX IF NOT EXISTS idx_revenue_shares_rider ON public.revenue_shares(rider_id);
+CREATE INDEX IF NOT EXISTS idx_revenue_shares_status ON public.revenue_shares(status);
+CREATE INDEX IF NOT EXISTS idx_revenue_shares_created ON public.revenue_shares(created_at);
+
+-- Trigger to update updated_at timestamp
+DROP TRIGGER IF EXISTS update_revenue_shares_updated_at ON public.revenue_shares;
+CREATE TRIGGER update_revenue_shares_updated_at 
+  BEFORE UPDATE ON public.revenue_shares 
+  FOR EACH ROW 
+  EXECUTE FUNCTION public.update_updated_at_column();
 
 -- RLS Policies
 ALTER TABLE public.revenue_shares ENABLE ROW LEVEL SECURITY;
 
+-- Platform admins can manage all revenue shares
+DROP POLICY IF EXISTS "Platform admins can manage all revenue shares" ON public.revenue_shares;
+CREATE POLICY "Platform admins can manage all revenue shares"
+ON public.revenue_shares FOR ALL
+TO authenticated
+USING (public.is_platform_admin(auth.uid()));
+
 -- County admins can view all revenue shares in their county
+DROP POLICY IF EXISTS "County admins can view revenue shares" ON public.revenue_shares;
 CREATE POLICY "County admins can view revenue shares"
 ON public.revenue_shares FOR SELECT
 TO authenticated
@@ -57,7 +72,8 @@ USING (
   )
 );
 
--- Sacco admins can view revenue shares for their sacco
+-- Sacco admins can view revenue shares for saccos in their county
+DROP POLICY IF EXISTS "Sacco admins can view their revenue shares" ON public.revenue_shares;
 CREATE POLICY "Sacco admins can view their revenue shares"
 ON public.revenue_shares FOR SELECT
 TO authenticated
@@ -67,16 +83,10 @@ USING (
     JOIN public.profiles p ON p.id = ur.user_id
     WHERE ur.user_id = auth.uid()
     AND ur.role IN ('sacco_admin', 'sacco_officer')
-    AND p.county_id = revenue_shares.county_id
+    AND ur.county_id = revenue_shares.county_id
     AND revenue_shares.sacco_id IN (
       SELECT id FROM public.saccos
-      WHERE county_id = p.county_id
-      AND id IN (
-        -- Get saccos where user is admin
-        SELECT sacco_id FROM public.user_roles
-        WHERE user_id = auth.uid()
-        AND role IN ('sacco_admin', 'sacco_officer')
-      )
+      WHERE county_id = ur.county_id
     )
   )
 );
@@ -85,6 +95,7 @@ USING (
 -- Revenue shares are inserted via the paystack-webhook function using service role
 
 -- County admins can update revenue share status
+DROP POLICY IF EXISTS "County admins can update revenue shares" ON public.revenue_shares;
 CREATE POLICY "County admins can update revenue shares"
 ON public.revenue_shares FOR UPDATE
 TO authenticated

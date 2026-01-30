@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,27 +23,31 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, CreditCard, Smartphone } from 'lucide-react';
 import { usePermitTypes, useInitializePayment } from '@/hooks/usePayments';
-import { useRiders, useMotorbikes } from '@/hooks/useData';
+import { useRiders, useMotorbikes, useCounties } from '@/hooks/useData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 
-const paymentFormSchema = z.object({
+// Base schema - county_id will be conditionally required
+const createPaymentFormSchema = (needsCountySelection: boolean) => z.object({
   rider_id: z.string().min(1, 'Please select a rider'),
   motorbike_id: z.string().min(1, 'Please select a motorbike'),
   permit_type_id: z.string().min(1, 'Please select a permit type'),
   email: z.string().email('Invalid email'),
   phone: z.string().optional(),
   payment_method: z.enum(['card', 'mobile_money']),
+  county_id: needsCountySelection 
+    ? z.string().min(1, 'County is required')
+    : z.string().optional(),
 });
 
-type PaymentFormValues = z.infer<typeof paymentFormSchema>;
+type PaymentFormValues = z.infer<ReturnType<typeof createPaymentFormSchema>>;
 
 interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  countyId: string;
+  countyId?: string;
   preselectedRiderId?: string;
   preselectedMotorbikeId?: string;
 }
@@ -56,14 +60,17 @@ export function PaymentDialog({
   preselectedMotorbikeId,
 }: PaymentDialogProps) {
   const [selectedPermitType, setSelectedPermitType] = useState<string | null>(null);
+  const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
   
-  const { data: permitTypes = [], isLoading: loadingPermitTypes } = usePermitTypes(countyId);
-  const { data: riders = [], isLoading: loadingRiders } = useRiders(countyId);
-  const { data: motorbikes = [], isLoading: loadingMotorbikes } = useMotorbikes(countyId);
-  const initializePayment = useInitializePayment();
-
+  // For superadmins, allow county selection
+  const needsCountySelection = !countyId;
+  const { data: counties = [] } = useCounties();
+  
+  // Use selected county or provided countyId
+  const effectiveCountyId = selectedCountyId || countyId;
+  
   const form = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentFormSchema),
+    resolver: zodResolver(createPaymentFormSchema(needsCountySelection)),
     defaultValues: {
       rider_id: preselectedRiderId || '',
       motorbike_id: preselectedMotorbikeId || '',
@@ -71,14 +78,46 @@ export function PaymentDialog({
       email: '',
       phone: '',
       payment_method: 'mobile_money',
+      county_id: countyId || '',
     },
   });
+  
+  const { data: permitTypes = [], isLoading: loadingPermitTypes } = usePermitTypes(effectiveCountyId);
+  const { data: riders = [], isLoading: loadingRiders } = useRiders(effectiveCountyId);
+  const { data: motorbikes = [], isLoading: loadingMotorbikes } = useMotorbikes(effectiveCountyId);
+  const initializePayment = useInitializePayment();
+  
+  // Reset selected county and form when dialog opens or countyId changes
+  useEffect(() => {
+    if (open) {
+      setSelectedCountyId(countyId);
+      form.reset({
+        rider_id: preselectedRiderId || '',
+        motorbike_id: preselectedMotorbikeId || '',
+        permit_type_id: '',
+        email: '',
+        phone: '',
+        payment_method: 'mobile_money',
+        county_id: countyId || '',
+      });
+      setSelectedPermitType(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, countyId, preselectedRiderId, preselectedMotorbikeId]);
 
   const selectedType = permitTypes.find(pt => pt.id === form.watch('permit_type_id'));
   const paymentMethod = form.watch('payment_method');
 
   const onSubmit = async (values: PaymentFormValues) => {
     if (!selectedType) return;
+
+    // Determine the county_id to use
+    const finalCountyId = values.county_id || selectedCountyId || countyId;
+    
+    if (!finalCountyId) {
+      form.setError('county_id', { message: 'County is required. Please select a county.' });
+      return;
+    }
 
     await initializePayment.mutateAsync({
       amount: selectedType.amount,
@@ -87,7 +126,7 @@ export function PaymentDialog({
       permit_type_id: values.permit_type_id,
       rider_id: values.rider_id,
       motorbike_id: values.motorbike_id,
-      county_id: countyId,
+      county_id: finalCountyId,
     });
   };
 
@@ -110,6 +149,40 @@ export function PaymentDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* County selection for superadmins */}
+            {needsCountySelection && (
+              <FormField
+                control={form.control}
+                name="county_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>County *</FormLabel>
+                    <Select 
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        setSelectedCountyId(value);
+                      }} 
+                      value={field.value || ''}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a County" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {counties.map((county) => (
+                          <SelectItem key={county.id} value={county.id}>
+                            {county.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             {/* Rider & Motorbike Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -125,11 +198,21 @@ export function PaymentDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {riders.map((rider) => (
-                          <SelectItem key={rider.id} value={rider.id}>
-                            {rider.full_name} - {rider.id_number}
-                          </SelectItem>
-                        ))}
+                        {loadingRiders ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            Loading riders...
+                          </div>
+                        ) : riders.length === 0 ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            {effectiveCountyId ? 'No riders available' : 'Please select a county first'}
+                          </div>
+                        ) : (
+                          riders.map((rider) => (
+                            <SelectItem key={rider.id} value={rider.id}>
+                              {rider.full_name} - {rider.id_number}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -150,11 +233,21 @@ export function PaymentDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {motorbikes.map((bike) => (
-                          <SelectItem key={bike.id} value={bike.id}>
-                            {bike.registration_number} - {bike.make} {bike.model}
-                          </SelectItem>
-                        ))}
+                        {loadingMotorbikes ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            Loading motorbikes...
+                          </div>
+                        ) : motorbikes.length === 0 ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            {effectiveCountyId ? 'No motorbikes available' : 'Please select a county first'}
+                          </div>
+                        ) : (
+                          motorbikes.map((bike) => (
+                            <SelectItem key={bike.id} value={bike.id}>
+                              {bike.registration_number} - {bike.make} {bike.model}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -177,7 +270,7 @@ export function PaymentDialog({
                       </div>
                     ) : permitTypes.length === 0 ? (
                       <div className="col-span-2 text-center py-4 text-muted-foreground">
-                        No permit types available
+                        {effectiveCountyId ? 'No permit types available' : 'Please select a county first'}
                       </div>
                     ) : (
                       permitTypes.map((type) => (
@@ -305,7 +398,7 @@ export function PaymentDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={initializePayment.isPending || !selectedType}>
+              <Button type="submit" disabled={initializePayment.isPending || !selectedType || !effectiveCountyId}>
                 {initializePayment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {paymentMethod === 'mobile_money' ? 'Pay with M-Pesa' : 'Pay with Card'}
               </Button>

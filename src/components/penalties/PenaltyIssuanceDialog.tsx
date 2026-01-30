@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -63,6 +63,7 @@ export function PenaltyIssuanceDialog({
 }: PenaltyIssuanceDialogProps) {
   const { data: riders = [], isLoading: ridersLoading } = useRiders(countyId);
   const createPenalty = useCreatePenalty();
+  const [amountInput, setAmountInput] = useState<string>('');
 
   const form = useForm<PenaltyFormValues>({
     resolver: zodResolver(penaltyFormSchema),
@@ -75,6 +76,25 @@ export function PenaltyIssuanceDialog({
     },
   });
 
+  // Reset amount input when dialog opens/closes
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setAmountInput('');
+    } else {
+      // When opening, sync with form value
+      setAmountInput(form.getValues('amount') === 0 ? '' : form.getValues('amount').toString());
+    }
+    onOpenChange(isOpen);
+  };
+
+  // Sync amountInput when form resets
+  useEffect(() => {
+    if (open) {
+      const formAmount = form.getValues('amount');
+      setAmountInput(formAmount === 0 ? '' : formAmount.toString());
+    }
+  }, [open, form]);
+
   const onSubmit = async (values: PenaltyFormValues) => {
     try {
       await createPenalty.mutateAsync({
@@ -86,6 +106,7 @@ export function PenaltyIssuanceDialog({
         due_date: values.due_date ? new Date(values.due_date).toISOString() : undefined,
       });
       form.reset();
+      setAmountInput('');
       onOpenChange(false);
     } catch (error) {
       // Error handled by mutation
@@ -93,7 +114,7 @@ export function PenaltyIssuanceDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Issue Penalty</DialogTitle>
@@ -175,8 +196,33 @@ export function PenaltyIssuanceDialog({
                       type="number"
                       step="0.01"
                       min="0"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      value={amountInput}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAmountInput(value);
+                        if (value === '' || value === null || value === undefined) {
+                          // Allow empty value - don't update form yet
+                          return;
+                        }
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          field.onChange(numValue);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        // On blur, if empty, set to 0
+                        if (e.target.value === '' || e.target.value === null) {
+                          setAmountInput('');
+                          field.onChange(0);
+                        } else {
+                          const numValue = parseFloat(e.target.value);
+                          if (!isNaN(numValue) && numValue >= 0) {
+                            field.onChange(numValue);
+                            setAmountInput(numValue.toString());
+                          }
+                        }
+                        field.onBlur();
+                      }}
                     />
                   </FormControl>
                   <FormMessage />

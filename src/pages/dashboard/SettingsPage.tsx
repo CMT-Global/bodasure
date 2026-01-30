@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useCountySettings, useUpdateCountySettings, PermitSettings, PenaltySettings, PenaltyType, EscalationRule, RevenueSharingSettings, RevenueShareRule, RevenueShareType } from '@/hooks/useCountySettings';
 import { usePermitTypes } from '@/hooks/usePayments';
-import { useSaccos } from '@/hooks/useData';
+import { useSaccos, useCounties } from '@/hooks/useData';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -39,16 +39,26 @@ import { Badge } from '@/components/ui/badge';
 export default function SettingsPage() {
   const { profile, roles, hasRole } = useAuth();
   
+  // Check if user is Platform Super Admin
+  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
+  
   // Get county_id from profile or first role
   const countyId = useMemo(() => {
     return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
   }, [profile, roles]);
 
-  // Check if user is County Super Admin
-  const isCountySuperAdmin = hasRole('county_super_admin') || hasRole('county_admin');
+  // Check if user is County Super Admin or Platform Super Admin
+  const isCountySuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
+
+  // County selection for super admins when creating permit types
+  const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
+  const { data: counties = [] } = useCounties();
+  
+  // Use selected county or provided countyId for permit types
+  const effectiveCountyId = selectedCountyId || countyId;
 
   const { data: settings, isLoading: settingsLoading } = useCountySettings(countyId);
-  const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId || '');
+  const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(effectiveCountyId || '');
   const { data: saccos = [] } = useSaccos(countyId);
   const updateSettings = useUpdateCountySettings();
   const queryClient = useQueryClient();
@@ -122,6 +132,22 @@ export default function SettingsPage() {
     }
   }, [settings]);
 
+  // Reset selected county when permit type dialog opens/closes
+  useEffect(() => {
+    if (isPermitTypeDialogOpen) {
+      // When opening for new permit type, reset county selection for super admins
+      if (!selectedPermitType && isPlatformSuperAdmin) {
+        setSelectedCountyId(undefined);
+      } else if (selectedPermitType) {
+        // When editing, use the permit type's county
+        setSelectedCountyId(selectedPermitType.county_id || countyId);
+      } else {
+        // For non-super admins, use their county
+        setSelectedCountyId(countyId);
+      }
+    }
+  }, [isPermitTypeDialogOpen, selectedPermitType, isPlatformSuperAdmin, countyId]);
+
   // Save Permit Settings
   const handleSavePermitSettings = async () => {
     if (!countyId) return;
@@ -154,8 +180,13 @@ export default function SettingsPage() {
 
   // Create/Update Permit Type
   const createPermitTypeMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string; amount: number; duration_days: number }) => {
-      if (!countyId) throw new Error('County ID required');
+    mutationFn: async (data: { name: string; description: string; amount: number; duration_days: number; county_id?: string }) => {
+      // Determine the county_id to use
+      const finalCountyId = data.county_id || selectedCountyId || countyId;
+      
+      if (!finalCountyId) {
+        throw new Error('County ID required. Please select a county.');
+      }
       
       if (selectedPermitType) {
         const { error } = await supabase
@@ -166,16 +197,20 @@ export default function SettingsPage() {
       } else {
         const { error } = await supabase
           .from('permit_types')
-          .insert([{ ...data, county_id: countyId }]);
+          .insert([{ ...data, county_id: finalCountyId }]);
         if (error) throw error;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['permit_types', countyId] });
+      queryClient.invalidateQueries({ queryKey: ['permit_types'] });
       toast.success(selectedPermitType ? 'Permit type updated' : 'Permit type created');
       setIsPermitTypeDialogOpen(false);
       setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' });
       setSelectedPermitType(null);
+      // Reset selected county for next creation
+      if (isPlatformSuperAdmin) {
+        setSelectedCountyId(undefined);
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to save permit type');
@@ -380,16 +415,16 @@ export default function SettingsPage() {
   if (!isCountySuperAdmin) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold">Settings</h1>
-            <p className="text-muted-foreground">Manage your account and county settings</p>
+        <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Settings</h1>
+            <p className="text-muted-foreground text-sm mt-1 sm:text-base">Manage your account and county settings</p>
           </div>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3 text-amber-600">
-                <AlertCircle className="h-5 w-5" />
-                <p>You need County Super Admin or County Admin privileges to access settings.</p>
+            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center text-amber-600">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <p className="text-sm sm:text-base">You need Platform Super Admin, County Super Admin, or County Admin privileges to access settings.</p>
               </div>
             </CardContent>
           </Card>
@@ -401,8 +436,8 @@ export default function SettingsPage() {
   if (settingsLoading || permitTypesLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="flex items-center justify-center min-h-[50vh] sm:h-64 px-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </DashboardLayout>
     );
@@ -410,66 +445,79 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">County Settings & Configuration</h1>
-          <p className="text-muted-foreground">Configure permit and penalty settings for your county</p>
+      <div className="space-y-4 sm:space-y-6 px-1 sm:px-0 min-w-0 overflow-x-hidden">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">County Settings & Configuration</h1>
+          <p className="text-muted-foreground text-sm mt-1 sm:text-base">Configure permit and penalty settings for your county</p>
         </div>
 
-        <Tabs defaultValue="permits" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="permits">
-              <Shield className="mr-2 h-4 w-4" />
-              Permit Settings
+        <Tabs defaultValue="permits" className="space-y-4 sm:space-y-6">
+          <TabsList className="w-full grid grid-cols-3 h-auto min-h-[44px] p-1.5 gap-1 md:flex md:inline-flex md:h-10 md:flex-row md:rounded-md md:p-1">
+            <TabsTrigger value="permits" className="flex flex-col sm:flex-row items-center justify-center gap-1 px-2 py-3 text-xs font-medium min-h-[44px] rounded-md data-[state=active]:shadow-sm sm:px-3 sm:py-1.5 sm:text-sm sm:min-h-0 md:flex-row md:gap-2">
+              <Shield className="h-4 w-4 shrink-0 sm:mr-0 md:mr-2" />
+              <span className="sm:hidden">Permits</span>
+              <span className="hidden sm:inline">Permit Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="penalties">
-              <FileText className="mr-2 h-4 w-4" />
-              Penalty Settings
+            <TabsTrigger value="penalties" className="flex flex-col sm:flex-row items-center justify-center gap-1 px-2 py-3 text-xs font-medium min-h-[44px] rounded-md data-[state=active]:shadow-sm sm:px-3 sm:py-1.5 sm:text-sm sm:min-h-0 md:flex-row md:gap-2">
+              <FileText className="h-4 w-4 shrink-0 sm:mr-0 md:mr-2" />
+              <span className="sm:hidden">Penalties</span>
+              <span className="hidden sm:inline">Penalty Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="revenue-sharing">
-              <DollarSign className="mr-2 h-4 w-4" />
-              Revenue Sharing
+            <TabsTrigger value="revenue-sharing" className="flex flex-col sm:flex-row items-center justify-center gap-1 px-2 py-3 text-xs font-medium min-h-[44px] rounded-md data-[state=active]:shadow-sm sm:px-3 sm:py-1.5 sm:text-sm sm:min-h-0 md:flex-row md:gap-2">
+              <DollarSign className="h-4 w-4 shrink-0 sm:mr-0 md:mr-2" />
+              <span className="sm:hidden">Revenue</span>
+              <span className="hidden sm:inline">Revenue Sharing</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Permit Settings Tab */}
-          <TabsContent value="permits" className="space-y-6">
+          <TabsContent value="permits" className="space-y-4 sm:space-y-6 mt-4 sm:mt-2">
             {/* Permit Fee Amounts */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Permit Fee Amounts</CardTitle>
-                    <CardDescription>Manage permit types and their fee amounts</CardDescription>
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base sm:text-lg">Permit Fee Amounts</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-0.5">Manage permit types and their fee amounts</CardDescription>
                   </div>
-                  <Button onClick={() => { setSelectedPermitType(null); setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' }); setIsPermitTypeDialogOpen(true); }}>
+                  <Button
+                    onClick={() => { 
+                      setSelectedPermitType(null); 
+                      setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' }); 
+                      if (isPlatformSuperAdmin) {
+                        setSelectedCountyId(undefined);
+                      }
+                      setIsPermitTypeDialogOpen(true); 
+                    }}
+                    className="w-full sm:w-auto min-h-[44px] shrink-0"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Permit Type
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 sm:pt-0">
                 <div className="space-y-4">
                   {permitTypes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No permit types configured. Add one to get started.</p>
+                    <p className="text-sm text-muted-foreground text-center py-6 sm:py-8">No permit types configured. Add one to get started.</p>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {permitTypes.map((pt) => (
-                        <div key={pt.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium">{pt.name}</h4>
+                        <div key={pt.id} className="flex flex-col gap-3 p-3 border rounded-lg sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-medium text-sm sm:text-base">{pt.name}</h4>
                               {!pt.is_active && <Badge variant="secondary">Inactive</Badge>}
                             </div>
-                            {pt.description && <p className="text-sm text-muted-foreground mt-1">{pt.description}</p>}
-                            <div className="flex gap-4 mt-2 text-sm">
+                            {pt.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{pt.description}</p>}
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm">
                               <span className="text-muted-foreground">Amount: <span className="font-medium text-foreground">KES {pt.amount.toLocaleString()}</span></span>
                               <span className="text-muted-foreground">Duration: <span className="font-medium text-foreground">{pt.duration_days} days</span></span>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditPermitType(pt)}>Edit</Button>
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedPermitType(pt); setIsDeletePermitTypeOpen(true); }}>Delete</Button>
+                          <div className="flex gap-2 shrink-0">
+                            <Button variant="outline" size="sm" onClick={() => openEditPermitType(pt)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">Edit</Button>
+                            <Button variant="outline" size="sm" onClick={() => { setSelectedPermitType(pt); setIsDeletePermitTypeOpen(true); }} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">Delete</Button>
                           </div>
                         </div>
                       ))}
@@ -482,10 +530,10 @@ export default function SettingsPage() {
             {/* Permit Frequency & Grace Period */}
             <Card>
               <CardHeader>
-                <CardTitle>Permit Frequency & Grace Period</CardTitle>
-                <CardDescription>Configure default permit frequency and grace periods</CardDescription>
+                <CardTitle className="text-base sm:text-lg">Permit Frequency & Grace Period</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">Configure default permit frequency and grace periods</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6">
                 <div className="space-y-2">
                   <Label>Default Permit Frequency</Label>
                   <Select
@@ -494,7 +542,7 @@ export default function SettingsPage() {
                       setPermitSettings({ ...permitSettings, defaultFrequency: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="min-h-[44px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -515,11 +563,12 @@ export default function SettingsPage() {
                       setPermitSettings({ ...permitSettings, gracePeriodDays: parseInt(e.target.value) || 0 })
                     }
                     min="0"
+                    className="min-h-[44px]"
                   />
                   <p className="text-xs text-muted-foreground">Number of days after permit expiry before penalties apply</p>
                 </div>
 
-                <Button onClick={handleSavePermitSettings} disabled={updateSettings.isPending}>
+                <Button onClick={handleSavePermitSettings} disabled={updateSettings.isPending} className="w-full sm:w-auto min-h-[44px]">
                   {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Save Permit Settings
@@ -529,16 +578,16 @@ export default function SettingsPage() {
           </TabsContent>
 
           {/* Penalty Settings Tab */}
-          <TabsContent value="penalties" className="space-y-6">
+          <TabsContent value="penalties" className="space-y-4 sm:space-y-6 mt-4 sm:mt-2">
             {/* Auto-Penalty Toggle */}
             <Card>
               <CardHeader>
-                <CardTitle>Auto-Penalty Configuration</CardTitle>
-                <CardDescription>Enable or disable automatic penalty generation</CardDescription>
+                <CardTitle className="text-base sm:text-lg">Auto-Penalty Configuration</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">Enable or disable automatic penalty generation</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-0.5 min-w-0">
                     <Label>Enable Auto-Penalty</Label>
                     <p className="text-sm text-muted-foreground">Automatically generate penalties for expired permits and violations</p>
                   </div>
@@ -547,9 +596,10 @@ export default function SettingsPage() {
                     onCheckedChange={(checked) =>
                       setPenaltySettings({ ...penaltySettings, autoPenaltyEnabled: checked })
                     }
+                    className="self-start sm:self-center"
                   />
                 </div>
-                <Button onClick={handleSavePenaltySettings} className="mt-4" disabled={updateSettings.isPending}>
+                <Button onClick={handleSavePenaltySettings} className="mt-4 w-full sm:w-auto min-h-[44px]" disabled={updateSettings.isPending}>
                   {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Save Auto-Penalty Setting
@@ -558,40 +608,43 @@ export default function SettingsPage() {
             </Card>
 
             {/* Penalty Types */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Penalty Types & Amounts</CardTitle>
-                    <CardDescription>Configure penalty types and their amounts</CardDescription>
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base sm:text-lg">Penalty Types & Amounts</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-0.5">Configure penalty types and their amounts</CardDescription>
                   </div>
-                  <Button onClick={() => { setSelectedPenaltyType(null); setPenaltyTypeForm({ name: '', description: '', amount: '' }); setIsPenaltyTypeDialogOpen(true); }}>
+                  <Button
+                    onClick={() => { setSelectedPenaltyType(null); setPenaltyTypeForm({ name: '', description: '', amount: '' }); setIsPenaltyTypeDialogOpen(true); }}
+                    className="w-full sm:w-auto min-h-[44px] shrink-0"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Penalty Type
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
+              <CardContent className="pt-0 sm:pt-0">
+                <div className="space-y-3">
                   {penaltySettings.penaltyTypes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No penalty types configured. Add one to get started.</p>
+                    <p className="text-sm text-muted-foreground text-center py-6 sm:py-8">No penalty types configured. Add one to get started.</p>
                   ) : (
                     penaltySettings.penaltyTypes.map((pt) => (
-                      <div key={pt.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{pt.name}</h4>
+                      <div key={pt.id} className="flex flex-col gap-3 p-3 border rounded-lg sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-medium text-sm sm:text-base">{pt.name}</h4>
                             {!pt.isActive && <Badge variant="secondary">Inactive</Badge>}
                           </div>
-                          {pt.description && <p className="text-sm text-muted-foreground mt-1">{pt.description}</p>}
+                          {pt.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{pt.description}</p>}
                           <p className="text-sm mt-2">
                             <span className="text-muted-foreground">Amount: </span>
                             <span className="font-medium">KES {pt.amount.toLocaleString()}</span>
                           </p>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEditPenaltyType(pt)}>Edit</Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDeletePenaltyType(pt.id)}>Delete</Button>
+                        <div className="flex gap-2 shrink-0">
+                          <Button variant="outline" size="sm" onClick={() => openEditPenaltyType(pt)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDeletePenaltyType(pt.id)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">Delete</Button>
                         </div>
                       </div>
                     ))
@@ -601,33 +654,36 @@ export default function SettingsPage() {
             </Card>
 
             {/* Escalation Rules */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Escalation Rules for Repeat Offenders</CardTitle>
-                    <CardDescription>Configure penalty multipliers for repeat offenses</CardDescription>
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base sm:text-lg">Escalation Rules for Repeat Offenders</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-0.5">Configure penalty multipliers for repeat offenses</CardDescription>
                   </div>
-                  <Button onClick={() => { setSelectedEscalationIndex(null); setEscalationForm({ offenseCount: '', multiplier: '', description: '' }); setIsEscalationDialogOpen(true); }}>
+                  <Button
+                    onClick={() => { setSelectedEscalationIndex(null); setEscalationForm({ offenseCount: '', multiplier: '', description: '' }); setIsEscalationDialogOpen(true); }}
+                    className="w-full sm:w-auto min-h-[44px] shrink-0"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Escalation Rule
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
+              <CardContent className="pt-0 sm:pt-0">
+                <div className="space-y-3">
                   {penaltySettings.escalationRules.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No escalation rules configured. Add one to get started.</p>
+                    <p className="text-sm text-muted-foreground text-center py-6 sm:py-8">No escalation rules configured. Add one to get started.</p>
                   ) : (
                     penaltySettings.escalationRules.map((rule, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1">
-                          <h4 className="font-medium">{rule.offenseCount} Offense(s) - {rule.multiplier}x Penalty</h4>
-                          {rule.description && <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>}
+                      <div key={index} className="flex flex-col gap-3 p-3 border rounded-lg sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-sm sm:text-base">{rule.offenseCount} Offense(s) - {rule.multiplier}x Penalty</h4>
+                          {rule.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{rule.description}</p>}
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEditEscalation(rule, index)}>Edit</Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDeleteEscalationRule(index)}>Delete</Button>
+                        <div className="flex gap-2 shrink-0">
+                          <Button variant="outline" size="sm" onClick={() => openEditEscalation(rule, index)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDeleteEscalationRule(index)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">Delete</Button>
                         </div>
                       </div>
                     ))
@@ -636,7 +692,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Button onClick={handleSavePenaltySettings} disabled={updateSettings.isPending} className="w-full">
+            <Button onClick={handleSavePenaltySettings} disabled={updateSettings.isPending} className="w-full min-h-[44px]">
               {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" />
               Save All Penalty Settings
@@ -644,47 +700,50 @@ export default function SettingsPage() {
           </TabsContent>
 
           {/* Revenue Sharing Tab */}
-          <TabsContent value="revenue-sharing" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Revenue Sharing Configuration</CardTitle>
-                    <CardDescription>Configure revenue sharing rules for each Sacco. Changes apply going forward (not retroactive).</CardDescription>
+          <TabsContent value="revenue-sharing" className="space-y-4 sm:space-y-6 mt-4 sm:mt-2">
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base sm:text-lg">Revenue Sharing Configuration</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-0.5">Configure revenue sharing rules for each Sacco. Changes apply going forward (not retroactive).</CardDescription>
                   </div>
-                  <Button onClick={() => { 
-                    setSelectedRevenueShareRule(null); 
-                    setRevenueShareForm({
-                      saccoId: '',
-                      shareType: 'none',
-                      percentage: '',
-                      fixedAmount: '',
-                      period: 'weekly',
-                      activePermitsOnly: false,
-                      complianceThreshold: '',
-                      isActive: true,
-                    }); 
-                    setIsRevenueShareDialogOpen(true); 
-                  }}>
+                  <Button
+                    onClick={() => { 
+                      setSelectedRevenueShareRule(null); 
+                      setRevenueShareForm({
+                        saccoId: '',
+                        shareType: 'none',
+                        percentage: '',
+                        fixedAmount: '',
+                        period: 'weekly',
+                        activePermitsOnly: false,
+                        complianceThreshold: '',
+                        isActive: true,
+                      }); 
+                      setIsRevenueShareDialogOpen(true); 
+                    }}
+                    className="w-full sm:w-auto min-h-[44px] shrink-0"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Revenue Share Rule
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 sm:pt-0">
                 <div className="space-y-4">
                   {revenueSharingSettings.rules.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No revenue sharing rules configured. Add one to get started.</p>
+                    <p className="text-sm text-muted-foreground text-center py-6 sm:py-8">No revenue sharing rules configured. Add one to get started.</p>
                   ) : (
                     <div className="space-y-3">
                       {revenueSharingSettings.rules.map((rule) => {
                         const sacco = saccos.find(s => s.id === rule.saccoId);
                         return (
-                          <div key={rule.saccoId} className="p-4 border rounded-lg space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-medium">{rule.saccoName || sacco?.name || 'Unknown Sacco'}</h4>
+                          <div key={rule.saccoId} className="p-3 sm:p-4 border rounded-lg space-y-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="font-medium text-sm sm:text-base">{rule.saccoName || sacco?.name || 'Unknown Sacco'}</h4>
                                   {!rule.isActive && <Badge variant="secondary">Inactive</Badge>}
                                   {rule.shareType === 'none' && <Badge variant="outline">No Revenue Share</Badge>}
                                 </div>
@@ -702,7 +761,7 @@ export default function SettingsPage() {
                                   {rule.shareType === 'none' && (
                                     <p className="text-muted-foreground">No revenue sharing configured</p>
                                   )}
-                                  <div className="flex gap-4 mt-2">
+                                  <div className="flex flex-wrap gap-2 mt-2">
                                     {rule.activePermitsOnly && (
                                       <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
                                         Active Permits Only
@@ -716,14 +775,14 @@ export default function SettingsPage() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={() => openEditRevenueShare(rule)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Edit
+                              <div className="flex gap-2 shrink-0">
+                                <Button variant="outline" size="sm" onClick={() => openEditRevenueShare(rule)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">
+                                  <Edit className="h-4 w-4 sm:mr-2" />
+                                  <span className="hidden sm:inline">Edit</span>
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => handleDeleteRevenueShareRule(rule.saccoId)}>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                <Button variant="outline" size="sm" onClick={() => handleDeleteRevenueShareRule(rule.saccoId)} className="flex-1 sm:flex-none min-h-[44px] sm:min-h-0">
+                                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                                  <span className="hidden sm:inline">Delete</span>
                                 </Button>
                               </div>
                             </div>
@@ -736,7 +795,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Button onClick={handleSaveRevenueSharingSettings} disabled={updateSettings.isPending} className="w-full">
+            <Button onClick={handleSaveRevenueSharingSettings} disabled={updateSettings.isPending} className="w-full min-h-[44px]">
               {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" />
               Save Revenue Sharing Settings
@@ -746,18 +805,44 @@ export default function SettingsPage() {
 
         {/* Permit Type Dialog */}
         <Dialog open={isPermitTypeDialogOpen} onOpenChange={setIsPermitTypeDialogOpen}>
-          <DialogContent>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-4 sm:mx-0">
             <DialogHeader>
-              <DialogTitle>{selectedPermitType ? 'Edit Permit Type' : 'Add Permit Type'}</DialogTitle>
-              <DialogDescription>Configure permit type details and pricing</DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">{selectedPermitType ? 'Edit Permit Type' : 'Add Permit Type'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">Configure permit type details and pricing</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              {/* County selection for super admins */}
+              {isPlatformSuperAdmin && !selectedPermitType && (
+                <div className="space-y-2">
+                  <Label>County *</Label>
+                  <Select 
+                    value={selectedCountyId || ''} 
+                    onValueChange={(value) => setSelectedCountyId(value)}
+                  >
+                    <SelectTrigger className="min-h-[44px]">
+                      <SelectValue placeholder="Select a County" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {counties.map((county) => (
+                        <SelectItem key={county.id} value={county.id}>
+                          {county.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedCountyId && (
+                    <p className="text-xs text-destructive">Please select a county</p>
+                  )}
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input
                   value={permitTypeForm.name}
                   onChange={(e) => setPermitTypeForm({ ...permitTypeForm, name: e.target.value })}
                   placeholder="e.g., Monthly Permit"
+                  className="min-h-[44px]"
                 />
               </div>
               <div className="space-y-2">
@@ -766,6 +851,7 @@ export default function SettingsPage() {
                   value={permitTypeForm.description}
                   onChange={(e) => setPermitTypeForm({ ...permitTypeForm, description: e.target.value })}
                   placeholder="Brief description"
+                  className="min-h-[44px]"
                 />
               </div>
               <div className="space-y-2">
@@ -777,6 +863,7 @@ export default function SettingsPage() {
                   placeholder="0.00"
                   min="0"
                   step="0.01"
+                  className="min-h-[44px]"
                 />
               </div>
               <div className="space-y-2">
@@ -787,17 +874,32 @@ export default function SettingsPage() {
                   onChange={(e) => setPermitTypeForm({ ...permitTypeForm, duration_days: e.target.value })}
                   placeholder="30"
                   min="1"
+                  className="min-h-[44px]"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsPermitTypeDialogOpen(false)}>Cancel</Button>
-              <Button onClick={() => createPermitTypeMutation.mutate({
-                name: permitTypeForm.name,
-                description: permitTypeForm.description,
-                amount: parseFloat(permitTypeForm.amount),
-                duration_days: parseInt(permitTypeForm.duration_days),
-              })} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || createPermitTypeMutation.isPending}>
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => {
+                setIsPermitTypeDialogOpen(false);
+                // Reset selected county when closing
+                if (isPlatformSuperAdmin && !selectedPermitType) {
+                  setSelectedCountyId(undefined);
+                }
+              }} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={() => {
+                const finalCountyId = selectedCountyId || countyId;
+                if (!finalCountyId && !selectedPermitType) {
+                  toast.error('Please select a county');
+                  return;
+                }
+                createPermitTypeMutation.mutate({
+                  name: permitTypeForm.name,
+                  description: permitTypeForm.description,
+                  amount: parseFloat(permitTypeForm.amount),
+                  duration_days: parseInt(permitTypeForm.duration_days),
+                  county_id: finalCountyId,
+                });
+              }} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || (!selectedCountyId && !countyId && !selectedPermitType) || createPermitTypeMutation.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {createPermitTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {selectedPermitType ? 'Update' : 'Create'}
               </Button>
@@ -807,10 +909,10 @@ export default function SettingsPage() {
 
         {/* Penalty Type Dialog */}
         <Dialog open={isPenaltyTypeDialogOpen} onOpenChange={setIsPenaltyTypeDialogOpen}>
-          <DialogContent>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-4 sm:mx-0">
             <DialogHeader>
-              <DialogTitle>{selectedPenaltyType ? 'Edit Penalty Type' : 'Add Penalty Type'}</DialogTitle>
-              <DialogDescription>Configure penalty type details and amount</DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">{selectedPenaltyType ? 'Edit Penalty Type' : 'Add Penalty Type'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">Configure penalty type details and amount</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -819,6 +921,7 @@ export default function SettingsPage() {
                   value={penaltyTypeForm.name}
                   onChange={(e) => setPenaltyTypeForm({ ...penaltyTypeForm, name: e.target.value })}
                   placeholder="e.g., Expired Permit"
+                  className="min-h-[44px]"
                 />
               </div>
               <div className="space-y-2">
@@ -827,6 +930,7 @@ export default function SettingsPage() {
                   value={penaltyTypeForm.description}
                   onChange={(e) => setPenaltyTypeForm({ ...penaltyTypeForm, description: e.target.value })}
                   placeholder="Brief description"
+                  className="min-h-[44px]"
                 />
               </div>
               <div className="space-y-2">
@@ -838,12 +942,13 @@ export default function SettingsPage() {
                   placeholder="0.00"
                   min="0"
                   step="0.01"
+                  className="min-h-[44px]"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsPenaltyTypeDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleSavePenaltyType}>
+            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setIsPenaltyTypeDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleSavePenaltyType} className="w-full sm:w-auto min-h-[44px]">
                 {selectedPenaltyType ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
@@ -852,10 +957,10 @@ export default function SettingsPage() {
 
         {/* Escalation Rule Dialog */}
         <Dialog open={isEscalationDialogOpen} onOpenChange={setIsEscalationDialogOpen}>
-          <DialogContent>
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-4 sm:mx-0">
             <DialogHeader>
-              <DialogTitle>{selectedEscalationIndex !== null ? 'Edit Escalation Rule' : 'Add Escalation Rule'}</DialogTitle>
-              <DialogDescription>Configure penalty multiplier for repeat offenses</DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">{selectedEscalationIndex !== null ? 'Edit Escalation Rule' : 'Add Escalation Rule'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">Configure penalty multiplier for repeat offenses</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -866,6 +971,7 @@ export default function SettingsPage() {
                   onChange={(e) => setEscalationForm({ ...escalationForm, offenseCount: e.target.value })}
                   placeholder="2"
                   min="2"
+                  className="min-h-[44px]"
                 />
                 <p className="text-xs text-muted-foreground">Number of offenses before this rule applies</p>
               </div>
@@ -878,6 +984,7 @@ export default function SettingsPage() {
                   placeholder="1.5"
                   min="1"
                   step="0.1"
+                  className="min-h-[44px]"
                 />
                 <p className="text-xs text-muted-foreground">Penalty multiplier (e.g., 1.5 = 150% of base penalty)</p>
               </div>
@@ -887,12 +994,13 @@ export default function SettingsPage() {
                   value={escalationForm.description}
                   onChange={(e) => setEscalationForm({ ...escalationForm, description: e.target.value })}
                   placeholder="Brief description of this rule"
+                  className="min-h-[44px]"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEscalationDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveEscalationRule}>
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setIsEscalationDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleSaveEscalationRule} className="w-full sm:w-auto min-h-[44px]">
                 {selectedEscalationIndex !== null ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
@@ -901,10 +1009,10 @@ export default function SettingsPage() {
 
         {/* Revenue Share Rule Dialog */}
         <Dialog open={isRevenueShareDialogOpen} onOpenChange={setIsRevenueShareDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
             <DialogHeader>
-              <DialogTitle>{selectedRevenueShareRule ? 'Edit Revenue Share Rule' : 'Add Revenue Share Rule'}</DialogTitle>
-              <DialogDescription>Configure revenue sharing for a Sacco. Changes apply going forward (not retroactive).</DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">{selectedRevenueShareRule ? 'Edit Revenue Share Rule' : 'Add Revenue Share Rule'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">Configure revenue sharing for a Sacco. Changes apply going forward (not retroactive).</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -914,7 +1022,7 @@ export default function SettingsPage() {
                   onValueChange={(value) => setRevenueShareForm({ ...revenueShareForm, saccoId: value })}
                   disabled={!!selectedRevenueShareRule}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="Select a Sacco" />
                   </SelectTrigger>
                   <SelectContent>
@@ -934,7 +1042,7 @@ export default function SettingsPage() {
                   value={revenueShareForm.shareType}
                   onValueChange={(value: RevenueShareType) => setRevenueShareForm({ ...revenueShareForm, shareType: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -956,6 +1064,7 @@ export default function SettingsPage() {
                     min="0"
                     max="100"
                     step="0.01"
+                    className="min-h-[44px]"
                   />
                   <p className="text-xs text-muted-foreground">Percentage of permit fees to share with this Sacco</p>
                 </div>
@@ -972,6 +1081,7 @@ export default function SettingsPage() {
                       placeholder="10"
                       min="0"
                       step="0.01"
+                      className="min-h-[44px]"
                     />
                     <p className="text-xs text-muted-foreground">Fixed amount per registered rider</p>
                   </div>
@@ -981,7 +1091,7 @@ export default function SettingsPage() {
                       value={revenueShareForm.period}
                       onValueChange={(value: 'weekly' | 'monthly' | 'annual') => setRevenueShareForm({ ...revenueShareForm, period: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="min-h-[44px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -998,14 +1108,15 @@ export default function SettingsPage() {
               <Separator />
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-0.5 min-w-0">
                     <Label>Active Permits Only</Label>
                     <p className="text-sm text-muted-foreground">Apply revenue share only to riders with active permits</p>
                   </div>
                   <Switch
                     checked={revenueShareForm.activePermitsOnly}
                     onCheckedChange={(checked) => setRevenueShareForm({ ...revenueShareForm, activePermitsOnly: checked })}
+                    className="self-start sm:self-center"
                   />
                 </div>
 
@@ -1019,25 +1130,27 @@ export default function SettingsPage() {
                     min="0"
                     max="100"
                     step="0.1"
+                    className="min-h-[44px]"
                   />
                   <p className="text-xs text-muted-foreground">Minimum compliance percentage required (leave empty for no threshold)</p>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-0.5 min-w-0">
                     <Label>Active</Label>
                     <p className="text-sm text-muted-foreground">Enable or disable this revenue share rule</p>
                   </div>
                   <Switch
                     checked={revenueShareForm.isActive}
                     onCheckedChange={(checked) => setRevenueShareForm({ ...revenueShareForm, isActive: checked })}
+                    className="self-start sm:self-center"
                   />
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsRevenueShareDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveRevenueShareRule}>
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setIsRevenueShareDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleSaveRevenueShareRule} className="w-full sm:w-auto min-h-[44px]">
                 {selectedRevenueShareRule ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
@@ -1046,16 +1159,16 @@ export default function SettingsPage() {
 
         {/* Delete Permit Type Confirmation */}
         <AlertDialog open={isDeletePermitTypeOpen} onOpenChange={setIsDeletePermitTypeOpen}>
-          <AlertDialogContent>
+          <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-4 sm:mx-0 p-4 sm:p-6">
             <AlertDialogHeader>
-              <AlertDialogTitle>Deactivate Permit Type</AlertDialogTitle>
-              <AlertDialogDescription>
+              <AlertDialogTitle className="text-base sm:text-lg">Deactivate Permit Type</AlertDialogTitle>
+              <AlertDialogDescription className="text-sm">
                 Are you sure you want to deactivate {selectedPermitType?.name}? This will prevent new permits from being issued with this type, but existing permits will remain valid.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => selectedPermitType && deletePermitTypeMutation.mutate(selectedPermitType.id)}>
+            <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <AlertDialogCancel className="w-full sm:w-auto min-h-[44px]">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => selectedPermitType && deletePermitTypeMutation.mutate(selectedPermitType.id)} className="w-full sm:w-auto min-h-[44px]">
                 Deactivate
               </AlertDialogAction>
             </AlertDialogFooter>

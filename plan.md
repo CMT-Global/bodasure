@@ -41,8 +41,13 @@ The BodaSure County Portal has **substantial implementation** with most core fea
 - **Session Timeout:** ✅ Session timeout handling (8 hours) implemented in `useAuth.tsx`
 - **Duplicate Action Prevention:** ✅ Duplicate penalty prevention (1 hour cooldown) implemented
 
+### ✅ SECURITY & AUDIT (January 30, 2026)
+- **Audit log fields:** Every action logged with User (`user_id`), Role (`actor_role`), County (`county_id`), Timestamp (`created_at`). `actor_role` set by DB trigger on INSERT.
+- **Server-side enforcement:** All permission checks enforced via RLS; UI role checks are for UX only, not for access control.
+- **Suspension:** Immediate access revocation: RLS blocks suspended users (`is_user_active()`); app signs out and redirects to `/login?suspended=1` when `profile.is_active === false`.
+
 ### ⚠️ IN PROGRESS / NEEDS VERIFICATION (Testing Only)
-- **Server-Side Enforcement:** RLS policies exist but need comprehensive testing
+- **Server-Side Enforcement:** RLS policies exist and enforce active-user + role; comprehensive testing recommended
 - **Cross-County Access Prevention:** Policies exist but not verified end-to-end
 - **Session Handling:** Session timeout implemented but needs verification
 

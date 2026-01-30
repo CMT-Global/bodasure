@@ -23,6 +23,8 @@ export interface CountyUser {
 export interface UserActivityLog {
   id: string;
   user_id: string | null;
+  actor_role: string | null;
+  county_id: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -37,48 +39,50 @@ export interface UserActivityLog {
   } | null;
 }
 
-// Fetch all users in a county
+// Fetch all users in a county (or all users when countyId is undefined, e.g. platform admin)
 export function useCountyUsers(countyId?: string) {
   return useQuery({
     queryKey: ['county-users', countyId],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Fetch profiles for the county
-      const { data: profiles, error: profilesError } = await supabase
+      // Fetch profiles: filter by county when countyId provided, otherwise all
+      let query = supabase
         .from('profiles')
         .select('*')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data: profiles, error: profilesError } = await query;
 
       if (profilesError) throw profilesError;
       if (!profiles || profiles.length === 0) return [];
 
-      // Fetch roles for all users
+      // Fetch roles for all users; RLS will filter (county admins see county roles, platform admins see all)
       const userIds = profiles.map(p => p.id);
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('id, user_id, role, county_id, granted_at')
-        .in('user_id', userIds)
-        .eq('county_id', countyId);
+        .in('user_id', userIds);
 
       if (rolesError) throw rolesError;
 
       // Group roles by user_id
       const rolesByUser = new Map<string, typeof roles>();
-      (roles || []).forEach(role => {
-        const existing = rolesByUser.get(role.user_id) || [];
+      (roles ?? []).forEach(role => {
+        const existing = rolesByUser.get(role.user_id) ?? [];
         existing.push(role);
         rolesByUser.set(role.user_id, existing);
       });
 
-      // Combine profiles with roles
+      // Combine profiles with roles (ensure roles is always an array)
       return profiles.map(profile => ({
         ...profile,
-        roles: rolesByUser.get(profile.id) || [],
+        roles: rolesByUser.get(profile.id) ?? [],
       })) as CountyUser[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -131,6 +135,51 @@ export function useUserActivityLogs(countyId?: string, userId?: string) {
   });
 }
 
+// Fetch all audit logs (no county filter) — for Super Admin only (RLS allows platform admins to view all)
+export function useAllAuditLogs(userId?: string) {
+  return useQuery({
+    queryKey: ['all-audit-logs', userId],
+    queryFn: async () => {
+      let query = supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data: logs, error } = await query;
+      if (error) {
+        console.error('Error fetching audit logs:', error);
+        return [];
+      }
+      if (!logs || logs.length === 0) return [];
+
+      const userIds = [...new Set(logs.map(log => log.user_id).filter(Boolean) as string[])];
+      let profilesMap = new Map<string, { full_name: string | null; email: string }>();
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profiles) {
+          profilesMap = new Map(profiles.map(p => [p.id, { full_name: p.full_name, email: p.email }]));
+        }
+      }
+
+      return logs.map(log => ({
+        ...log,
+        user: log.user_id ? profilesMap.get(log.user_id) || null : null,
+      })) as UserActivityLog[];
+    },
+    enabled: true,
+  });
+}
+
 // Create a new county user
 export function useCreateCountyUser() {
   const queryClient = useQueryClient();
@@ -153,7 +202,8 @@ export function useCreateCountyUser() {
     }) => {
       // Try to create user using admin API (if available)
       let userId: string;
-      
+      let createdUser: { id: string };
+
       try {
         // @ts-ignore - admin API may not be available in client
         const { data: authData, error: authError } = await supabase.auth.admin?.createUser({
@@ -166,6 +216,7 @@ export function useCreateCountyUser() {
         if (authError) throw authError;
         if (!authData?.user) throw new Error('Failed to create user');
         userId = authData.user.id;
+        createdUser = authData.user;
       } catch (error: any) {
         // Fallback: Use regular signup (user will need to confirm email)
         const { data: signupData, error: signupError } = await supabase.auth.signUp({
@@ -180,6 +231,7 @@ export function useCreateCountyUser() {
         if (signupError) throw signupError;
         if (!signupData.user) throw new Error('Failed to create user');
         userId = signupData.user.id;
+        createdUser = signupData.user;
       }
 
       // Update profile with county_id and phone
@@ -213,7 +265,7 @@ export function useCreateCountyUser() {
         if (rolesError) throw rolesError;
       }
 
-      return authData.user;
+      return createdUser;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['county-users', variables.countyId] });

@@ -11,16 +11,26 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Phone, Mail, MapPin, Calendar, CreditCard, QrCode, Edit } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { format } from 'date-fns';
+import { RiderStatusActions } from '@/components/riders/RiderStatusActions';
 
 interface RiderDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rider: Rider | null;
   onEdit: () => void;
+  /** When true, show Approve / Reject / Suspend / Reinstate (e.g. county portal) */
+  showStatusActions?: boolean;
 }
 
-export function RiderDetailSheet({ open, onOpenChange, rider, onEdit }: RiderDetailSheetProps) {
+export function RiderDetailSheet({
+  open,
+  onOpenChange,
+  rider,
+  onEdit,
+  showStatusActions = false,
+}: RiderDetailSheetProps) {
   if (!rider) return null;
 
   const initials = rider.full_name
@@ -142,9 +152,13 @@ export function RiderDetailSheet({ open, onOpenChange, rider, onEdit }: RiderDet
               <Separator />
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground">QR Code</h4>
-                <div className="flex items-center gap-3 rounded-lg border border-border p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <QrCode className="h-6 w-6 text-primary" />
+                <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border p-4">
+                  <div className="bg-white p-2 rounded-lg border shadow-sm">
+                    <QRCodeCanvas
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/verify/${encodeURIComponent(rider.qr_code)}`}
+                      size={80}
+                      level="M"
+                    />
                   </div>
                   <div>
                     <p className="font-mono font-medium">{rider.qr_code}</p>
@@ -156,6 +170,17 @@ export function RiderDetailSheet({ open, onOpenChange, rider, onEdit }: RiderDet
           )}
 
           <Separator />
+
+          {showStatusActions && (
+            <>
+              <RiderStatusActions
+                rider={rider}
+                contextLabel="rider"
+                onSuccess={() => onOpenChange(false)}
+              />
+              <Separator />
+            </>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2">

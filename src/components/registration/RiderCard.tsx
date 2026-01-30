@@ -79,7 +79,7 @@ export function RiderCard({ rider, onView }: RiderCardProps) {
             <Button
               variant="outline"
               size="sm"
-              className="w-full mt-2"
+              className="w-full mt-2 min-h-[44px] touch-manipulation"
               onClick={() => onView(rider)}
             >
               <Eye className="mr-2 h-4 w-4" />

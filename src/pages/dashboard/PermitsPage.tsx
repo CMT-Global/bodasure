@@ -179,18 +179,30 @@ const getColumns = (onViewPayments: (permitId: string, permitNumber: string) => 
 ];
 
 export default function PermitsPage() {
-  const { profile, roles } = useAuth();
+  const { profile, roles, hasRole } = useAuth();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedPermitId, setSelectedPermitId] = useState<string | null>(null);
   const [selectedPermitNumber, setSelectedPermitNumber] = useState<string>('');
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
 
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-  }, [profile, roles]);
+  // Check if user is platform super admin
+  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
 
-  const { data: permits = [], isLoading } = usePermits(countyId);
+  // Get county_id from profile or first role
+  // For super admins, countyId can be undefined (they'll select it in the dialog)
+  const countyId = useMemo(() => {
+    if (isPlatformSuperAdmin) {
+      // Super admins can work across counties, so countyId is optional
+      return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+    }
+    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
+  }, [profile, roles, isPlatformSuperAdmin]);
+
+  // Only fetch permits if we have a countyId (for non-super-admins or super-admins with selected county)
+  const { data: permits = [], isLoading } = usePermits(countyId || '');
+  
+  // Show message for super admins without county selection
+  const showCountySelectionMessage = isPlatformSuperAdmin && !countyId;
 
   const handleViewPayments = (permitId: string, permitNumber: string) => {
     setSelectedPermitId(permitId);
@@ -210,61 +222,63 @@ export default function PermitsPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Permits</h1>
-            <p className="text-muted-foreground">
-              Manage permits and licenses • {permits.length} total
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary">
-              <Plus className="mr-2 h-4 w-4" />
-              Issue Permit
-            </Button>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold sm:text-3xl">Permits</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">
+                Manage permits and licenses • {permits.length} total
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+              <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary min-h-[44px] flex-1 sm:flex-initial">
+                <Plus className="mr-2 h-4 w-4" />
+                Issue Permit
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active</CardTitle>
-              <Shield className="h-4 w-4 text-green-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Active</CardTitle>
+              <Shield className="h-4 w-4 text-green-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-500">{activePermits}</div>
-              <p className="text-xs text-muted-foreground">valid permits</p>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold text-green-500">{activePermits}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">valid permits</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Expiring Soon</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-500">{expiringSoon}</div>
-              <p className="text-xs text-muted-foreground">within 30 days</p>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold text-yellow-500">{expiringSoon}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">within 30 days</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Expired</CardTitle>
-              <Ban className="h-4 w-4 text-red-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Expired</CardTitle>
+              <Ban className="h-4 w-4 text-red-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-500">{expiredPermits}</div>
-              <p className="text-xs text-muted-foreground">need renewal</p>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold text-red-500">{expiredPermits}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">need renewal</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{pendingPermits}</div>
@@ -274,12 +288,28 @@ export default function PermitsPage() {
         </div>
 
         {/* Data Table */}
-        <DataTable
-          columns={getColumns(handleViewPayments)}
-          data={permits as PermitRow[]}
-          searchPlaceholder="Search by permit number, rider..."
-          isLoading={isLoading}
-        />
+        {showCountySelectionMessage ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  Select a county when creating a permit to view permits for that county.
+                </p>
+                <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Issue Permit
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <DataTable
+            columns={getColumns(handleViewPayments)}
+            data={permits as PermitRow[]}
+            searchPlaceholder="Search by permit number, rider..."
+            isLoading={isLoading}
+          />
+        )}
 
         {/* Payment Dialog for new permits */}
         <PaymentDialog

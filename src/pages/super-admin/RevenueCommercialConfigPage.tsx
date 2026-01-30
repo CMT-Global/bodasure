@@ -1,0 +1,495 @@
+import { useState, useMemo, useEffect } from 'react';
+import { SuperAdminLayout } from '@/components/layout/SuperAdminLayout';
+import {
+  useAllCounties,
+  useUpdateCountyConfig,
+  getCountyConfigFromSettings,
+  type CountyRevenueCommercialConfig,
+  type CountyRevenueModelConfig,
+  type PlatformFeeModelConfig,
+  type RevenueSharingRuleConfig,
+  type RevenueSharingVisibilityConfig,
+} from '@/hooks/useData';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Map, Loader2, Save, DollarSign, Percent, Users, Eye } from 'lucide-react';
+
+export default function RevenueCommercialConfigPage() {
+  const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
+  const { data: counties = [], isLoading: countiesLoading } = useAllCounties();
+
+  const selectedCounty = useMemo(
+    () => counties.find(c => c.id === selectedCountyId) ?? null,
+    [counties, selectedCountyId]
+  );
+
+  const config = useMemo(
+    () => getCountyConfigFromSettings(selectedCounty?.settings as Record<string, unknown> | undefined),
+    [selectedCounty]
+  );
+
+  const revConfig = config.revenueCommercialConfig ?? {
+    countyRevenueModel: { chargeAmountCents: 0, frequency: 'monthly', effectiveFrom: new Date().toISOString().slice(0, 10), description: '' },
+    platformFeeModel: { modelType: 'fixed', fixedFeeCentsPerRider: 0, notes: '' },
+    saccoWelfareRevenueSharing: {
+      enabled: false,
+      rules: [],
+      visibility: {
+        saccosSeeAmounts: true,
+        saccosSeeBreakdown: false,
+        countiesSeeAmounts: true,
+        countiesSeeBreakdown: true,
+        ridersNeverSeeRevenueShare: true,
+      },
+    },
+  };
+
+  const [countyRevenueModel, setCountyRevenueModel] = useState<CountyRevenueModelConfig>(revConfig.countyRevenueModel);
+  const [platformFeeModel, setPlatformFeeModel] = useState<PlatformFeeModelConfig>(revConfig.platformFeeModel);
+  const [saccoWelfare, setSaccoWelfare] = useState(revConfig.saccoWelfareRevenueSharing);
+
+  useEffect(() => {
+    setCountyRevenueModel(revConfig.countyRevenueModel);
+    setPlatformFeeModel(revConfig.platformFeeModel);
+    setSaccoWelfare(revConfig.saccoWelfareRevenueSharing);
+  }, [revConfig]);
+
+  useEffect(() => {
+    if (counties.length > 0 && !selectedCountyId) setSelectedCountyId(counties[0].id);
+  }, [counties, selectedCountyId]);
+
+  const updateMutation = useUpdateCountyConfig();
+
+  const buildRevenueConfig = (): CountyRevenueCommercialConfig => ({
+    countyRevenueModel: { ...countyRevenueModel },
+    platformFeeModel: { ...platformFeeModel },
+    saccoWelfareRevenueSharing: {
+      enabled: saccoWelfare.enabled,
+      rules: saccoWelfare.rules.map(r => ({ ...r })),
+      visibility: { ...saccoWelfare.visibility },
+    },
+  });
+
+  const handleSaveRevenue = () => {
+    if (!selectedCountyId) return;
+    updateMutation.mutate(
+      {
+        countyId: selectedCountyId,
+        config: { revenueCommercialConfig: buildRevenueConfig() },
+        section: 'revenueCommercialConfig',
+      },
+      { onError: () => {} }
+    );
+  };
+
+  const addRevenueSharingRule = () => {
+    const rule: RevenueSharingRuleConfig = {
+      applyBy: 'sacco',
+      shareType: 'percentage',
+      percentageShare: 0,
+      activePermitsOnly: true,
+      complianceThresholdRequired: false,
+    };
+    setSaccoWelfare(prev => ({ ...prev, rules: [...prev.rules, rule] }));
+  };
+
+  const updateRevenueSharingRule = (index: number, patch: Partial<RevenueSharingRuleConfig>) => {
+    setSaccoWelfare(prev => ({
+      ...prev,
+      rules: prev.rules.map((r, i) => (i === index ? { ...r, ...patch } : r)),
+    }));
+  };
+
+  const removeRevenueSharingRule = (index: number) => {
+    setSaccoWelfare(prev => ({ ...prev, rules: prev.rules.filter((_, i) => i !== index) }));
+  };
+
+  const setVisibility = (patch: Partial<RevenueSharingVisibilityConfig>) => {
+    setSaccoWelfare(prev => ({
+      ...prev,
+      visibility: { ...prev.visibility, ...patch },
+    }));
+  };
+
+  return (
+    <SuperAdminLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Revenue & Commercial Configuration</h1>
+          <p className="text-muted-foreground">
+            Platform-critical settings per county: county revenue model, platform fee model, and sacco & welfare revenue sharing. Configure charge amounts, frequencies, effective dates, fee models, and visibility.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Select county</CardTitle>
+            <CardDescription>Revenue and commercial settings are configured per county.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select
+              value={selectedCountyId ?? ''}
+              onValueChange={v => setSelectedCountyId(v || null)}
+              disabled={countiesLoading}
+            >
+              <SelectTrigger className="max-w-sm">
+                <SelectValue placeholder="Select a county" />
+              </SelectTrigger>
+              <SelectContent>
+                {counties.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <span className="flex items-center gap-2">
+                      <Map className="h-4 w-4 text-muted-foreground" />
+                      {c.name} ({c.code})
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        {!selectedCountyId ? (
+          <p className="text-muted-foreground">Select a county to configure revenue and commercial settings.</p>
+        ) : (
+          <Tabs defaultValue="county-revenue" className="space-y-4">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3">
+              <TabsTrigger value="county-revenue" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" /> County Revenue
+              </TabsTrigger>
+              <TabsTrigger value="platform-fee" className="flex items-center gap-2">
+                <Percent className="h-4 w-4" /> Platform Fee
+              </TabsTrigger>
+              <TabsTrigger value="sacco-welfare" className="flex items-center gap-2">
+                <Users className="h-4 w-4" /> Sacco & Welfare
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="county-revenue" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>A. County Revenue Model</CardTitle>
+                  <CardDescription>County charge amounts, frequency (weekly/monthly), and effective dates.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label>Charge amount (KES)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={countyRevenueModel.chargeAmountCents / 100}
+                      onChange={e => setCountyRevenueModel(prev => ({ ...prev, chargeAmountCents: Math.round(Number(e.target.value) * 100) }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Frequency</Label>
+                    <Select
+                      value={countyRevenueModel.frequency}
+                      onValueChange={v => setCountyRevenueModel(prev => ({ ...prev, frequency: v as 'weekly' | 'monthly' }))}
+                    >
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label>Effective from (date)</Label>
+                      <Input
+                        type="date"
+                        value={countyRevenueModel.effectiveFrom}
+                        onChange={e => setCountyRevenueModel(prev => ({ ...prev, effectiveFrom: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Effective to (date, optional)</Label>
+                      <Input
+                        type="date"
+                        value={countyRevenueModel.effectiveTo ?? ''}
+                        onChange={e => setCountyRevenueModel(prev => ({ ...prev, effectiveTo: e.target.value || undefined }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Description (optional)</Label>
+                    <Textarea
+                      value={countyRevenueModel.description ?? ''}
+                      onChange={e => setCountyRevenueModel(prev => ({ ...prev, description: e.target.value || undefined }))}
+                      placeholder="e.g. Monthly county levy per rider"
+                      rows={2}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="platform-fee" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>B. Platform Fee Model</CardTitle>
+                  <CardDescription>Fixed fee per rider, percentage-based fee, or hybrid. Set fee review dates.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label>Fee model type</Label>
+                    <Select
+                      value={platformFeeModel.modelType}
+                      onValueChange={v => setPlatformFeeModel(prev => ({ ...prev, modelType: v as 'fixed' | 'percentage' | 'hybrid' }))}
+                    >
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed fee per rider</SelectItem>
+                        <SelectItem value="percentage">Percentage-based</SelectItem>
+                        <SelectItem value="hybrid">Hybrid (fixed + percentage)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(platformFeeModel.modelType === 'fixed' || platformFeeModel.modelType === 'hybrid') && (
+                    <div className="grid gap-2">
+                      <Label>{platformFeeModel.modelType === 'hybrid' ? 'Fixed amount per rider (KES)' : 'Fixed fee per rider (KES)'}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={((platformFeeModel.modelType === 'hybrid' ? platformFeeModel.hybridFixedCents : platformFeeModel.fixedFeeCentsPerRider) ?? 0) / 100}
+                        onChange={e => {
+                          const cents = Math.round(Number(e.target.value) * 100);
+                          if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridFixedCents: cents }));
+                          else setPlatformFeeModel(prev => ({ ...prev, fixedFeeCentsPerRider: cents }));
+                        }}
+                      />
+                    </div>
+                  )}
+                  {(platformFeeModel.modelType === 'percentage' || platformFeeModel.modelType === 'hybrid') && (
+                    <div className="grid gap-2">
+                      <Label>{platformFeeModel.modelType === 'hybrid' ? 'Percentage (%)' : 'Percentage-based fee (%)'}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        value={platformFeeModel.modelType === 'hybrid' ? (platformFeeModel.hybridPercentage ?? 0) : (platformFeeModel.percentageFee ?? 0)}
+                        onChange={e => {
+                          const pct = Number(e.target.value);
+                          if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridPercentage: pct }));
+                          else setPlatformFeeModel(prev => ({ ...prev, percentageFee: pct }));
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="grid gap-2">
+                    <Label>Fee review date (optional)</Label>
+                    <Input
+                      type="date"
+                      value={platformFeeModel.feeReviewDate ?? ''}
+                      onChange={e => setPlatformFeeModel(prev => ({ ...prev, feeReviewDate: e.target.value || undefined }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Notes (optional)</Label>
+                    <Textarea
+                      value={platformFeeModel.notes ?? ''}
+                      onChange={e => setPlatformFeeModel(prev => ({ ...prev, notes: e.target.value || undefined }))}
+                      placeholder="e.g. Reviewed quarterly"
+                      rows={2}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="sacco-welfare" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>C. Sacco & Welfare Revenue Sharing</CardTitle>
+                  <CardDescription>Enable/disable revenue sharing per county. Configure percentage or fixed amount per rider, apply by sacco or welfare group, tie to active permits and compliance. Control what Saccos, counties, and riders see.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={saccoWelfare.enabled}
+                      onCheckedChange={v => setSaccoWelfare(prev => ({ ...prev, enabled: v }))}
+                    />
+                    <Label>Enable revenue sharing for this county</Label>
+                  </div>
+
+                  {saccoWelfare.enabled && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Revenue sharing rules</Label>
+                        {saccoWelfare.rules.map((rule, i) => (
+                          <div key={i} className="rounded-lg border p-4 space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Label className="text-muted-foreground shrink-0">Apply by:</Label>
+                              <Select
+                                value={rule.applyBy}
+                                onValueChange={v => updateRevenueSharingRule(i, { applyBy: v as 'sacco' | 'welfare_group' })}
+                              >
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sacco">Sacco</SelectItem>
+                                  <SelectItem value="welfare_group">Welfare group</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Label className="text-muted-foreground shrink-0">Share type:</Label>
+                              <Select
+                                value={rule.shareType}
+                                onValueChange={v => updateRevenueSharingRule(i, { shareType: v as 'percentage' | 'fixed_per_rider' })}
+                              >
+                                <SelectTrigger className="w-[160px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="percentage">Percentage</SelectItem>
+                                  <SelectItem value="fixed_per_rider">Fixed per rider</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => removeRevenueSharingRule(i)}>
+                                Remove
+                              </Button>
+                            </div>
+                            {rule.shareType === 'percentage' ? (
+                              <div className="flex items-center gap-2">
+                                <Label className="text-muted-foreground shrink-0">Share %:</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step={0.01}
+                                  className="w-24"
+                                  value={rule.percentageShare ?? 0}
+                                  onChange={e => updateRevenueSharingRule(i, { percentageShare: Number(e.target.value) })}
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Label className="text-muted-foreground shrink-0">Fixed amount (KES) per rider:</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  className="w-32"
+                                  value={((rule.fixedAmountCents ?? 0) / 100)}
+                                  onChange={e => updateRevenueSharingRule(i, { fixedAmountCents: Math.round(Number(e.target.value) * 100) })}
+                                />
+                              </div>
+                            )}
+                            <div className="flex flex-wrap items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={rule.activePermitsOnly}
+                                  onCheckedChange={v => updateRevenueSharingRule(i, { activePermitsOnly: v })}
+                                />
+                                <Label className="text-muted-foreground text-sm">Active permits only</Label>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={rule.complianceThresholdRequired}
+                                  onCheckedChange={v => updateRevenueSharingRule(i, { complianceThresholdRequired: v })}
+                                />
+                                <Label className="text-muted-foreground text-sm">Compliance threshold required</Label>
+                              </div>
+                              {rule.complianceThresholdRequired && (
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-muted-foreground text-sm">Threshold %:</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    className="w-20"
+                                    value={rule.complianceThresholdPercent ?? 0}
+                                    onChange={e => updateRevenueSharingRule(i, { complianceThresholdPercent: Number(e.target.value) })}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" size="sm" onClick={addRevenueSharingRule}>
+                          Add rule
+                        </Button>
+                      </div>
+
+                      <div className="space-y-3 pt-2 border-t">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <Eye className="h-4 w-4" />
+                          Control visibility
+                        </div>
+                        <p className="text-sm text-muted-foreground">What Saccos see, what counties see, and that riders never see revenue share details.</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label className="text-sm">Saccos see amounts</Label>
+                            <Switch
+                              checked={saccoWelfare.visibility.saccosSeeAmounts}
+                              onCheckedChange={v => setVisibility({ saccosSeeAmounts: v })}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label className="text-sm">Saccos see breakdown</Label>
+                            <Switch
+                              checked={saccoWelfare.visibility.saccosSeeBreakdown}
+                              onCheckedChange={v => setVisibility({ saccosSeeBreakdown: v })}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label className="text-sm">Counties see amounts</Label>
+                            <Switch
+                              checked={saccoWelfare.visibility.countiesSeeAmounts}
+                              onCheckedChange={v => setVisibility({ countiesSeeAmounts: v })}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <Label className="text-sm">Counties see breakdown</Label>
+                            <Switch
+                              checked={saccoWelfare.visibility.countiesSeeBreakdown}
+                              onCheckedChange={v => setVisibility({ countiesSeeBreakdown: v })}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
+                            <Label className="text-sm">Riders never see revenue share (platform policy)</Label>
+                            <Switch
+                              checked={saccoWelfare.visibility.ridersNeverSeeRevenueShare}
+                              onCheckedChange={v => setVisibility({ ridersNeverSeeRevenueShare: v })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <div className="flex justify-end">
+              <Button onClick={handleSaveRevenue} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                Save revenue & commercial config
+              </Button>
+            </div>
+          </Tabs>
+        )}
+      </div>
+    </SuperAdminLayout>
+  );
+}

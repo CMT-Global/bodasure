@@ -71,8 +71,8 @@ export default function UsersPage() {
     return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
   }, [profile, roles]);
 
-  // Check if user is County Super Admin
-  const isCountySuperAdmin = hasRole('county_super_admin') || hasRole('county_admin');
+  // Platform/county super admins have full access; county_admin can manage users
+  const canAccessUserManagement = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
 
   const { data: users = [], isLoading } = useCountyUsers(countyId);
   const { data: activityLogs = [] } = useUserActivityLogs(countyId);
@@ -332,8 +332,8 @@ export default function UsersPage() {
     },
   ];
 
-  // Access control - only County Super Admin and County Admin can access user management
-  if (!isCountySuperAdmin) {
+  // Access control - platform/county super admins and county admin can access user management
+  if (!canAccessUserManagement) {
     return (
       <DashboardLayout>
         <div className="space-y-6">
@@ -345,7 +345,7 @@ export default function UsersPage() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 text-amber-600">
                 <Shield className="h-5 w-5" />
-                <p>You need County Super Admin or County Admin privileges to access user management.</p>
+                <p>You need Platform Super Admin, County Super Admin, or County Admin privileges to access user management.</p>
               </div>
             </CardContent>
           </Card>
@@ -357,41 +357,46 @@ export default function UsersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">User Management</h1>
-            <p className="text-muted-foreground">Manage county users, roles, and permissions • {filteredUsers.length} total</p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold sm:text-3xl">User Management</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">Manage county users, roles, and permissions • {filteredUsers.length} total</p>
+            </div>
+            <Button 
+              onClick={() => { setUserForm({ email: '', password: '', fullName: '', phone: '', roles: [] }); setIsCreateDialogOpen(true); }} 
+              className="glow-primary min-h-[44px] w-full sm:w-auto"
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Create User
+            </Button>
           </div>
-          <Button onClick={() => { setUserForm({ email: '', password: '', fullName: '', phone: '', roles: [] }); setIsCreateDialogOpen(true); }} className="glow-primary">
-            <UserPlus className="mr-2 h-4 w-4" />
-            Create User
-          </Button>
-        </div>
 
-        <div className="flex gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              {COUNTY_ROLES.map((role) => (
-                <SelectItem key={role.value} value={role.value}>
-                  {role.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[150px] min-h-[44px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-full sm:w-[200px] min-h-[44px]">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {COUNTY_ROLES.map((role) => (
+                  <SelectItem key={role.value} value={role.value}>
+                    {role.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
@@ -465,7 +470,7 @@ export default function UsersPage() {
 
         {/* Create User Dialog */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create County User</DialogTitle>
               <DialogDescription>Create a new user account for your county</DialogDescription>
@@ -477,6 +482,7 @@ export default function UsersPage() {
                   value={userForm.fullName}
                   onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
                   placeholder="John Doe"
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -486,6 +492,7 @@ export default function UsersPage() {
                   value={userForm.email}
                   onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
                   placeholder="user@example.com"
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -494,6 +501,7 @@ export default function UsersPage() {
                   value={userForm.phone}
                   onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
                   placeholder="+254712345678"
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -503,13 +511,14 @@ export default function UsersPage() {
                   value={userForm.password}
                   onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                   placeholder="Minimum 6 characters"
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Roles *</Label>
                 <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
                   {COUNTY_ROLES.map((role) => (
-                    <div key={role.value} className="flex items-center space-x-2">
+                    <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">
                       <input
                         type="checkbox"
                         id={role.value}
@@ -521,9 +530,9 @@ export default function UsersPage() {
                             setUserForm({ ...userForm, roles: userForm.roles.filter(r => r !== role.value) });
                           }
                         }}
-                        className="rounded border-gray-300"
+                        className="rounded border-gray-300 w-5 h-5"
                       />
-                      <Label htmlFor={role.value} className="text-sm font-normal cursor-pointer">
+                      <Label htmlFor={role.value} className="text-sm font-normal cursor-pointer flex-1">
                         {role.label}
                       </Label>
                     </div>
@@ -531,9 +540,9 @@ export default function UsersPage() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreateUser} disabled={createUser.isPending}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleCreateUser} disabled={createUser.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create User
               </Button>
@@ -543,7 +552,7 @@ export default function UsersPage() {
 
         {/* Edit User Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Edit User</DialogTitle>
               <DialogDescription>Update user information</DialogDescription>
@@ -554,6 +563,7 @@ export default function UsersPage() {
                 <Input
                   value={userForm.fullName}
                   onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -561,12 +571,13 @@ export default function UsersPage() {
                 <Input
                   value={userForm.phone}
                   onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleUpdateUser} disabled={updateUser.isPending}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleUpdateUser} disabled={updateUser.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {updateUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Update
               </Button>
@@ -576,7 +587,7 @@ export default function UsersPage() {
 
         {/* Assign Roles Dialog */}
         <Dialog open={isRolesDialogOpen} onOpenChange={setIsRolesDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Assign Roles</DialogTitle>
               <DialogDescription>Assign roles to {selectedUser?.full_name || selectedUser?.email}</DialogDescription>
@@ -585,7 +596,7 @@ export default function UsersPage() {
               <Label>Select Roles *</Label>
               <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
                 {COUNTY_ROLES.map((role) => (
-                  <div key={role.value} className="flex items-center space-x-2">
+                  <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">
                     <input
                       type="checkbox"
                       id={`role-${role.value}`}
@@ -597,18 +608,18 @@ export default function UsersPage() {
                           setUserForm({ ...userForm, roles: userForm.roles.filter(r => r !== role.value) });
                         }
                       }}
-                      className="rounded border-gray-300"
+                      className="rounded border-gray-300 w-5 h-5"
                     />
-                    <Label htmlFor={`role-${role.value}`} className="text-sm font-normal cursor-pointer">
+                    <Label htmlFor={`role-${role.value}`} className="text-sm font-normal cursor-pointer flex-1">
                       {role.label}
                     </Label>
                   </div>
                 ))}
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsRolesDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleAssignRoles} disabled={assignRoles.isPending}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsRolesDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleAssignRoles} disabled={assignRoles.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {assignRoles.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Update Roles
               </Button>
@@ -618,7 +629,7 @@ export default function UsersPage() {
 
         {/* Reset Password Dialog */}
         <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Reset Password</DialogTitle>
               <DialogDescription>Reset password for {selectedUser?.full_name || selectedUser?.email}</DialogDescription>
@@ -631,6 +642,7 @@ export default function UsersPage() {
                   value={passwordForm.newPassword}
                   onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                   placeholder="Minimum 6 characters"
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -640,15 +652,16 @@ export default function UsersPage() {
                   value={passwordForm.confirmPassword}
                   onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                   placeholder="Confirm new password"
+                  className="min-h-[44px] text-base sm:text-sm"
                 />
               </div>
               <p className="text-xs text-muted-foreground">
                 Note: If direct password reset is not available, a password reset email will be sent to the user.
               </p>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleResetPassword} disabled={resetPassword.isPending}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button onClick={handleResetPassword} disabled={resetPassword.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {resetPassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Reset Password
               </Button>

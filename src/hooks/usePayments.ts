@@ -187,6 +187,15 @@ interface InitializePaymentParams {
   county_id: string;
 }
 
+export interface InitializePenaltyPaymentParams {
+  penalty_id: string;
+  amount: number;
+  email: string;
+  phone?: string;
+  rider_id: string;
+  county_id: string;
+}
+
 export function useInitializePayment() {
   return useMutation({
     mutationFn: async (params: InitializePaymentParams) => {
@@ -214,6 +223,42 @@ export function useInitializePayment() {
     onSuccess: (data) => {
       if (data.data?.authorization_url) {
         // Redirect to Paystack checkout
+        window.open(data.data.authorization_url, '_blank');
+        toast.success('Payment initiated. Complete the payment in the new tab.');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to initialize payment');
+    },
+  });
+}
+
+export function useInitializePenaltyPayment() {
+  return useMutation({
+    mutationFn: async (params: InitializePenaltyPaymentParams) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(params),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to initialize payment');
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.data?.authorization_url) {
         window.open(data.data.authorization_url, '_blank');
         toast.success('Payment initiated. Complete the payment in the new tab.');
       }

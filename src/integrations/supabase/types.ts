@@ -17,6 +17,7 @@ export type Database = {
       audit_logs: {
         Row: {
           action: string
+          actor_role: string | null
           county_id: string | null
           created_at: string
           entity_id: string | null
@@ -30,6 +31,7 @@ export type Database = {
         }
         Insert: {
           action: string
+          actor_role?: string | null
           county_id?: string | null
           created_at?: string
           entity_id?: string | null
@@ -43,6 +45,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          actor_role?: string | null
           county_id?: string | null
           created_at?: string
           entity_id?: string | null
@@ -782,6 +785,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          body: string | null
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          body?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          body?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      sacco_sent_messages: {
+        Row: {
+          id: string
+          county_id: string
+          sacco_id: string
+          sender_id: string
+          subject: string
+          body: string | null
+          recipient_type: string
+          stage_id: string | null
+          recipient_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          county_id: string
+          sacco_id: string
+          sender_id: string
+          subject: string
+          body?: string | null
+          recipient_type: string
+          stage_id?: string | null
+          recipient_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          county_id?: string
+          sacco_id?: string
+          sender_id?: string
+          subject?: string
+          body?: string | null
+          recipient_type?: string
+          stage_id?: string | null
+          recipient_count?: number
+          created_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

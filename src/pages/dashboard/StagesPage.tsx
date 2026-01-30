@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, MapPin, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Download, MapPin, Users } from 'lucide-react';
 import { useStages, useSaccos, Stage } from '@/hooks/useData';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -55,27 +55,17 @@ export default function StagesPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [riskFilter, setRiskFilter] = useState<string>('all');
 
   const queryClient = useQueryClient();
-  const { data: stages = [], isLoading, error } = useStages(countyId);
+  const { data: stages = [], isLoading } = useStages(countyId);
   const { data: saccos = [] } = useSaccos(countyId);
-  
-  // Log for debugging
-  useEffect(() => {
-    if (error) {
-      console.error('Error loading stages:', error);
-    }
-  }, [error]);
 
   const filteredStages = useMemo(() => {
     return stages.filter((stage) => {
       if (statusFilter !== 'all' && stage.status !== statusFilter) return false;
-      if (riskFilter === 'high-risk' && (stage.compliance_rate === undefined || stage.compliance_rate >= 50)) return false;
-      if (riskFilter === 'non-compliant' && (stage.compliance_rate === undefined || stage.compliance_rate >= 80)) return false;
       return true;
     });
-  }, [stages, statusFilter, riskFilter]);
+  }, [stages, statusFilter]);
 
   const deleteMutation = useMutation({
     mutationFn: async (stageId: string) => {
@@ -113,40 +103,12 @@ export default function StagesPage() {
       cell: ({ row }) => <span className="text-sm">{row.original.sacco?.name || '-'}</span>,
     },
     {
-      accessorKey: 'member_count',
-      header: 'Members',
+      accessorKey: 'capacity',
+      header: 'Capacity',
       cell: ({ row }) => (
         <div className="flex items-center gap-1 text-sm">
           <Users className="h-4 w-4 text-muted-foreground" />
-          {row.original.member_count || 0}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'compliance_rate',
-      header: 'Compliance',
-      cell: ({ row }) => {
-        const rate = row.original.compliance_rate ?? 100;
-        const isHighRisk = rate < 50;
-        const isNonCompliant = rate < 80;
-        return (
-          <div className="flex items-center gap-2">
-            <span className={`text-sm font-medium ${isHighRisk ? 'text-destructive' : isNonCompliant ? 'text-amber-600' : 'text-success'}`}>
-              {rate}%
-            </span>
-            {isHighRisk && <AlertTriangle className="h-4 w-4 text-destructive" />}
-            {isNonCompliant && !isHighRisk && <AlertTriangle className="h-4 w-4 text-amber-600" />}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: 'penalties_count',
-      header: 'Penalties',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1 text-sm">
-          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          {row.original.penalties_count || 0}
+          {row.original.capacity || '-'}
         </div>
       ),
     },
@@ -207,16 +169,6 @@ export default function StagesPage() {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={riskFilter} onValueChange={setRiskFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Risk Level" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Risk Levels</SelectItem>
-              <SelectItem value="high-risk">High Risk (&lt;50% compliance)</SelectItem>
-              <SelectItem value="non-compliant">Non-Compliant (&lt;80% compliance)</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         <DataTable columns={columns} data={filteredStages} searchPlaceholder="Search stages..." isLoading={isLoading} />
@@ -249,17 +201,28 @@ function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open
   const [formData, setFormData] = useState({
     name: stage?.name || '',
     location: stage?.location || '',
-    sacco_id: stage?.sacco_id || '',
+    sacco_id: stage?.sacco_id || 'none',
     capacity: stage?.capacity?.toString() || '',
     status: stage?.status || 'pending',
   });
+
+  // Reset form when stage changes
+  useEffect(() => {
+    setFormData({
+      name: stage?.name || '',
+      location: stage?.location || '',
+      sacco_id: stage?.sacco_id || 'none',
+      capacity: stage?.capacity?.toString() || '',
+      status: stage?.status || 'pending',
+    });
+  }, [stage]);
 
   const mutation = useMutation({
     mutationFn: async () => {
       const payload = { 
         name: formData.name,
         location: formData.location || null,
-        sacco_id: formData.sacco_id || null,
+        sacco_id: formData.sacco_id === 'none' ? null : formData.sacco_id || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         status: formData.status,
         county_id: countyId,
@@ -295,7 +258,7 @@ function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open
             <Select value={formData.sacco_id} onValueChange={(v) => setFormData({ ...formData, sacco_id: v })}>
               <SelectTrigger><SelectValue placeholder="Select a Sacco" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {saccos.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
