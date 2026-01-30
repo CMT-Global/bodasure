@@ -178,7 +178,7 @@ function ComplianceStatusContent() {
   const StatusIcon = config.icon;
 
   return (
-    <div className="space-y-6 max-w-full min-w-0">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       {/* Overall status */}
       <Card className={cn('border-2', config.className)}>
         <CardHeader className="pb-2">
@@ -210,14 +210,14 @@ function ComplianceStatusContent() {
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-2">
               {state.reasons.includes('Permit expired') && (
                 <Button
                   size="sm"
                   onClick={() => navigate('/rider-owner/permit-payments')}
-                  className="gap-2"
+                  className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
                 >
-                  <CreditCard className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4 shrink-0" />
                   Renew permit
                 </Button>
               )}
@@ -226,9 +226,9 @@ function ComplianceStatusContent() {
                   size="sm"
                   variant="outline"
                   onClick={() => navigate('/rider-owner/penalties-payments')}
-                  className="gap-2"
+                  className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
                 >
-                  <CreditCard className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4 shrink-0" />
                   Pay penalties
                 </Button>
               )}

@@ -44,9 +44,9 @@ function NotificationsContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Notifications & Communication</h1>
+        <h1 className="text-xl sm:text-2xl font-bold break-words">Notifications & Communication</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-1">
           In-app inbox for payment confirmations, permit expiry reminders, new penalties, Sacco
           announcements, and county announcements. Mark items as read or unread.
@@ -75,12 +75,12 @@ function NotificationsContent() {
                 size="sm"
                 onClick={() => markAllRead.mutate()}
                 disabled={markAllRead.isPending}
-                className="shrink-0"
+                className="shrink-0 min-h-[44px] touch-manipulation w-full sm:w-auto"
               >
                 {markAllRead.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 shrink-0" />
                 ) : (
-                  <CheckCheck className="h-4 w-4 mr-2" />
+                  <CheckCheck className="h-4 w-4 mr-2 shrink-0" />
                 )}
                 Mark all read
               </Button>
@@ -156,15 +156,15 @@ function NotificationRow({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-xs"
+            className="min-h-[44px] touch-manipulation text-xs w-full sm:w-auto"
             onClick={onMarkUnread}
             disabled={isPending}
           >
             {isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
             ) : (
               <>
-                <Bell className="h-3.5 w-3.5 mr-1.5" />
+                <Bell className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                 Mark unread
               </>
             )}
@@ -173,15 +173,15 @@ function NotificationRow({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-xs"
+            className="min-h-[44px] touch-manipulation text-xs w-full sm:w-auto"
             onClick={onMarkRead}
             disabled={isPending}
           >
             {isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
             ) : (
               <>
-                <Check className="h-3.5 w-3.5 mr-1.5" />
+                <Check className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                 Mark read
               </>
             )}

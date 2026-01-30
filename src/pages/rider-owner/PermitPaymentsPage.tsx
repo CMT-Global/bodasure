@@ -131,7 +131,7 @@ function PermitPaymentsContent() {
         <p className="text-sm text-muted-foreground">
           Your account is not linked to a rider record. Contact your Sacco or county admin.
         </p>
-        <Button className="mt-4" variant="outline" onClick={() => navigate('/rider-owner')}>
+        <Button className="mt-4 min-h-[44px] touch-manipulation w-full sm:w-auto" variant="outline" onClick={() => navigate('/rider-owner')}>
           Back to Dashboard
         </Button>
       </div>
@@ -143,7 +143,7 @@ function PermitPaymentsContent() {
   );
 
   return (
-    <div className="space-y-6 max-w-full min-w-0">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       {/* Pay for permit */}
       <Card>
         <CardHeader>
@@ -171,14 +171,14 @@ function PermitPaymentsContent() {
             <>
               <div className="space-y-2">
                 <Label>Permit type</Label>
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   {permitTypes.map((pt) => (
                     <button
                       key={pt.id}
                       type="button"
                       onClick={() => setSelectedPermitType(pt)}
                       className={cn(
-                        'rounded-lg border-2 p-4 text-left transition-colors',
+                        'rounded-lg border-2 p-4 text-left transition-colors min-h-[56px] touch-manipulation w-full',
                         selectedPermitType?.id === pt.id
                           ? 'border-primary bg-primary/5'
                           : 'border-border hover:border-primary/50'
@@ -239,7 +239,7 @@ function PermitPaymentsContent() {
               </div>
 
               <Button
-                className="w-full sm:w-auto min-h-[44px]"
+                className="w-full sm:w-auto min-h-[44px] touch-manipulation"
                 disabled={
                   !selectedPermitType ||
                   !selectedMotorbikeId ||
@@ -310,23 +310,23 @@ function PermitPaymentsContent() {
                         {format(new Date(payment.created_at), 'dd MMM yyyy, HH:mm')}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="shrink-0"
+                        className="shrink-0 min-h-[44px] touch-manipulation"
                         onClick={() => setReceiptPayment(payment)}
                       >
-                        <FileText className="h-4 w-4 mr-1" />
+                        <FileText className="h-4 w-4 mr-1 shrink-0" />
                         View
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="shrink-0 print:hidden"
+                        className="shrink-0 print:hidden min-h-[44px] touch-manipulation"
                         onClick={() => handlePrintReceipt(payment)}
                       >
-                        <Download className="h-4 w-4 mr-1" />
+                        <Download className="h-4 w-4 mr-1 shrink-0" />
                         Receipt
                       </Button>
                     </div>
@@ -338,9 +338,9 @@ function PermitPaymentsContent() {
         </CardContent>
       </Card>
 
-      {/* Receipt dialog */}
+      {/* Receipt dialog - mobile-friendly */}
       <Dialog open={!!receiptPayment} onOpenChange={() => setReceiptPayment(null)}>
-        <DialogContent className="max-w-md print:block">
+        <DialogContent className="max-w-[min(28rem,calc(100vw-2rem))] w-[calc(100vw-2rem)] sm:w-full print:block overflow-x-hidden">
           <DialogHeader className="print:hidden">
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5" />
@@ -395,12 +395,12 @@ function PermitPaymentsContent() {
                   </>
                 )}
               </div>
-              <div className="flex gap-2 print:hidden">
-                <Button variant="outline" size="sm" onClick={() => handlePrintReceipt(receiptPayment)}>
-                  <Download className="h-4 w-4 mr-2" />
+              <div className="flex flex-col sm:flex-row gap-2 print:hidden">
+                <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation w-full sm:w-auto" onClick={() => handlePrintReceipt(receiptPayment)}>
+                  <Download className="h-4 w-4 mr-2 shrink-0" />
                   Print / Save
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setReceiptPayment(null)}>
+                <Button variant="ghost" size="sm" className="min-h-[44px] touch-manipulation w-full sm:w-auto" onClick={() => setReceiptPayment(null)}>
                   Close
                 </Button>
               </div>

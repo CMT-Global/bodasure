@@ -92,9 +92,9 @@ function SupportHelpContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Support & Help</h1>
+        <h1 className="text-xl sm:text-2xl font-bold break-words">Support & Help</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-1">
           Contact support or report an issue. Tickets are visible to county support and admins.
         </p>
@@ -172,11 +172,11 @@ function SupportHelpContent() {
               />
             </div>
 
-            <Button type="submit" disabled={createTicket.isPending} className="gap-2">
+            <Button type="submit" disabled={createTicket.isPending} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
               {createTicket.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               ) : (
-                <Send className="h-4 w-4" />
+                <Send className="h-4 w-4 shrink-0" />
               )}
               Submit ticket
             </Button>

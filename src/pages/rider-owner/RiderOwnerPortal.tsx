@@ -194,7 +194,7 @@ function RiderOwnerDashboardContent() {
           <Button
             variant="default"
             onClick={() => navigate('/rider-owner/profile')}
-            className="gap-2"
+            className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
           >
             <Shield className="h-4 w-4" />
             Profile & Registration
@@ -226,8 +226,8 @@ function RiderOwnerDashboardContent() {
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-full min-w-0">
-      {/* Quick actions – 4 cards in a row (rider-owner style) */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+      {/* Quick actions – 2 cols mobile, 4 on large; large touch targets */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 min-w-0">
         <QuickActionCard
           title="Compliance Status"
           description="Check your compliance"
@@ -258,8 +258,8 @@ function RiderOwnerDashboardContent() {
         />
       </div>
 
-      {/* Permit status + Payments – two cards side by side (rider-owner style) */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Permit status + Payments – single col mobile, two on sm+ */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 min-w-0">
         {/* Permit status card – orange border, orange CTA */}
         <Card className="overflow-hidden rounded-xl border border-gray-600/50 dark:border-gray-500/40 bg-card transition-all hover:border-orange-500">
           <CardContent className="p-4 sm:p-5">
@@ -298,7 +298,7 @@ function RiderOwnerDashboardContent() {
                 {(permitStatus === 'expired' || permitStatus === 'expiring_soon' || permitStatus === 'none') && (
                   <Button
                     size="sm"
-                    className="mt-3 gap-2 bg-orange-500 hover:bg-orange-600 text-white border-0"
+                    className="mt-3 gap-2 bg-orange-500 hover:bg-orange-600 text-white border-0 min-h-[44px] touch-manipulation"
                     onClick={() => navigate('/rider-owner/permit-payments')}
                   >
                     <CreditCard className="h-4 w-4" />
@@ -336,7 +336,7 @@ function RiderOwnerDashboardContent() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="mt-3 gap-2 bg-muted hover:bg-muted/80 text-foreground"
+                  className="mt-3 gap-2 bg-muted hover:bg-muted/80 text-foreground min-h-[44px] touch-manipulation"
                   onClick={() => setReceiptsOpen(true)}
                 >
                   <Receipt className="h-4 w-4" />
@@ -356,8 +356,8 @@ function RiderOwnerDashboardContent() {
         <div className="flex">
           {/* Orange accent strip */}
           <div className="w-1 sm:w-1.5 flex-shrink-0 bg-gradient-to-b from-orange-500 to-orange-600 rounded-l-2xl" />
-          <CardContent className="p-6 sm:p-8 flex-1">
-            <div className="flex items-center gap-5 sm:gap-6">
+          <CardContent className="p-6 sm:p-8 flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
               <div className="relative flex-shrink-0">
                 <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-[3px] border-background shadow-lg ring-1 ring-black/5 dark:ring-white/5">
                   <AvatarImage src={displayPhoto} alt={displayName} className="object-cover" />
@@ -374,13 +374,13 @@ function RiderOwnerDashboardContent() {
                 )}
               </div>
               <div className="min-w-0 flex-1 space-y-3">
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate leading-tight">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground break-words leading-tight">
                   {displayName}
                 </h1>
                 {(saccoName || stageName) && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Bike className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                    <span className="text-sm truncate">
+                  <div className="flex items-start gap-2 text-muted-foreground min-w-0">
+                    <Bike className="h-4 w-4 shrink-0 opacity-80 mt-0.5" aria-hidden />
+                    <span className="text-sm break-words">
                       {[saccoName, stageName].filter(Boolean).join(' · ')}
                     </span>
                   </div>
@@ -401,11 +401,11 @@ function RiderOwnerDashboardContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 mt-1"
+                    className="gap-2 mt-1 min-h-[44px] touch-manipulation w-full sm:w-auto shrink-0"
                     onClick={() => setQrOpen(true)}
                   >
-                    <QrCode className="h-4 w-4" />
-                    View My QR ID
+                    <QrCode className="h-4 w-4 shrink-0" />
+                    <span className="whitespace-nowrap">View My QR ID</span>
                   </Button>
                 )}
               </div>
@@ -423,10 +423,10 @@ function RiderOwnerDashboardContent() {
       />
 
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-[min(400px,calc(100vw-2rem))] w-[calc(100vw-2rem)] sm:w-full overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
+              <QrCode className="h-5 w-5 shrink-0" />
               My QR ID
             </DialogTitle>
             <DialogDescription>
@@ -434,22 +434,22 @@ function RiderOwnerDashboardContent() {
             </DialogDescription>
           </DialogHeader>
           {data.rider.qr_code ? (
-            <div className="space-y-4">
-              <div className="flex justify-center rounded-lg bg-muted p-4">
+            <div className="space-y-4 min-w-0">
+              <div className="flex justify-center rounded-lg bg-muted p-4 min-h-[200px] items-center">
                 <QRCodeCanvas
                   value={`${typeof window !== 'undefined' ? window.location.origin : ''}/verify/${encodeURIComponent(data.rider.qr_code)}`}
-                  size={180}
+                  size={200}
                   level="M"
                   includeMargin
                 />
               </div>
-              <div className="rounded-lg bg-muted p-4 font-mono text-center text-sm break-all select-all">
+              <div className="rounded-lg bg-muted p-4 font-mono text-center text-sm break-all select-all overflow-x-auto">
                 {data.rider.qr_code}
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full gap-2"
+                className="w-full gap-2 min-h-[44px] touch-manipulation"
                 onClick={handleCopyQr}
               >
                 <Copy className="h-4 w-4" />
@@ -471,9 +471,9 @@ export default function RiderOwnerPortal() {
 
   return (
     <RiderOwnerLayout>
-      <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6 max-w-full min-w-0 overflow-x-hidden">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold break-words">Dashboard</h1>
           <p className="text-muted-foreground text-sm sm:text-base mt-1">
             {firstName ? (
               <>Welcome back, <span className="text-foreground font-medium">{firstName}</span>. Your permit, payments, and quick actions.</>

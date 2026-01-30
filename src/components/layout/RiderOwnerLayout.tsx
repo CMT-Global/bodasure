@@ -49,7 +49,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden min-w-0">
+    <div className="flex h-screen bg-background overflow-hidden min-w-0 max-w-[100vw]">
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div
@@ -240,23 +240,23 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
       {/* Main content */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="sticky top-0 flex-shrink-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-4 sm:px-4 lg:px-6">
+        <header className="sticky top-0 flex-shrink-0 z-30 flex h-14 sm:h-16 items-center justify-between gap-2 border-b border-border bg-background/95 px-2 sm:px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-4 lg:px-6 min-w-0 overflow-hidden">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden min-h-[44px] min-w-[44px]"
+            className="lg:hidden min-h-[44px] min-w-[44px] shrink-0 touch-manipulation"
             onClick={() => setIsMobileOpen(true)}
           >
             <Menu className="h-6 w-6" />
           </Button>
 
-          {/* Portal Tabs - same structure as DashboardLayout and SaccoPortalLayout */}
-          <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4 flex-shrink min-w-0">
+          {/* Portal Tabs - scroll on small screens to avoid horizontal scroll */}
+          <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-4 flex-shrink min-w-0 overflow-x-auto overflow-y-hidden py-1">
             <Button
               variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
               size="sm"
               onClick={() => navigate('/dashboard')}
-              className="min-h-[44px] min-w-0 px-3 touch-manipulation"
+              className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
             >
               <span className="hidden sm:inline">County Portal</span>
               <span className="sm:hidden">County</span>
@@ -265,7 +265,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
               size="sm"
               onClick={() => navigate('/sacco')}
-              className="min-h-[44px] min-w-0 px-3 touch-manipulation"
+              className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
             >
               <span className="hidden sm:inline">Sacco Portal</span>
               <span className="sm:hidden">Sacco</span>
@@ -274,17 +274,17 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
               size="sm"
               onClick={() => navigate('/rider-owner')}
-              className="min-h-[44px] min-w-0 px-3 touch-manipulation"
+              className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
             >
               <span className="hidden sm:inline">Rider & Owner Portal</span>
-              <span className="sm:hidden">Rider & Owner</span>
+              <span className="sm:hidden">Rider</span>
             </Button>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
+                <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px] touch-manipulation shrink-0">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
@@ -293,7 +293,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 sm:w-96">
+              <DropdownMenuContent align="end" className="w-[min(96vw,24rem)] sm:w-96 max-h-[85vh] overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between px-2 py-2">
                   <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
                   <div className="flex items-center gap-1">
@@ -356,7 +356,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
             <Separator orientation="vertical" className="h-6 hidden sm:block" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-1 sm:gap-2 md:gap-3 px-1 sm:px-2 min-h-[44px]">
+                <Button variant="ghost" className="flex items-center gap-1 sm:gap-2 md:gap-3 px-1 sm:px-2 min-h-[44px] min-w-[44px] touch-manipulation shrink-0">
                   <Avatar className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10">
                     <AvatarImage src={profile?.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -388,9 +388,9 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6">
-          <div className="w-full max-w-full mx-auto">{children}</div>
+        {/* Page content - mobile-first: no horizontal scroll, full width */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 min-w-0 max-w-full">
+          <div className="w-full max-w-full min-w-0 mx-auto">{children}</div>
         </main>
       </div>
     </div>

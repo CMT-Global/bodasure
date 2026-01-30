@@ -75,7 +75,7 @@ function InfoRow({
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        <p className="mt-0.5 font-medium text-foreground truncate">
+        <p className="mt-0.5 font-medium text-foreground break-words">
           {value || '—'}
         </p>
       </div>
@@ -176,22 +176,22 @@ function ProfileView({ data }: { data: RiderOwnerProfileData }) {
           <InfoRow icon={MapPin} label="County" value={countyName ?? undefined} />
           <InfoRow icon={Building2} label="Sacco / Stage" value={saccoStage ?? undefined} />
           {rider?.qr_code && (
-            <div className="py-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <QrCode className="h-4 w-4" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     QR ID
                   </p>
-                  <p className="mt-0.5 font-mono font-medium text-foreground truncate">
+                  <p className="mt-0.5 font-mono font-medium text-foreground break-all">
                     {rider.qr_code}
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" asChild className="shrink-0">
-                <Link to="/rider-owner/qr-id">
+              <Button variant="outline" size="sm" asChild className="shrink-0 min-h-[44px] touch-manipulation w-full sm:w-auto">
+                <Link to="/rider-owner/qr-id" className="whitespace-nowrap">
                   View &amp; Download QR
                 </Link>
               </Button>
@@ -285,7 +285,7 @@ function UpdateRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-[min(28rem,calc(100vw-2rem))] w-[calc(100vw-2rem)] sm:w-full overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{titles[type]}</DialogTitle>
           <DialogDescription>
@@ -303,6 +303,7 @@ function UpdateRequestDialog({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+254..."
+                  className="min-h-[44px] touch-manipulation"
                 />
               </div>
             </>
@@ -328,7 +329,7 @@ function UpdateRequestDialog({
               <div className="space-y-2">
                 <Label>Sacco</Label>
                 <Select value={saccoIdSelect} onValueChange={setSaccoIdSelect}>
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px] touch-manipulation">
                     <SelectValue placeholder="Select sacco (optional)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -343,7 +344,7 @@ function UpdateRequestDialog({
               <div className="space-y-2">
                 <Label>Stage</Label>
                 <Select value={stageIdSelect} onValueChange={setStageIdSelect}>
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px] touch-manipulation">
                     <SelectValue placeholder="Select stage (optional)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -363,7 +364,7 @@ function UpdateRequestDialog({
                 <div className="space-y-2">
                   <Label>Bike</Label>
                   <Select value={reassignBikeId} onValueChange={setReassignBikeId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="min-h-[44px] touch-manipulation">
                       <SelectValue placeholder="Select bike (optional)" />
                     </SelectTrigger>
                     <SelectContent>
@@ -390,16 +391,16 @@ function UpdateRequestDialog({
             </>
           )}
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation w-full sm:w-auto">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="min-h-[44px] touch-manipulation w-full sm:w-auto">
             {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : (
               <>
-                <Send className="h-4 w-4 mr-2" />
+                <Send className="h-4 w-4 mr-2 shrink-0" />
                 Submit request
               </>
             )}
@@ -495,7 +496,7 @@ function ProfileRegistrationContent() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 max-w-full min-w-0">
+    <div className="space-y-6 sm:space-y-8 max-w-full min-w-0 overflow-x-hidden">
       {rider && (
         <>
           <ProfileView data={data!} />
@@ -567,7 +568,7 @@ function ProfileRegistrationContent() {
                 <button
                   type="button"
                   onClick={() => setRequestDialog({ open: true, type: 'phone' })}
-                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[48px] touch-manipulation w-full"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Phone className="h-5 w-5" />
@@ -580,7 +581,7 @@ function ProfileRegistrationContent() {
                 <button
                   type="button"
                   onClick={() => setRequestDialog({ open: true, type: 'photo' })}
-                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[48px] touch-manipulation w-full"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <FileImage className="h-5 w-5" />
@@ -595,7 +596,7 @@ function ProfileRegistrationContent() {
                   onClick={() =>
                     setRequestDialog({ open: true, type: 'sacco_stage_transfer' })
                   }
-                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[48px] touch-manipulation w-full"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <ArrowLeftRight className="h-5 w-5" />
@@ -613,7 +614,7 @@ function ProfileRegistrationContent() {
                 onClick={() =>
                   setRequestDialog({ open: true, type: 'owner_rider_reassignment' })
                 }
-                className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 sm:col-span-2 lg:col-span-1"
+                className="flex items-center gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[48px] touch-manipulation w-full sm:col-span-2 lg:col-span-1"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <UserCog className="h-5 w-5" />

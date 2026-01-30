@@ -135,7 +135,7 @@ function SaccoStageContent() {
   const stageName = rider.stage?.name ?? null;
 
   return (
-    <div className="space-y-6 max-w-full min-w-0">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       {/* Current assignment */}
       <Card className="overflow-hidden rounded-xl border-border shadow-sm">
         <CardHeader className="pb-4">
@@ -152,8 +152,8 @@ function SaccoStageContent() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-0">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-border bg-muted/20 p-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-muted/20 p-4 min-w-0">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Assigned Sacco</p>
               <p className="mt-1.5 text-lg font-semibold">{saccoName ?? '—'}</p>
             </div>
@@ -224,9 +224,9 @@ function SaccoStageContent() {
         <CardContent className="space-y-5 pt-0">
           <Button
             onClick={() => setTransferDialogOpen(true)}
-            className="gap-2 rounded-lg bg-primary px-5 py-2.5 font-medium hover:bg-primary/90"
+            className="gap-2 rounded-lg bg-primary px-5 py-2.5 font-medium hover:bg-primary/90 min-h-[44px] touch-manipulation w-full sm:w-auto"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4 shrink-0" />
             Request stage or Sacco transfer
           </Button>
 
@@ -360,7 +360,7 @@ function TransferRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? resetAndClose() : onOpenChange(o))}>
-      <DialogContent className="rounded-xl sm:max-w-md">
+      <DialogContent className="rounded-xl w-[calc(100vw-2rem)] sm:max-w-md max-w-[calc(100vw-2rem)] overflow-x-hidden">
         <DialogHeader className="space-y-2">
           <DialogTitle className="text-lg font-semibold">Request stage or Sacco transfer</DialogTitle>
           <DialogDescription className="text-sm">
@@ -371,7 +371,7 @@ function TransferRequestDialog({
           <div className="space-y-2">
             <Label className="text-sm font-medium">Sacco / Welfare group</Label>
             <Select value={transferSaccoId || currentSaccoId || ''} onValueChange={setTransferSaccoId}>
-              <SelectTrigger className="rounded-lg">
+              <SelectTrigger className="rounded-lg min-h-[44px] touch-manipulation">
                 <SelectValue placeholder="Select Sacco" />
               </SelectTrigger>
               <SelectContent>
@@ -390,7 +390,7 @@ function TransferRequestDialog({
               onValueChange={setRequestedStageId}
               disabled={!effectiveSaccoId && stagesForSacco.length === 0}
             >
-              <SelectTrigger className="rounded-lg">
+              <SelectTrigger className="rounded-lg min-h-[44px] touch-manipulation">
                 <SelectValue placeholder="Select stage" />
               </SelectTrigger>
               <SelectContent>
@@ -404,14 +404,14 @@ function TransferRequestDialog({
             </Select>
           </div>
         </div>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => resetAndClose()} disabled={isSubmitting} className="rounded-lg">
+        <DialogFooter className="gap-2 flex-col-reverse sm:flex-row sm:gap-0">
+          <Button variant="outline" onClick={() => resetAndClose()} disabled={isSubmitting} className="rounded-lg min-h-[44px] touch-manipulation w-full sm:w-auto">
             Cancel
           </Button>
-          <Button onClick={onSubmit} disabled={isSubmitting || !requestedStageId} className="rounded-lg gap-2">
+          <Button onClick={onSubmit} disabled={isSubmitting || !requestedStageId} className="rounded-lg gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                 Submitting…
               </>
             ) : (

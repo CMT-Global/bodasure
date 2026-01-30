@@ -50,17 +50,17 @@ export function QuickActionCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full rounded-xl border border-green-500/50 bg-card p-4 sm:p-5 text-left transition-all',
+        'w-full rounded-xl border border-green-500/50 bg-card p-4 sm:p-5 text-left transition-all min-h-[48px] sm:min-h-[52px]',
         'hover:border-orange-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'touch-manipulation',
+        'touch-manipulation min-w-0',
         className
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5 flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="text-sm font-semibold text-foreground break-words">{title}</p>
           {description && (
-            <p className="text-xs text-muted-foreground">{description}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">{description}</p>
           )}
         </div>
         <div

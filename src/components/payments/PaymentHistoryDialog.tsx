@@ -38,7 +38,7 @@ export function PaymentHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[min(36rem,calc(100vw-2rem))] w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-hidden flex flex-col overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />

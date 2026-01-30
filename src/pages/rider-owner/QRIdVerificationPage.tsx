@@ -135,10 +135,10 @@ function QRIdVerificationContent() {
   }
 
   return (
-    <div className="space-y-6 max-w-full min-w-0">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <QrCode className="h-7 w-7 text-primary" />
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 break-words">
+          <QrCode className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" />
           QR ID &amp; Verification
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -151,6 +151,7 @@ function QRIdVerificationContent() {
         id="qr-id-card"
         className={cn(
           'overflow-hidden border-2 border-primary/20 shadow-lg print:shadow-none print:border-2',
+          'w-full max-w-full min-w-0',
           'max-w-lg',
           'md:max-w-4xl md:flex md:flex-col md:rounded-2xl md:border-primary/30'
         )}
@@ -185,7 +186,7 @@ function QRIdVerificationContent() {
               </Avatar>
               {rider.qr_code ? (
                 <div
-                  className="cursor-pointer [perspective:320px] w-[136px] h-[136px]"
+                  className="cursor-pointer [perspective:320px] w-[136px] h-[136px] touch-manipulation min-w-[136px] min-h-[136px] rounded-lg"
                   onClick={() => setQrFlipped((f) => !f)}
                   role="button"
                   tabIndex={0}
@@ -230,9 +231,9 @@ function QRIdVerificationContent() {
             </div>
             {/* Details — mobile */}
             <div className="flex-1 min-w-0 flex flex-col justify-center gap-2.5">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Name</p>
-                <p className="font-semibold text-base truncate mt-0.5">{displayName}</p>
+                <p className="font-semibold text-base break-words mt-0.5">{displayName}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Bike className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -241,11 +242,11 @@ function QRIdVerificationContent() {
                   <p className="font-mono font-semibold text-sm mt-0.5">{primaryPlate}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
+              <div className="flex items-start gap-2 min-w-0">
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Sacco / Stage</p>
-                  <p className="text-sm font-medium truncate mt-0.5">
+                  <p className="text-sm font-medium break-words mt-0.5">
                     {saccoName || stageName
                       ? [saccoName, stageName].filter(Boolean).join(' · ')
                       : '—'}
@@ -280,24 +281,24 @@ function QRIdVerificationContent() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid grid-cols-1 gap-x-6 gap-y-3 min-w-0 flex-1">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-[0.15em] font-medium">
                       Passenger
                     </p>
-                    <p className="font-semibold text-base truncate mt-0.5">{displayName}</p>
+                    <p className="font-semibold text-base break-words mt-0.5">{displayName}</p>
                   </div>
-                  <div className="flex flex-wrap gap-x-6 gap-y-3">
+                  <div className="flex flex-wrap gap-x-6 gap-y-3 min-w-0">
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-[0.15em] font-medium flex items-center gap-1">
                         <Bike className="h-3 w-3" /> Plate
                       </p>
                       <p className="font-mono font-semibold text-sm mt-0.5">{primaryPlate}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0 max-w-full">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-[0.15em] font-medium flex items-center gap-1">
                         <Building2 className="h-3 w-3" /> Sacco / Stage
                       </p>
-                      <p className="text-sm font-medium truncate mt-0.5 max-w-[180px]">
+                      <p className="text-sm font-medium break-words mt-0.5">
                         {saccoName || stageName
                           ? [saccoName, stageName].filter(Boolean).join(' · ')
                           : '—'}
@@ -387,14 +388,14 @@ function QRIdVerificationContent() {
         </CardContent>
       </Card>
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-3 print:hidden">
-        <Button onClick={handleDownloadQR} variant="outline" className="gap-2" disabled={!rider.qr_code}>
-          <Download className="h-4 w-4" />
+      {/* Actions - full width on mobile, large touch targets */}
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 print:hidden">
+        <Button onClick={handleDownloadQR} variant="outline" className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto" disabled={!rider.qr_code}>
+          <Download className="h-4 w-4 shrink-0" />
           Download QR as image
         </Button>
-        <Button onClick={handlePrint} variant="outline" className="gap-2">
-          <Printer className="h-4 w-4" />
+        <Button onClick={handlePrint} variant="outline" className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
+          <Printer className="h-4 w-4 shrink-0" />
           Print ID card
         </Button>
       </div>

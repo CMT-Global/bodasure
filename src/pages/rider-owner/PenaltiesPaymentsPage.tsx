@@ -92,9 +92,9 @@ function PenaltiesPaymentsContent() {
   const unpaidCount = penalties.filter((p) => getPenaltyStatus(p) === 'unpaid').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Penalties & Payments</h1>
+        <h1 className="text-xl sm:text-2xl font-bold break-words">Penalties & Payments</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-1">
           View all penalties issued to you and pay via Paystack (KES + M-Pesa).
         </p>
@@ -115,7 +115,7 @@ function PenaltiesPaymentsContent() {
               placeholder="07XX XXX XXX"
               value={mpesaPhone}
               onChange={(e) => setMpesaPhone(e.target.value)}
-              className="max-w-xs"
+              className="w-full sm:max-w-xs min-h-[44px] touch-manipulation"
             />
           </CardContent>
         </Card>
@@ -185,14 +185,14 @@ function PenaltiesPaymentsContent() {
                     {canPay && (
                       <Button
                         size="sm"
-                        className="shrink-0 gap-2"
+                        className="shrink-0 gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
                         onClick={() => handlePayPenalty(penalty)}
                         disabled={initializePenaltyPayment.isPending || isPaying}
                       >
                         {isPaying ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                         ) : (
-                          <CreditCard className="h-4 w-4" />
+                          <CreditCard className="h-4 w-4 shrink-0" />
                         )}
                         Pay with Paystack
                       </Button>
