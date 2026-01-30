@@ -36,6 +36,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { COUNTY_PORTAL_ACCESS_ROLES } from '@/config/portalRoles';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -48,22 +49,23 @@ interface NavItem {
   roles?: string[];
 }
 
+// County Portal nav — visibility by role (see src/config/portalRoles.ts)
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Riders', href: '/dashboard/riders', icon: Users },
-  { title: 'Registration Management', href: '/dashboard/registration-management', icon: ClipboardList, roles: ['county_super_admin', 'county_admin', 'county_registration_agent'] },
-  { title: 'Motorbikes', href: '/dashboard/motorbikes', icon: Bike },
-  { title: 'Owners', href: '/dashboard/owners', icon: Users },
-  { title: 'Saccos', href: '/dashboard/saccos', icon: Building2, roles: ['county_super_admin', 'county_admin'] },
-  { title: 'Stages', href: '/dashboard/stages', icon: MapPin, roles: ['county_super_admin', 'county_admin'] },
-  { title: 'Permits', href: '/dashboard/permits', icon: FileCheck },
-  { title: 'Payments', href: '/dashboard/payments', icon: CreditCard, roles: ['county_super_admin', 'county_admin', 'county_finance_officer'] },
-  { title: 'Penalties', href: '/dashboard/penalties', icon: AlertTriangle, roles: ['county_super_admin', 'county_admin', 'county_enforcement_officer'] },
-  { title: 'Verification', href: '/dashboard/verification', icon: QrCode, roles: ['county_super_admin', 'county_admin', 'county_enforcement_officer'] },
-  { title: 'Reports', href: '/dashboard/reports', icon: BarChart3, roles: ['county_super_admin', 'county_admin', 'county_finance_officer', 'county_analyst'] },
-  { title: 'User Management', href: '/dashboard/users', icon: UserCog, roles: ['county_super_admin', 'county_admin'] },
-  { title: 'Support Tickets', href: '/dashboard/support-tickets', icon: HelpCircle, roles: ['platform_super_admin', 'county_super_admin', 'county_admin'] },
-  { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['platform_super_admin', 'county_super_admin', 'county_admin'] },
+  { title: 'Riders', href: '/dashboard/riders', icon: Users, roles: ['county_super_admin', 'county_enforcement_officer', 'county_registration_agent', 'county_analyst'] },
+  { title: 'Registration Management', href: '/dashboard/registration-management', icon: ClipboardList, roles: ['county_super_admin', 'county_registration_agent'] },
+  { title: 'Motorbikes', href: '/dashboard/motorbikes', icon: Bike, roles: ['county_super_admin', 'county_registration_agent', 'county_analyst'] },
+  { title: 'Owners', href: '/dashboard/owners', icon: Users, roles: ['county_super_admin', 'county_registration_agent', 'county_analyst'] },
+  { title: 'Saccos', href: '/dashboard/saccos', icon: Building2, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
+  { title: 'Stages', href: '/dashboard/stages', icon: MapPin, roles: ['county_super_admin', 'county_enforcement_officer', 'county_registration_agent', 'county_analyst'] },
+  { title: 'Permits', href: '/dashboard/permits', icon: FileCheck, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
+  { title: 'Payments', href: '/dashboard/payments', icon: CreditCard, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
+  { title: 'Penalties', href: '/dashboard/penalties', icon: AlertTriangle, roles: ['county_super_admin', 'county_finance_officer', 'county_enforcement_officer', 'county_analyst'] },
+  { title: 'Verification', href: '/dashboard/verification', icon: QrCode, roles: ['county_super_admin', 'county_enforcement_officer'] },
+  { title: 'Reports', href: '/dashboard/reports', icon: BarChart3, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
+  { title: 'User Management', href: '/dashboard/users', icon: UserCog, roles: ['county_super_admin'] },
+  { title: 'Support Tickets', href: '/dashboard/support-tickets', icon: HelpCircle, roles: ['county_super_admin'] },
+  { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin'] },
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -73,14 +75,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, roles, hasRole } = useAuth();
 
-  // Super admins can see all pages, others see pages based on their roles
-  const canSeeAllPages = hasRole('platform_super_admin') || hasRole('county_super_admin');
-  const filteredNavItems = canSeeAllPages
+  // Platform & County Super Admins see all county nav items; others see items allowed for their role
+  const canSeeAllCountyPages = hasRole('platform_super_admin') || hasRole('county_super_admin');
+  const filteredNavItems = canSeeAllCountyPages
     ? navItems
     : navItems.filter(item => {
-        // If no roles specified, show to everyone
         if (!item.roles || item.roles.length === 0) return true;
-        // Check if user has at least one of the required roles
         return item.roles.some(role => hasRole(role));
       });
 
@@ -207,31 +207,36 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 Super Admin Portal
               </Button>
             )}
-            <Button
-              variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="min-h-[36px]"
-            >
-              County Portal
-            </Button>
-            <Button
-              variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/sacco')}
-              className="min-h-[36px]"
-            >
-              Sacco Portal
-            </Button>
-            {(hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin')) && (
+            {COUNTY_PORTAL_ACCESS_ROLES.some(role => hasRole(role)) && (
               <Button
-                variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
+                variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => navigate('/rider-owner')}
+                onClick={() => navigate('/dashboard')}
                 className="min-h-[36px]"
               >
-                Rider & Owner Portal
+                County Portal
               </Button>
+            )}
+            {/* Platform super admin can see all portals */}
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+              <>
+                <Button
+                  variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => navigate('/sacco')}
+                  className="min-h-[36px]"
+                >
+                  Sacco Portal
+                </Button>
+                <Button
+                  variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => navigate('/rider-owner')}
+                  className="min-h-[36px]"
+                >
+                  Rider & Owner Portal
+                </Button>
+              </>
             )}
           </div>
 
@@ -269,11 +274,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {(hasRole('platform_super_admin') || hasRole('county_super_admin')) && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive min-h-[44px]">
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out

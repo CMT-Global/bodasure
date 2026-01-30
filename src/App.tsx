@@ -45,6 +45,12 @@ import CountyManagementPage from "./pages/super-admin/CountyManagementPage";
 import CountyConfigurationPage from "./pages/super-admin/CountyConfigurationPage";
 import RevenueCommercialConfigPage from "./pages/super-admin/RevenueCommercialConfigPage";
 import RolePermissionGovernancePage from "./pages/super-admin/RolePermissionGovernancePage";
+import UserAccessGovernancePage from "./pages/super-admin/UserAccessGovernancePage";
+import SaccoWelfareOversightPage from "./pages/super-admin/SaccoWelfareOversightPage";
+import IncidentEscalationSupportPage from "./pages/super-admin/IncidentEscalationSupportPage";
+import SecurityAuditCompliancePage from "./pages/super-admin/SecurityAuditCompliancePage";
+import SystemSettingsPage from "./pages/super-admin/SystemSettingsPage";
+import EnvironmentDeploymentControlsPage from "./pages/super-admin/EnvironmentDeploymentControlsPage";
 import ProfileRegistrationPage from "./pages/rider-owner/ProfileRegistrationPage";
 import PermitPaymentsPage from "./pages/rider-owner/PermitPaymentsPage";
 import PenaltiesPaymentsPage from "./pages/rider-owner/PenaltiesPaymentsPage";
@@ -54,8 +60,35 @@ import SaccoStageInfoPage from "./pages/rider-owner/SaccoStageInfoPage";
 import NotificationsPage from "./pages/rider-owner/NotificationsPage";
 import SupportHelpPage from "./pages/rider-owner/SupportHelpPage";
 import PublicVerificationPage from "./pages/PublicVerificationPage";
+import {
+  SUPER_ADMIN_PORTAL,
+  COUNTY_PORTAL_ACCESS_ROLES,
+  SACCO_PORTAL_ACCESS_ROLES,
+} from "@/config/portalRoles";
 
 const queryClient = new QueryClient();
+
+/** Roles that can access the Super Admin portal (from single source of truth). */
+const superAdminRequiredRoles = [...SUPER_ADMIN_PORTAL.roleKeys];
+
+/** County Portal route access — see src/config/portalRoles.ts for role definitions. */
+const countyPortalAll = [...COUNTY_PORTAL_ACCESS_ROLES] as string[];
+const countySettingsAndUsersOnly = ["platform_super_admin", "county_super_admin"];
+const countyVerificationOnly = ["platform_super_admin", "county_super_admin", "county_enforcement_officer"];
+const countyRegistrationOnly = ["platform_super_admin", "county_super_admin", "county_registration_agent"];
+const countyFinanceAndAnalyst = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_analyst"];
+const countyRiders = ["platform_super_admin", "county_super_admin", "county_enforcement_officer", "county_registration_agent", "county_analyst"];
+const countyPaymentsPermitsReports = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_analyst"];
+const countyPenalties = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_enforcement_officer", "county_analyst"];
+const countySaccos = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_analyst"];
+const countyStages = ["platform_super_admin", "county_super_admin", "county_enforcement_officer", "county_registration_agent", "county_analyst"];
+const countyMotorbikesOwners = ["platform_super_admin", "county_super_admin", "county_registration_agent", "county_analyst"];
+const countySupportTickets = ["platform_super_admin", "county_super_admin"];
+
+/** Sacco Portal: sacco_admin, sacco_officer, stage_chairman, stage_secretary, stage_treasurer; platform_super_admin for oversight. */
+const saccoPortalAccess = ["platform_super_admin", ...SACCO_PORTAL_ACCESS_ROLES] as string[];
+/** Sacco Profile & Settings and Audit Logs: Sacco/Welfare Admin only (and platform super admin). */
+const saccoAdminOnly = ["platform_super_admin", "sacco_admin", "welfare_admin"];
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -72,11 +105,11 @@ const App = () => (
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/verify/:qrCode" element={<PublicVerificationPage />} />
 
-            {/* Super Admin Portal — platform_super_admin and platform_admin only */}
+            {/* Super Admin Portal — see src/config/portalRoles.ts */}
             <Route
               path="/super-admin"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <SuperAdminDashboard />
                 </ProtectedRoute>
               }
@@ -84,7 +117,7 @@ const App = () => (
             <Route
               path="/super-admin/counties"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <CountyManagementPage />
                 </ProtectedRoute>
               }
@@ -92,7 +125,7 @@ const App = () => (
             <Route
               path="/super-admin/county-config"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <CountyConfigurationPage />
                 </ProtectedRoute>
               }
@@ -100,7 +133,7 @@ const App = () => (
             <Route
               path="/super-admin/revenue-config"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <RevenueCommercialConfigPage />
                 </ProtectedRoute>
               }
@@ -108,17 +141,65 @@ const App = () => (
             <Route
               path="/super-admin/roles-governance"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <RolePermissionGovernancePage />
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/super-admin/user-access-governance"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <UserAccessGovernancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/sacco-welfare-oversight"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <SaccoWelfareOversightPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/incident-escalation-support"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <IncidentEscalationSupportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/security-audit-compliance"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <SecurityAuditCompliancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/environment-deployment"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <EnvironmentDeploymentControlsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/system-settings"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <SystemSettingsPage />
+                </ProtectedRoute>
+              }
+            />
 
-            {/* Protected dashboard routes — platform_super_admin and county_super_admin only */}
+            {/* County Portal (dashboard) — access by role per src/config/portalRoles.ts */}
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyPortalAll}>
                   <Dashboard />
                 </ProtectedRoute>
               }
@@ -126,7 +207,7 @@ const App = () => (
             <Route
               path="/dashboard/riders"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyRiders}>
                   <RidersPage />
                 </ProtectedRoute>
               }
@@ -134,7 +215,7 @@ const App = () => (
             <Route
               path="/dashboard/registration-management"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyRegistrationOnly}>
                   <RegistrationManagementPage />
                 </ProtectedRoute>
               }
@@ -142,7 +223,7 @@ const App = () => (
             <Route
               path="/dashboard/motorbikes"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyMotorbikesOwners}>
                   <MotorbikesPage />
                 </ProtectedRoute>
               }
@@ -150,7 +231,7 @@ const App = () => (
             <Route
               path="/dashboard/owners"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyMotorbikesOwners}>
                   <OwnersPage />
                 </ProtectedRoute>
               }
@@ -158,7 +239,7 @@ const App = () => (
             <Route
               path="/dashboard/saccos"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countySaccos}>
                   <SaccosPage />
                 </ProtectedRoute>
               }
@@ -166,7 +247,7 @@ const App = () => (
             <Route
               path="/dashboard/stages"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyStages}>
                   <StagesPage />
                 </ProtectedRoute>
               }
@@ -174,7 +255,7 @@ const App = () => (
             <Route
               path="/dashboard/permits"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyPaymentsPermitsReports}>
                   <PermitsPage />
                 </ProtectedRoute>
               }
@@ -182,7 +263,7 @@ const App = () => (
             <Route
               path="/dashboard/payments"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyPaymentsPermitsReports}>
                   <PaymentsPage />
                 </ProtectedRoute>
               }
@@ -190,7 +271,7 @@ const App = () => (
             <Route
               path="/dashboard/penalties"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyPenalties}>
                   <PenaltiesPage />
                 </ProtectedRoute>
               }
@@ -198,7 +279,7 @@ const App = () => (
             <Route
               path="/dashboard/verification"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyVerificationOnly}>
                   <VerificationPage />
                 </ProtectedRoute>
               }
@@ -206,7 +287,7 @@ const App = () => (
             <Route
               path="/dashboard/reports"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countyPaymentsPermitsReports}>
                   <ReportsPage />
                 </ProtectedRoute>
               }
@@ -214,7 +295,7 @@ const App = () => (
             <Route
               path="/dashboard/settings"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countySettingsAndUsersOnly}>
                   <SettingsPage />
                 </ProtectedRoute>
               }
@@ -222,7 +303,7 @@ const App = () => (
             <Route
               path="/dashboard/users"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={countySettingsAndUsersOnly}>
                   <UsersPage />
                 </ProtectedRoute>
               }
@@ -230,17 +311,17 @@ const App = () => (
             <Route
               path="/dashboard/support-tickets"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin', 'county_admin']}>
+                <ProtectedRoute requiredRoles={countySupportTickets}>
                   <SupportTicketsPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Sacco Portal routes */}
+            {/* Sacco Portal routes — see src/config/portalRoles.ts (SACCO_PORTAL_ACCESS_ROLES, STAGE_ROLES) */}
             <Route
               path="/sacco"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <SaccoPortal />
                 </ProtectedRoute>
               }
@@ -248,7 +329,7 @@ const App = () => (
             <Route
               path="/sacco/registration-support"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <RegistrationSupportPage />
                 </ProtectedRoute>
               }
@@ -256,7 +337,7 @@ const App = () => (
             <Route
               path="/sacco/members"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <MemberManagementPage />
                 </ProtectedRoute>
               }
@@ -264,7 +345,7 @@ const App = () => (
             <Route
               path="/sacco/stages"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <StageManagementPage />
                 </ProtectedRoute>
               }
@@ -272,7 +353,7 @@ const App = () => (
             <Route
               path="/sacco/compliance"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <CompliancePenaltiesPage />
                 </ProtectedRoute>
               }
@@ -280,7 +361,7 @@ const App = () => (
             <Route
               path="/sacco/discipline"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <DisciplineIncidentPage />
                 </ProtectedRoute>
               }
@@ -288,7 +369,7 @@ const App = () => (
             <Route
               path="/sacco/communication"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <CommunicationToolsPage />
                 </ProtectedRoute>
               }
@@ -296,7 +377,7 @@ const App = () => (
             <Route
               path="/sacco/reports"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <SaccoReportsPage />
                 </ProtectedRoute>
               }
@@ -304,7 +385,7 @@ const App = () => (
             <Route
               path="/sacco/settings"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoAdminOnly}>
                   <SaccoProfileSettingsPage />
                 </ProtectedRoute>
               }
@@ -312,7 +393,7 @@ const App = () => (
             <Route
               path="/sacco/audit-logs"
               element={
-                <ProtectedRoute requiredRoles={['platform_super_admin', 'county_super_admin']}>
+                <ProtectedRoute requiredRoles={saccoAdminOnly}>
                   <SaccoAuditLogsPage />
                 </ProtectedRoute>
               }

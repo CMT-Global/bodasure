@@ -39,8 +39,11 @@ const SAMPLE_SYSTEM_ROLES = [
   { id: 'platform_admin', name: 'Platform Admin', category: 'county', locked: true },
   { id: 'county_super_admin', name: 'County Super Admin', category: 'county', locked: false },
   { id: 'county_admin', name: 'County Admin', category: 'county', locked: false },
-  { id: 'sacco_admin', name: 'Sacco Admin', category: 'sacco', locked: false },
-  { id: 'sacco_staff', name: 'Sacco Staff', category: 'sacco', locked: false },
+  { id: 'sacco_admin', name: 'Sacco / Welfare Admin', category: 'sacco', locked: false },
+  { id: 'sacco_officer', name: 'Sacco / Welfare Officer', category: 'sacco', locked: false },
+  { id: 'stage_chairman', name: 'Stage Chairman', category: 'stage', locked: false },
+  { id: 'stage_secretary', name: 'Stage Secretary', category: 'stage', locked: false },
+  { id: 'stage_treasurer', name: 'Stage Treasurer', category: 'stage', locked: false },
   { id: 'rider', name: 'Rider', category: 'rider_owner', locked: false },
   { id: 'owner', name: 'Owner', category: 'rider_owner', locked: false },
 ];

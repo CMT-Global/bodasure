@@ -250,7 +250,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
             <Menu className="h-6 w-6" />
           </Button>
 
-          {/* Portal Tabs - scroll on small screens to avoid horizontal scroll */}
+          {/* Portal Tabs — Rider & Owner cannot see County or Sacco; Platform super admin can see all */}
           <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-4 flex-shrink min-w-0 overflow-x-auto overflow-y-hidden py-1">
             {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
               <Button
@@ -263,24 +263,28 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 <span className="sm:hidden">Super</span>
               </Button>
             )}
-            <Button
-              variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
-            >
-              <span className="hidden sm:inline">County Portal</span>
-              <span className="sm:hidden">County</span>
-            </Button>
-            <Button
-              variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/sacco')}
-              className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
-            >
-              <span className="hidden sm:inline">Sacco Portal</span>
-              <span className="sm:hidden">Sacco</span>
-            </Button>
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+              <Button
+                variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/dashboard')}
+                className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
+              >
+                <span className="hidden sm:inline">County Portal</span>
+                <span className="sm:hidden">County</span>
+              </Button>
+            )}
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+              <Button
+                variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/sacco')}
+                className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
+              >
+                <span className="hidden sm:inline">Sacco Portal</span>
+                <span className="sm:hidden">Sacco</span>
+              </Button>
+            )}
             <Button
               variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
               size="sm"

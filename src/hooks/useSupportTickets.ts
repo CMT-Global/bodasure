@@ -121,6 +121,7 @@ export function useCreateSupportTicket() {
 export interface UpdateSupportTicketInput {
   status?: SupportTicketStatus;
   admin_notes?: string | null;
+  county_id?: string | null;
 }
 
 export function useUpdateSupportTicket() {

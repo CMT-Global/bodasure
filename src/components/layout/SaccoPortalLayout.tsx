@@ -45,6 +45,11 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, hasRole } = useAuth();
   const { data: notifications = [] } = useUserNotifications(15, !!user);
+  /** Only Sacco/Welfare Admin (and platform super admin) can edit Sacco profile and view audit logs. */
+  const canEditSaccoProfile =
+    hasRole('sacco_admin') ||
+    hasRole('welfare_admin') ||
+    hasRole('platform_super_admin');
   const unreadCount = notifications.filter((n) => !n.read_at).length;
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -208,32 +213,36 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
               <FileText className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/reports' && 'text-primary')} />
               {!isCollapsed && <span className="truncate">Reports & Exports</span>}
             </Link>
-            <Link
-              to="/sacco/settings"
-              onClick={() => setIsMobileOpen(false)}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
-                location.pathname === '/sacco/settings'
-                  ? 'bg-sidebar-accent text-primary'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
-              )}
-            >
-              <Settings className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/settings' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Profile & Settings</span>}
-            </Link>
-            <Link
-              to="/sacco/audit-logs"
-              onClick={() => setIsMobileOpen(false)}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
-                location.pathname === '/sacco/audit-logs'
-                  ? 'bg-sidebar-accent text-primary'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
-              )}
-            >
-              <History className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/audit-logs' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Audit Logs</span>}
-            </Link>
+            {canEditSaccoProfile && (
+              <Link
+                to="/sacco/settings"
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                  location.pathname === '/sacco/settings'
+                    ? 'bg-sidebar-accent text-primary'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+                )}
+              >
+                <Settings className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/settings' && 'text-primary')} />
+                {!isCollapsed && <span className="truncate">Profile & Settings</span>}
+              </Link>
+            )}
+            {canEditSaccoProfile && (
+              <Link
+                to="/sacco/audit-logs"
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                  location.pathname === '/sacco/audit-logs'
+                    ? 'bg-sidebar-accent text-primary'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+                )}
+              >
+                <History className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/audit-logs' && 'text-primary')} />
+                {!isCollapsed && <span className="truncate">Audit Logs</span>}
+              </Link>
+            )}
           </nav>
         </ScrollArea>
 
@@ -271,7 +280,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
             <Menu className="h-6 w-6" />
           </Button>
 
-          {/* Portal Tabs - touch targets 44px on mobile */}
+          {/* Portal Tabs — Sacco members cannot see County or Rider & Owner; Platform super admin can see all */}
           <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4 flex-shrink min-w-0">
             {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
               <Button
@@ -284,15 +293,17 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
                 <span className="sm:hidden">Super</span>
               </Button>
             )}
-            <Button
-              variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="min-h-[44px] min-w-0 px-3 touch-manipulation"
-            >
-              <span className="hidden sm:inline">County Portal</span>
-              <span className="sm:hidden">County</span>
-            </Button>
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+              <Button
+                variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/dashboard')}
+                className="min-h-[44px] min-w-0 px-3 touch-manipulation"
+              >
+                <span className="hidden sm:inline">County Portal</span>
+                <span className="sm:hidden">County</span>
+              </Button>
+            )}
             <Button
               variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
               size="sm"
@@ -302,7 +313,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
               <span className="hidden sm:inline">Sacco Portal</span>
               <span className="sm:hidden">Sacco</span>
             </Button>
-            {(hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin')) && (
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
               <Button
                 variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
                 size="sm"
@@ -310,7 +321,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
                 className="min-h-[44px] min-w-0 px-3 touch-manipulation"
               >
                 <span className="hidden sm:inline">Rider & Owner Portal</span>
-                <span className="sm:hidden">Rider & Owner</span>
+                <span className="sm:hidden">Rider</span>
               </Button>
             )}
           </div>

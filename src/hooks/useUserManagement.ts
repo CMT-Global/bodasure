@@ -133,6 +133,51 @@ export function useUserActivityLogs(countyId?: string, userId?: string) {
   });
 }
 
+// Fetch all audit logs (no county filter) — for Super Admin only (RLS allows platform admins to view all)
+export function useAllAuditLogs(userId?: string) {
+  return useQuery({
+    queryKey: ['all-audit-logs', userId],
+    queryFn: async () => {
+      let query = supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data: logs, error } = await query;
+      if (error) {
+        console.error('Error fetching audit logs:', error);
+        return [];
+      }
+      if (!logs || logs.length === 0) return [];
+
+      const userIds = [...new Set(logs.map(log => log.user_id).filter(Boolean) as string[])];
+      let profilesMap = new Map<string, { full_name: string | null; email: string }>();
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profiles) {
+          profilesMap = new Map(profiles.map(p => [p.id, { full_name: p.full_name, email: p.email }]));
+        }
+      }
+
+      return logs.map(log => ({
+        ...log,
+        user: log.user_id ? profilesMap.get(log.user_id) || null : null,
+      })) as UserActivityLog[];
+    },
+    enabled: true,
+  });
+}
+
 // Create a new county user
 export function useCreateCountyUser() {
   const queryClient = useQueryClient();

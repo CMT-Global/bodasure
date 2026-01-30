@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders, DollarSign, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders, DollarSign, ShieldCheck, UsersRound, Building2, Headset, Cog, ClipboardCheck, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SuperAdminLayoutProps {
@@ -82,66 +82,144 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               to="/super-admin"
               onClick={() => setIsMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
                 location.pathname === '/super-admin'
                   ? 'bg-sidebar-accent text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
               )}
             >
               <LayoutDashboard className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Dashboard</span>}
+              {!isCollapsed && <span className="break-words">Dashboard</span>}
             </Link>
             <Link
               to="/super-admin/counties"
               onClick={() => setIsMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
                 location.pathname === '/super-admin/counties'
                   ? 'bg-sidebar-accent text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
               )}
             >
               <Map className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/counties' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Multi-County Management</span>}
+              {!isCollapsed && <span className="break-words">Multi-County Management</span>}
             </Link>
             <Link
               to="/super-admin/county-config"
               onClick={() => setIsMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
                 location.pathname === '/super-admin/county-config'
                   ? 'bg-sidebar-accent text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
               )}
             >
               <Sliders className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/county-config' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">County Configuration</span>}
+              {!isCollapsed && <span className="break-words">County Configuration</span>}
             </Link>
             <Link
               to="/super-admin/revenue-config"
               onClick={() => setIsMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
                 location.pathname === '/super-admin/revenue-config'
                   ? 'bg-sidebar-accent text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
               )}
             >
               <DollarSign className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/revenue-config' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Revenue & Commercial</span>}
+              {!isCollapsed && <span className="break-words">Revenue & Commercial</span>}
             </Link>
             <Link
               to="/super-admin/roles-governance"
               onClick={() => setIsMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
                 location.pathname === '/super-admin/roles-governance'
                   ? 'bg-sidebar-accent text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
               )}
             >
               <ShieldCheck className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/roles-governance' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Role & Permission Governance</span>}
+              {!isCollapsed && <span className="break-words">Role & Permission Governance</span>}
+            </Link>
+            <Link
+              to="/super-admin/user-access-governance"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/user-access-governance'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <UsersRound className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/user-access-governance' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">User & Access Governance</span>}
+            </Link>
+            <Link
+              to="/super-admin/sacco-welfare-oversight"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/sacco-welfare-oversight'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Building2 className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/sacco-welfare-oversight' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">Sacco, Welfare & Structure Oversight</span>}
+            </Link>
+            <Link
+              to="/super-admin/incident-escalation-support"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/incident-escalation-support'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Headset className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/incident-escalation-support' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">Incident, Escalation & Support</span>}
+            </Link>
+            <Link
+              to="/super-admin/security-audit-compliance"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/security-audit-compliance'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <ClipboardCheck className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/security-audit-compliance' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">Security, Audit & Compliance</span>}
+            </Link>
+            <Link
+              to="/super-admin/environment-deployment"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/environment-deployment'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Server className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/environment-deployment' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">Environment & Deployment Controls</span>}
+            </Link>
+            <Link
+              to="/super-admin/system-settings"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/system-settings'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Cog className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/system-settings' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">System Settings</span>}
             </Link>
           </nav>
         </ScrollArea>
@@ -176,6 +254,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
             <Menu className="h-6 w-6" />
           </Button>
 
+          {/* Super Admin Portal — can see and switch to all portals */}
           <div className="flex items-center gap-2 ml-2 sm:ml-4">
             <Button
               variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
@@ -201,16 +280,14 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
             >
               Sacco Portal
             </Button>
-            {(hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin')) && (
-              <Button
-                variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => navigate('/rider-owner')}
-                className="min-h-[36px]"
-              >
-                Rider & Owner Portal
-              </Button>
-            )}
+            <Button
+              variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/rider-owner')}
+              className="min-h-[36px]"
+            >
+              Rider & Owner Portal
+            </Button>
           </div>
 
           <div className="flex-1" />
