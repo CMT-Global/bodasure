@@ -23,6 +23,8 @@ export interface CountyUser {
 export interface UserActivityLog {
   id: string;
   user_id: string | null;
+  actor_role: string | null;
+  county_id: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;

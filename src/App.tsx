@@ -103,6 +103,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/verify" element={<PublicVerificationPage />} />
             <Route path="/verify/:qrCode" element={<PublicVerificationPage />} />
 
             {/* Super Admin Portal — see src/config/portalRoles.ts */}

@@ -310,3 +310,25 @@ export const SACCO_PORTAL_ACCESS_ROLES: readonly string[] = [
   'welfare_officer',
   ...STAGE_ROLE_KEYS,
 ];
+
+// ——— PUBLIC / GUEST ACCESS (NO LOGIN) ———
+// Public users do not have a role in the database; they access unauthenticated routes only.
+
+export const PUBLIC_USER = {
+  name: 'Public User',
+  description: 'Unauthenticated guest — verify riders only',
+
+  permissions: [
+    'Verify rider via QR code',
+    'Verify rider via plate number',
+    'View rider name',
+    'View rider photo',
+    'View permit status',
+  ],
+
+  restrictions: [
+    'Cannot view personal data (e.g. ID number, phone, address)',
+    'Cannot view penalties',
+    'Cannot take any action (pay, edit, report, etc.)',
+  ],
+} as const;

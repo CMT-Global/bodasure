@@ -168,7 +168,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profileError) {
         console.error('Error fetching profile:', profileError);
       } else if (profileData) {
-        setProfile(profileData as Profile);
+        const p = profileData as Profile;
+        setProfile(p);
+        // Immediate access revocation on suspension: sign out and redirect
+        if (p && p.is_active === false) {
+          await supabase.auth.signOut();
+          setProfile(null);
+          setRoles([]);
+          setIsLoadingRoles(false);
+          setRolesLoaded(false);
+          rolesLoadedForUserRef.current = null;
+          if (window.location.pathname.startsWith('/dashboard') || window.location.pathname.startsWith('/super-admin') || window.location.pathname.startsWith('/sacco') || window.location.pathname.startsWith('/rider-owner')) {
+            window.location.href = '/login?suspended=1';
+          }
+          return;
+        }
       }
 
       // Fetch roles

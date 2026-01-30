@@ -31,6 +31,9 @@ export default function Index() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <Button variant="ghost" asChild className="min-h-[44px] text-sm sm:text-base">
+              <Link to="/verify">Verify a rider</Link>
+            </Button>
+            <Button variant="ghost" asChild className="min-h-[44px] text-sm sm:text-base">
               <Link to="/login">Sign in</Link>
             </Button>
             <Button asChild className="glow-primary min-h-[44px] text-sm sm:text-base">

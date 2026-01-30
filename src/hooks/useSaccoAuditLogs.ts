@@ -5,6 +5,7 @@ export interface SaccoAuditLog {
   id: string;
   county_id: string | null;
   user_id: string | null;
+  actor_role: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -17,6 +18,7 @@ export interface SaccoAuditLog {
     full_name: string | null;
     email: string;
   } | null;
+  /** @deprecated Use actor_role (every action logged with User, Role, County, Timestamp) */
   role?: string | null;
 }
 
@@ -129,7 +131,7 @@ export function useSaccoAuditLogs(
       return filteredLogs.map(log => ({
         ...log,
         user: log.user_id ? profilesMap.get(log.user_id) || null : null,
-        role: log.user_id ? rolesMap.get(log.user_id) || null : null,
+        role: log.actor_role ?? (log.user_id ? rolesMap.get(log.user_id) ?? null : null),
       })) as SaccoAuditLog[];
     },
     enabled: !!countyId,

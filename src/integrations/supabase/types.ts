@@ -17,6 +17,7 @@ export type Database = {
       audit_logs: {
         Row: {
           action: string
+          actor_role: string | null
           county_id: string | null
           created_at: string
           entity_id: string | null
@@ -30,6 +31,7 @@ export type Database = {
         }
         Insert: {
           action: string
+          actor_role?: string | null
           county_id?: string | null
           created_at?: string
           entity_id?: string | null
@@ -43,6 +45,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          actor_role?: string | null
           county_id?: string | null
           created_at?: string
           entity_id?: string | null
