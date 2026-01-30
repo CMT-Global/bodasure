@@ -40,6 +40,7 @@ import SaccoAuditLogsPage from "./pages/sacco/SaccoAuditLogsPage";
 import CommunicationToolsPage from "./pages/sacco/CommunicationToolsPage";
 import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
 import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
+import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
 import ProfileRegistrationPage from "./pages/rider-owner/ProfileRegistrationPage";
 import PermitPaymentsPage from "./pages/rider-owner/PermitPaymentsPage";
 import PenaltiesPaymentsPage from "./pages/rider-owner/PenaltiesPaymentsPage";
@@ -66,6 +67,16 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/verify/:qrCode" element={<PublicVerificationPage />} />
+
+            {/* Super Admin Portal — platform_super_admin and platform_admin only */}
+            <Route
+              path="/super-admin"
+              element={
+                <ProtectedRoute requiredRoles={['platform_super_admin', 'platform_admin']}>
+                  <SuperAdminDashboard />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Protected dashboard routes — platform_super_admin and county_super_admin only */}
             <Route

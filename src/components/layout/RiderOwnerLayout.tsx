@@ -252,6 +252,17 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
 
           {/* Portal Tabs - scroll on small screens to avoid horizontal scroll */}
           <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-4 flex-shrink min-w-0 overflow-x-auto overflow-y-hidden py-1">
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+              <Button
+                variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/super-admin')}
+                className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0 font-semibold"
+              >
+                <span className="hidden sm:inline">Super Admin Portal</span>
+                <span className="sm:hidden">Super</span>
+              </Button>
+            )}
             <Button
               variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
               size="sm"

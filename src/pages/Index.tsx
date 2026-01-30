@@ -5,10 +5,13 @@ import { ArrowRight, Shield, Users, CreditCard, BarChart3, QrCode, Building2 } f
 import { Link } from 'react-router-dom';
 
 export default function Index() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, hasRole } = useAuth();
 
-  // If user is logged in, redirect to dashboard
+  // If user is logged in, redirect: platform_super_admin/platform_admin -> Super Admin Portal, others -> dashboard
   if (!isLoading && user) {
+    if (hasRole('platform_super_admin') || hasRole('platform_admin')) {
+      return <Navigate to="/super-admin" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -39,22 +39,23 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
     );
   }
 
-  // Super admins have access to everything - bypass role checks
-  const isSuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin');
-  
-  if (isSuperAdmin) {
-    return <>{children}</>;
-  }
-
-  // Check required roles if specified
+  // When requiredRoles is specified, enforce them strictly (no bypass) — e.g. Super Admin Portal only for platform_super_admin/platform_admin
   if (requiredRoles && requiredRoles.length > 0) {
-    const hasRequiredRole = requiredRoles.some(role => 
+    const hasRequiredRole = requiredRoles.some(role =>
       roles.some(userRole => userRole.role === role)
     );
 
     if (!hasRequiredRole) {
       return <Navigate to="/unauthorized" replace />;
     }
+    return <>{children}</>;
+  }
+
+  // Super admins have access to everything else - bypass role checks
+  const isSuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin');
+
+  if (isSuperAdmin) {
+    return <>{children}</>;
   }
 
   return <>{children}</>;

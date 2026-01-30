@@ -273,6 +273,17 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
 
           {/* Portal Tabs - touch targets 44px on mobile */}
           <div className="flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4 flex-shrink min-w-0">
+            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+              <Button
+                variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/super-admin')}
+                className="min-h-[44px] min-w-0 px-3 touch-manipulation font-semibold"
+              >
+                <span className="hidden sm:inline">Super Admin Portal</span>
+                <span className="sm:hidden">Super</span>
+              </Button>
+            )}
             <Button
               variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
               size="sm"

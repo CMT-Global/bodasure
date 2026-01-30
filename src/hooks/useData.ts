@@ -1173,13 +1173,11 @@ export interface RecentActivityItem {
   status?: 'success' | 'pending' | 'warning' | 'error';
 }
 
-// Fetch recent activity for dashboard
+// Fetch recent activity for dashboard (countyId undefined = platform-wide for super admin)
 export function useRecentActivity(countyId?: string, limit: number = 10) {
   return useQuery({
     queryKey: ['recent-activity', countyId, limit],
     queryFn: async () => {
-      if (!countyId) return [] as RecentActivityItem[];
-
       const activities: RecentActivityItem[] = [];
       const now = new Date();
 
@@ -1197,12 +1195,13 @@ export function useRecentActivity(countyId?: string, limit: number = 10) {
       };
 
       // Fetch recent registrations
-      const { data: recentRiders } = await supabase
+      let ridersQuery = supabase
         .from('riders')
         .select('id, full_name, id_number, created_at')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false })
         .limit(5);
+      if (countyId) ridersQuery = ridersQuery.eq('county_id', countyId);
+      const { data: recentRiders } = await ridersQuery;
 
       recentRiders?.forEach((rider) => {
         activities.push({
@@ -1216,14 +1215,15 @@ export function useRecentActivity(countyId?: string, limit: number = 10) {
       });
 
       // Fetch recent payments
-      const { data: recentPayments } = await supabase
+      let paymentsQuery = supabase
         .from('payments')
         .select('id, amount, paid_at, rider_id, riders!inner(full_name, id_number)')
-        .eq('county_id', countyId)
         .eq('status', 'completed')
         .not('paid_at', 'is', null)
         .order('paid_at', { ascending: false })
         .limit(5);
+      if (countyId) paymentsQuery = paymentsQuery.eq('county_id', countyId);
+      const { data: recentPayments } = await paymentsQuery;
 
       recentPayments?.forEach((payment: any) => {
         const rider = payment.riders;
@@ -1238,12 +1238,13 @@ export function useRecentActivity(countyId?: string, limit: number = 10) {
       });
 
       // Fetch recent penalties
-      const { data: recentPenalties } = await supabase
+      let penaltiesQuery = supabase
         .from('penalties')
         .select('id, penalty_type, amount, created_at, rider_id, riders!inner(full_name)')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false })
         .limit(5);
+      if (countyId) penaltiesQuery = penaltiesQuery.eq('county_id', countyId);
+      const { data: recentPenalties } = await penaltiesQuery;
 
       recentPenalties?.forEach((penalty: any) => {
         const rider = penalty.riders;
@@ -1260,15 +1261,16 @@ export function useRecentActivity(countyId?: string, limit: number = 10) {
       // Fetch permits expiring soon (next 7 days)
       const sevenDaysFromNow = new Date();
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-      const { data: expiringPermits } = await supabase
+      let expiringQuery = supabase
         .from('permits')
         .select('id, expires_at, status')
-        .eq('county_id', countyId)
         .eq('status', 'active')
         .lte('expires_at', sevenDaysFromNow.toISOString())
         .gte('expires_at', now.toISOString())
         .order('expires_at', { ascending: true })
         .limit(1);
+      if (countyId) expiringQuery = expiringQuery.eq('county_id', countyId);
+      const { data: expiringPermits } = await expiringQuery;
 
       if (expiringPermits && expiringPermits.length > 0) {
         const count = expiringPermits.length;
@@ -1290,7 +1292,7 @@ export function useRecentActivity(countyId?: string, limit: number = 10) {
         })
         .slice(0, limit) as RecentActivityItem[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -1300,25 +1302,23 @@ export interface MonthlyRevenueData {
   amount: number;
 }
 
-// Fetch monthly revenue for chart
+// Fetch monthly revenue for chart (countyId undefined = platform-wide for super admin)
 export function useMonthlyRevenue(countyId?: string, months: number = 6) {
   return useQuery({
     queryKey: ['monthly-revenue', countyId, months],
     queryFn: async () => {
-      if (!countyId) return [] as MonthlyRevenueData[];
-
       const now = new Date();
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
 
-      // Fetch payments for the last N months
-      const { data: payments } = await supabase
+      let paymentsQuery = supabase
         .from('payments')
         .select('amount, paid_at')
-        .eq('county_id', countyId)
         .eq('status', 'completed')
         .gte('paid_at', startDate.toISOString())
         .lte('paid_at', now.toISOString());
+      if (countyId) paymentsQuery = paymentsQuery.eq('county_id', countyId);
+      const { data: payments } = await paymentsQuery;
 
       // Group by month
       const monthMap = new Map<string, number>();
@@ -1357,7 +1357,7 @@ export function useMonthlyRevenue(countyId?: string, months: number = 6) {
 
       return result;
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
