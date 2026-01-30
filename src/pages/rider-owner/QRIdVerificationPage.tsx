@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { RiderOwnerLayout } from '@/components/layout/RiderOwnerLayout';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -48,6 +48,7 @@ function QRIdVerificationContent() {
   const { data, isLoading, error } = useRiderOwnerDashboard(user?.id);
   const qrMobileRef = useRef<HTMLCanvasElement>(null);
   const qrDesktopRef = useRef<HTMLCanvasElement>(null);
+  const [qrFlipped, setQrFlipped] = useState(false);
 
   const rider = data?.rider;
   const displayName = rider?.full_name ?? profile?.full_name ?? 'Rider';
@@ -183,14 +184,40 @@ function QRIdVerificationContent() {
                 </AvatarFallback>
               </Avatar>
               {rider.qr_code ? (
-                <div className="bg-white p-2 rounded-lg border shadow-sm inline-flex">
-                  <QRCodeCanvas
-                    ref={qrMobileRef}
-                    value={verificationUrl}
-                    size={112}
-                    level="M"
-                    includeMargin={false}
-                  />
+                <div
+                  className="cursor-pointer [perspective:320px] w-[136px] h-[136px]"
+                  onClick={() => setQrFlipped((f) => !f)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && setQrFlipped((f) => !f)}
+                  aria-label={qrFlipped ? 'Show QR code' : 'Show hex code'}
+                >
+                  <div
+                    className={cn(
+                      'relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d]',
+                      qrFlipped && '[transform:rotateY(180deg)]'
+                    )}
+                  >
+                    <div className="absolute inset-0 [backface-visibility:hidden] bg-white p-2 rounded-lg border shadow-sm inline-flex items-center justify-center">
+                      <QRCodeCanvas
+                        ref={qrMobileRef}
+                        value={verificationUrl}
+                        size={112}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                    <div
+                      className={cn(
+                        'absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]',
+                        'bg-muted/80 rounded-lg border shadow-sm inline-flex items-center justify-center p-3'
+                      )}
+                    >
+                      <p className="font-mono text-xs break-all text-center text-foreground select-all">
+                        {rider.qr_code}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="h-[112px] w-[112px] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex flex-col items-center justify-center gap-1.5">
@@ -306,17 +333,43 @@ function QRIdVerificationContent() {
               />
             </div>
 
-            {/* QR stub */}
+            {/* QR stub — flip to show hex code */}
             <div className="flex-shrink-0 w-52 flex flex-col items-center justify-center gap-3 py-5 pr-6 bg-card">
               {rider.qr_code ? (
-                <div className="bg-white p-2 rounded-lg border shadow-sm inline-flex">
-                  <QRCodeCanvas
-                    ref={qrDesktopRef}
-                    value={verificationUrl}
-                    size={120}
-                    level="M"
-                    includeMargin={false}
-                  />
+                <div
+                  className="cursor-pointer [perspective:400px] w-[136px] h-[136px]"
+                  onClick={() => setQrFlipped((f) => !f)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && setQrFlipped((f) => !f)}
+                  aria-label={qrFlipped ? 'Show QR code' : 'Show hex code'}
+                >
+                  <div
+                    className={cn(
+                      'relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d]',
+                      qrFlipped && '[transform:rotateY(180deg)]'
+                    )}
+                  >
+                    <div className="absolute inset-0 [backface-visibility:hidden] bg-white p-2 rounded-lg border shadow-sm inline-flex items-center justify-center">
+                      <QRCodeCanvas
+                        ref={qrDesktopRef}
+                        value={verificationUrl}
+                        size={120}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                    <div
+                      className={cn(
+                        'absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]',
+                        'bg-muted/80 rounded-lg border shadow-sm inline-flex items-center justify-center p-3'
+                      )}
+                    >
+                      <p className="font-mono text-xs break-all text-center text-foreground select-all">
+                        {rider.qr_code}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="h-[120px] w-[120px] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex flex-col items-center justify-center gap-1.5">
@@ -327,7 +380,7 @@ function QRIdVerificationContent() {
                 </div>
               )}
               <p className="text-[10px] text-muted-foreground uppercase tracking-[0.15em] font-medium">
-                Scan to verify
+                {qrFlipped ? 'Click to show QR' : 'Scan to verify'}
               </p>
             </div>
           </div>

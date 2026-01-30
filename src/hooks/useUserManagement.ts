@@ -57,34 +57,27 @@ export function useCountyUsers(countyId?: string) {
       if (profilesError) throw profilesError;
       if (!profiles || profiles.length === 0) return [];
 
-      // Fetch roles for all users (include county roles and platform-level roles where county_id is null)
+      // Fetch roles for all users; RLS will filter (county admins see county roles, platform admins see all)
       const userIds = profiles.map(p => p.id);
-      let rolesQuery = supabase
+      const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('id, user_id, role, county_id, granted_at')
         .in('user_id', userIds);
-
-      if (countyId) {
-        // Include both county-specific roles and platform roles (county_id IS NULL)
-        rolesQuery = rolesQuery.or(`county_id.eq.${countyId},county_id.is.null`);
-      }
-
-      const { data: roles, error: rolesError } = await rolesQuery;
 
       if (rolesError) throw rolesError;
 
       // Group roles by user_id
       const rolesByUser = new Map<string, typeof roles>();
-      (roles || []).forEach(role => {
-        const existing = rolesByUser.get(role.user_id) || [];
+      (roles ?? []).forEach(role => {
+        const existing = rolesByUser.get(role.user_id) ?? [];
         existing.push(role);
         rolesByUser.set(role.user_id, existing);
       });
 
-      // Combine profiles with roles
+      // Combine profiles with roles (ensure roles is always an array)
       return profiles.map(profile => ({
         ...profile,
-        roles: rolesByUser.get(profile.id) || [],
+        roles: rolesByUser.get(profile.id) ?? [],
       })) as CountyUser[];
     },
     enabled: true,

@@ -51,8 +51,10 @@ import {
   UserCog,
   IdCard,
   Hash,
+  QrCode,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 function InfoRow({
@@ -173,6 +175,28 @@ function ProfileView({ data }: { data: RiderOwnerProfileData }) {
           <InfoRow icon={IdCard} label="ID number" value={rider?.id_number ?? undefined} />
           <InfoRow icon={MapPin} label="County" value={countyName ?? undefined} />
           <InfoRow icon={Building2} label="Sacco / Stage" value={saccoStage ?? undefined} />
+          {rider?.qr_code && (
+            <div className="py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <QrCode className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    QR ID
+                  </p>
+                  <p className="mt-0.5 font-mono font-medium text-foreground truncate">
+                    {rider.qr_code}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" asChild className="shrink-0">
+                <Link to="/rider-owner/qr-id">
+                  View &amp; Download QR
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

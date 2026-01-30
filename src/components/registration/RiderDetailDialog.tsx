@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Separator } from '@/components/ui/separator';
 import { Phone, Mail, MapPin, Calendar, CreditCard, QrCode, Bike, Building2, MapPin as MapPinIcon } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { format } from 'date-fns';
 import { RegistrationHistory } from './RegistrationHistory';
 import { RiderStatusActions } from '@/components/riders/RiderStatusActions';
@@ -203,9 +204,13 @@ export function RiderDetailDialog({
               <>
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-muted-foreground">QR Code</h4>
-                  <div className="flex items-center gap-3 rounded-lg border border-border p-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                      <QrCode className="h-6 w-6 text-primary" />
+                  <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border p-4">
+                    <div className="bg-white p-2 rounded-lg border shadow-sm">
+                      <QRCodeCanvas
+                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/verify/${encodeURIComponent(rider.qr_code)}`}
+                        size={80}
+                        level="M"
+                      />
                     </div>
                     <div>
                       <p className="font-mono font-medium">{rider.qr_code}</p>

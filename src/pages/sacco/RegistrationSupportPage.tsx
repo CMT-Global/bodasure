@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { generateRiderQRCode } from '@/lib/qrCode';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useSaccos, useStages, RiderWithDetails } from '@/hooks/useData';
@@ -276,6 +277,7 @@ export default function RegistrationSupportPage() {
         license_expiry: values.license_expiry || null,
         sacco_id: values.sacco_id,
         stage_id: values.stage_id || null,
+        qr_code: generateRiderQRCode(),
       };
 
       const { error } = await supabase.from('riders').insert([payload]);

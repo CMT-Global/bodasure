@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { generateRiderQRCode } from '@/lib/qrCode';
 import {
   Dialog,
   DialogContent,
@@ -120,6 +121,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
         sacco_id: values.sacco_id === 'none' ? null : values.sacco_id || null,
         stage_id: values.stage_id === 'none' ? null : values.stage_id || null,
         owner_id: values.owner_id === 'none' ? null : values.owner_id || null,
+        ...(isEditing ? {} : { qr_code: generateRiderQRCode() }),
       };
 
       if (isEditing && rider) {

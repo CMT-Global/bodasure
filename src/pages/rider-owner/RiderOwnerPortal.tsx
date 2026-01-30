@@ -11,7 +11,7 @@ import { PaymentHistoryDialog } from '@/components/payments/PaymentHistoryDialog
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { QuickActionCard } from '@/components/dashboard/QuickActionCard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,6 @@ import {
   Bike,
   CreditCard,
   AlertCircle,
-  Calendar,
   QrCode,
   Receipt,
   HelpCircle,
@@ -34,6 +33,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO, isAfter, addDays } from 'date-fns';
 import { toast } from 'sonner';
+import { QRCodeCanvas } from 'qrcode.react';
 import { cn } from '@/lib/utils';
 
 type PermitDisplayStatus = 'active' | 'expired' | 'expiring_soon' | 'pending' | 'none';
@@ -70,6 +70,15 @@ function RiderOwnerDashboardContent() {
   const permitExpiry = latestPermit?.expires_at
     ? format(parseISO(latestPermit.expires_at), 'dd MMM yyyy')
     : null;
+  const permitDaysLeft =
+    latestPermit?.expires_at && permitStatus === 'active'
+      ? Math.max(
+          0,
+          Math.ceil(
+            (parseISO(latestPermit.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+          )
+        )
+      : null;
   const outstandingTotal = data?.outstandingPenaltiesTotal ?? 0;
   const lastPaymentDate = data?.lastPayment?.paid_at
     ? format(parseISO(data.lastPayment.paid_at), 'dd MMM yyyy')
@@ -217,148 +226,193 @@ function RiderOwnerDashboardContent() {
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-full min-w-0">
-      {/* Rider name + photo */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-border">
-              <AvatarImage src={displayPhoto} alt={displayName} />
-              <AvatarFallback className="text-lg bg-primary/10 text-primary">
-                {getInitials(displayName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-bold truncate">{displayName}</h1>
-              {plateNumbers.length > 0 && (
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {plateNumbers.join(', ')}
-                </p>
-              )}
-              {(saccoName || stageName) && (
-                <p className="text-sm text-muted-foreground">
-                  {[saccoName, stageName].filter(Boolean).join(' · ')}
-                </p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Permit status */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium">Permit status</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Status</span>
-            <Badge
-              variant={
-                permitStatus === 'active'
-                  ? 'default'
-                  : permitStatus === 'expiring_soon'
-                    ? 'secondary'
-                    : permitStatus === 'expired'
-                      ? 'destructive'
-                      : 'outline'
-              }
-              className={cn(
-                permitStatus === 'expiring_soon' &&
-                  'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
-              )}
-            >
-              {permitStatus === 'active'
-                ? 'Active'
-                : permitStatus === 'expiring_soon'
-                  ? 'Expiring soon'
-                  : permitStatus === 'expired'
-                    ? 'Expired'
-                    : permitStatus === 'pending'
-                      ? 'Pending'
-                      : '—'}
-            </Badge>
-          </div>
-          {permitExpiry && (
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <Calendar className="h-4 w-4" />
-                Expiry date
-              </span>
-              <span className="font-medium">{permitExpiry}</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Outstanding penalties & last payment */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium">Payments</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">Outstanding penalties</span>
-            <span className={cn('font-medium', outstandingTotal > 0 && 'text-destructive')}>
-              {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(
-                outstandingTotal
-              )}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">Last payment</span>
-            <span className="font-medium">{lastPaymentDate ?? '—'}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick actions - card grid matching county portal dashboard */}
-      <div className="space-y-2">
-        <h2 className="text-xl sm:text-2xl font-bold px-1">Quick actions</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          <QuickActionCard
-            title="Compliance Status"
-            description="Check your compliance"
-            icon={<Shield className="h-5 w-5 sm:h-6 sm:w-6" />}
-            statusColor="green"
-            onClick={() => navigate('/rider-owner/compliance-status')}
-          />
-          <QuickActionCard
-            title="Pay Permit"
-            description="Renew or pay for permit"
-            icon={<CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />}
-            statusColor="default"
-            onClick={() => navigate('/rider-owner/permit-payments')}
-          />
-          <QuickActionCard
-            title="Pay Penalty"
-            description="Settle outstanding penalties"
-            icon={<CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />}
-            statusColor={outstandingTotal > 0 ? 'amber' : 'green'}
-            onClick={() => navigate('/rider-owner/penalties-payments')}
-          />
-          <QuickActionCard
-            title="View My QR ID"
-            description="Show at checkpoints"
-            icon={<QrCode className="h-5 w-5 sm:h-6 sm:w-6" />}
-            statusColor="green"
-            onClick={() => setQrOpen(true)}
-          />
-          <QuickActionCard
-            title="View Receipts / Payments"
-            description="Payment history"
-            icon={<Receipt className="h-5 w-5 sm:h-6 sm:w-6" />}
-            statusColor="green"
-            onClick={() => setReceiptsOpen(true)}
-          />
-          <QuickActionCard
-            title="Support / Help"
-            description="Get assistance"
-            icon={<HelpCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
-            statusColor="green"
-            onClick={() => navigate('/rider-owner/support-help')}
-          />
-        </div>
+      {/* Quick actions – 4 cards in a row (rider-owner style) */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+        <QuickActionCard
+          title="Compliance Status"
+          description="Check your compliance"
+          icon={<Shield className="h-5 w-5 sm:h-6 sm:w-6" />}
+          statusColor="orange"
+          onClick={() => navigate('/rider-owner/compliance-status')}
+        />
+        <QuickActionCard
+          title="Pay Penalty"
+          description="Settle outstanding penalties"
+          icon={<CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />}
+          statusColor={outstandingTotal > 0 ? 'amber' : 'green'}
+          onClick={() => navigate('/rider-owner/penalties-payments')}
+        />
+        <QuickActionCard
+          title="View My QR ID"
+          description="Show at checkpoints"
+          icon={<QrCode className="h-5 w-5 sm:h-6 sm:w-6" />}
+          statusColor="green"
+          onClick={() => navigate('/rider-owner/qr-id')}
+        />
+        <QuickActionCard
+          title="Support / Help"
+          description="Get assistance"
+          icon={<HelpCircle className="h-5 w-5 sm:h-6 sm:w-6" />}
+          statusColor="green"
+          onClick={() => navigate('/rider-owner/support-help')}
+        />
       </div>
+
+      {/* Permit status + Payments – two cards side by side (rider-owner style) */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Permit status card – orange border, orange CTA */}
+        <Card className="overflow-hidden rounded-xl border border-gray-600/50 dark:border-gray-500/40 bg-card transition-all hover:border-orange-500">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2 flex-1 min-w-0">
+                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-orange-500" />
+                  Permit status
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'font-semibold rounded-full bg-muted text-muted-foreground border-0',
+                      permitStatus === 'active' && 'bg-green-500/15 text-green-600 dark:text-green-400',
+                      permitStatus === 'expiring_soon' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+                      permitStatus === 'expired' && 'bg-red-500/15 text-red-600 dark:text-red-400'
+                    )}
+                  >
+                    {permitStatus === 'active'
+                      ? 'Active'
+                      : permitStatus === 'expiring_soon'
+                        ? 'Expiring soon'
+                        : permitStatus === 'expired'
+                          ? 'Expired'
+                          : permitStatus === 'pending'
+                            ? 'Pending'
+                            : 'Not set'}
+                  </Badge>
+                  {permitDaysLeft != null && permitStatus === 'active' && (
+                    <span className="text-xs text-muted-foreground">
+                      {permitDaysLeft} days left
+                    </span>
+                  )}
+                </div>
+                {(permitStatus === 'expired' || permitStatus === 'expiring_soon' || permitStatus === 'none') && (
+                  <Button
+                    size="sm"
+                    className="mt-3 gap-2 bg-orange-500 hover:bg-orange-600 text-white border-0"
+                    onClick={() => navigate('/rider-owner/permit-payments')}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {permitStatus === 'expired' ? 'Renew permit' : 'Pay permit'}
+                  </Button>
+                )}
+              </div>
+              <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl flex-shrink-0 bg-orange-500/10 text-orange-500">
+                <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payments card – dark border, Ksh amount, View receipts only */}
+        <Card className="overflow-hidden rounded-xl border border-gray-600/50 dark:border-gray-500/40 bg-card transition-all hover:border-orange-500">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2 flex-1 min-w-0">
+                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-orange-500" />
+                  Payments
+                </p>
+                <p className={cn(
+                  'text-xl sm:text-2xl font-bold text-foreground',
+                  outstandingTotal > 0 && 'text-amber-600 dark:text-amber-400'
+                )}>
+                  {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(
+                    outstandingTotal
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Outstanding penalties
+                </p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="mt-3 gap-2 bg-muted hover:bg-muted/80 text-foreground"
+                  onClick={() => setReceiptsOpen(true)}
+                >
+                  <Receipt className="h-4 w-4" />
+                  View receipts
+                </Button>
+              </div>
+              <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl flex-shrink-0 bg-green-500/10 text-green-600 dark:text-green-400">
+                <CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Profile hero card – clean, prominent identity block */}
+      <Card className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm">
+        <div className="flex">
+          {/* Orange accent strip */}
+          <div className="w-1 sm:w-1.5 flex-shrink-0 bg-gradient-to-b from-orange-500 to-orange-600 rounded-l-2xl" />
+          <CardContent className="p-6 sm:p-8 flex-1">
+            <div className="flex items-center gap-5 sm:gap-6">
+              <div className="relative flex-shrink-0">
+                <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-[3px] border-background shadow-lg ring-1 ring-black/5 dark:ring-white/5">
+                  <AvatarImage src={displayPhoto} alt={displayName} className="object-cover" />
+                  <AvatarFallback className="text-xl font-bold bg-muted text-foreground rounded-full">
+                    {getInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                {permitStatus === 'active' && (
+                  <span
+                    className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-green-500 border-[3px] border-card shadow"
+                    title="Permit active"
+                    aria-hidden
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-3">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate leading-tight">
+                  {displayName}
+                </h1>
+                {(saccoName || stageName) && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Bike className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                    <span className="text-sm truncate">
+                      {[saccoName, stageName].filter(Boolean).join(' · ')}
+                    </span>
+                  </div>
+                )}
+                {plateNumbers.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {plateNumbers.map((plate) => (
+                      <span
+                        key={plate}
+                        className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 font-mono text-xs font-medium text-foreground"
+                      >
+                        {plate}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {data.rider.qr_code && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 mt-1"
+                    onClick={() => setQrOpen(true)}
+                  >
+                    <QrCode className="h-4 w-4" />
+                    View My QR ID
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </div>
+      </Card>
 
       <PaymentHistoryDialog
         open={receiptsOpen}
@@ -380,7 +434,15 @@ function RiderOwnerDashboardContent() {
             </DialogDescription>
           </DialogHeader>
           {data.rider.qr_code ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              <div className="flex justify-center rounded-lg bg-muted p-4">
+                <QRCodeCanvas
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/verify/${encodeURIComponent(data.rider.qr_code)}`}
+                  size={180}
+                  level="M"
+                  includeMargin
+                />
+              </div>
               <div className="rounded-lg bg-muted p-4 font-mono text-center text-sm break-all select-all">
                 {data.rider.qr_code}
               </div>
@@ -404,13 +466,20 @@ function RiderOwnerDashboardContent() {
 }
 
 export default function RiderOwnerPortal() {
+  const { profile } = useAuth();
+  const firstName = profile?.full_name?.split(' ')[0] ?? '';
+
   return (
     <RiderOwnerLayout>
       <div className="space-y-4 sm:space-y-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Your permit, penalties, and quick actions.
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground text-sm sm:text-base mt-1">
+            {firstName ? (
+              <>Welcome back, <span className="text-foreground font-medium">{firstName}</span>. Your permit, payments, and quick actions.</>
+            ) : (
+              'Your permit, payments, and quick actions.'
+            )}
           </p>
         </div>
         <RiderOwnerDashboardContent />
