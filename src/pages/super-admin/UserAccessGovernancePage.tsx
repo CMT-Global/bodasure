@@ -101,6 +101,7 @@ export default function UserAccessGovernancePage() {
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
   const [isLoginHistoryOpen, setIsLoginHistoryOpen] = useState(false);
   const [loginHistoryUserId, setLoginHistoryUserId] = useState<string | null>(null);
+  const [loginHistoryUser, setLoginHistoryUser] = useState<CountyUser | null>(null);
 
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
 
@@ -163,6 +164,7 @@ export default function UserAccessGovernancePage() {
 
   const openLoginHistory = (user: CountyUser) => {
     setLoginHistoryUserId(user.id);
+    setLoginHistoryUser(user);
     setIsLoginHistoryOpen(true);
   };
 
@@ -525,17 +527,38 @@ export default function UserAccessGovernancePage() {
       </AlertDialog>
 
       {/* Login history dialog */}
-      <Dialog open={isLoginHistoryOpen} onOpenChange={open => setIsLoginHistoryOpen(open)}>
+      <Dialog
+        open={isLoginHistoryOpen}
+        onOpenChange={open => {
+          setIsLoginHistoryOpen(open);
+          if (!open) {
+            setLoginHistoryUserId(null);
+            setLoginHistoryUser(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Login & activity history</DialogTitle>
+            <DialogTitle>
+              Login & activity history
+              {loginHistoryUser && (
+                <span className="font-normal text-muted-foreground text-base block mt-1">
+                  {loginHistoryUser.full_name || loginHistoryUser.email}
+                </span>
+              )}
+            </DialogTitle>
             <DialogDescription>
-              Recent audit events for this user. Includes login-related and other actions.
+              Recent sign-ins and audit events for this user. Empty if no events have been recorded yet.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto rounded-md border">
+          <div className="flex-1 overflow-auto rounded-md border min-h-[120px]">
             {loginHistoryForUser.length === 0 ? (
-              <p className="p-4 text-muted-foreground">No activity logs for this user.</p>
+              <div className="p-6 text-center text-muted-foreground space-y-2">
+                <p className="font-medium">No login or activity events recorded</p>
+                <p className="text-sm">
+                  Sign-in and other actions will appear here once they are logged. New logins are recorded automatically.
+                </p>
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 sticky top-0">

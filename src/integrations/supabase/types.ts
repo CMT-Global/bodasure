@@ -852,6 +852,36 @@ export type Database = {
         }
         Relationships: []
       }
+      system_role_templates: {
+        Row: {
+          id: string
+          role_key: string
+          name: string
+          category: string
+          locked: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          role_key: string
+          name: string
+          category: string
+          locked?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          role_key?: string
+          name?: string
+          category?: string
+          locked?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

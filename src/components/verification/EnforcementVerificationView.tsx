@@ -16,9 +16,13 @@ import {
   Bike,
   FileText,
   Loader2,
+  QrCode,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { QRCodeCanvas } from 'qrcode.react';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 
 interface EnforcementVerificationViewProps {
   rider: RiderWithDetails | null;
@@ -29,6 +33,7 @@ export function EnforcementVerificationView({
   rider,
   countyId,
 }: EnforcementVerificationViewProps) {
+  const [qrFlipped, setQrFlipped] = useState(false);
   const { data: penalties = [], isLoading: penaltiesLoading } = useRiderPenalties(
     rider?.id || '',
     countyId

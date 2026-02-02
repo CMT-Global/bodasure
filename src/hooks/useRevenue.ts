@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+/** Normalize date strings for Supabase: include full start/end of day for proper filtering */
+function toDateRangeBounds(startDate?: string, endDate?: string) {
+  return {
+    start: startDate ? `${startDate}T00:00:00.000Z` : undefined,
+    end: endDate ? `${endDate}T23:59:59.999Z` : undefined,
+  };
+}
+
 export interface RevenueByDateRange {
   date: string;
   permitRevenue: number;
@@ -187,6 +195,7 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
       });
 
       // Get permit payments
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       let permitPaymentsQuery = supabase
         .from('payments')
         .select('amount, rider_id, paid_at')
@@ -194,8 +203,8 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
         .eq('status', 'completed')
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
 
-      if (startDate) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startDate);
-      if (endDate) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endDate);
+      if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
+      if (endBound) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endBound);
 
       const { data: permitPayments } = await permitPaymentsQuery;
 
@@ -299,6 +308,7 @@ export function useRevenueByStage(countyId?: string, startDate?: string, endDate
       });
 
       // Get payments
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       let permitPaymentsQuery = supabase
         .from('payments')
         .select('amount, rider_id, paid_at')
@@ -306,8 +316,8 @@ export function useRevenueByStage(countyId?: string, startDate?: string, endDate
         .eq('status', 'completed')
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
 
-      if (startDate) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startDate);
-      if (endDate) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endDate);
+      if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
+      if (endBound) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endBound);
 
       const { data: permitPayments } = await permitPaymentsQuery;
 
@@ -398,8 +408,9 @@ export function useRevenueByPermitType(countyId?: string, startDate?: string, en
         .eq('county_id', countyId)
         .eq('status', 'completed');
 
-      if (startDate) paymentsQuery = paymentsQuery.gte('paid_at', startDate);
-      if (endDate) paymentsQuery = paymentsQuery.lte('paid_at', endDate);
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
+      if (endBound) paymentsQuery = paymentsQuery.lte('paid_at', endBound);
 
       const { data: payments } = await paymentsQuery;
       if (!payments) return [];
@@ -440,8 +451,9 @@ export function usePenaltyRevenueBreakdown(countyId?: string, startDate?: string
         .select('penalty_type, amount, is_paid, paid_at')
         .eq('county_id', countyId);
 
-      if (startDate) penaltiesQuery = penaltiesQuery.gte('created_at', startDate);
-      if (endDate) penaltiesQuery = penaltiesQuery.lte('created_at', endDate);
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      if (startBound) penaltiesQuery = penaltiesQuery.gte('created_at', startBound);
+      if (endBound) penaltiesQuery = penaltiesQuery.lte('created_at', endBound);
 
       const { data: penalties } = await penaltiesQuery;
       if (!penalties) return [];
@@ -503,11 +515,12 @@ export function useRevenueShares(countyId?: string, saccoId?: string, startDate?
         sharesQuery = sharesQuery.eq('sacco_id', saccoId);
       }
 
-      if (startDate) {
-        sharesQuery = sharesQuery.gte('created_at', startDate);
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      if (startBound) {
+        sharesQuery = sharesQuery.gte('created_at', startBound);
       }
-      if (endDate) {
-        sharesQuery = sharesQuery.lte('created_at', endDate);
+      if (endBound) {
+        sharesQuery = sharesQuery.lte('created_at', endBound);
       }
 
       const { data: shares, error } = await sharesQuery;
@@ -544,12 +557,13 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
       if (countiesError) throw countiesError;
       if (!counties?.length) return [] as RevenueByCounty[];
 
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       let paymentsQuery = supabase
         .from('payments')
         .select('county_id, amount, paid_at')
         .eq('status', 'completed');
-      if (startDate) paymentsQuery = paymentsQuery.gte('paid_at', startDate);
-      if (endDate) paymentsQuery = paymentsQuery.lte('paid_at', endDate);
+      if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
+      if (endBound) paymentsQuery = paymentsQuery.lte('paid_at', endBound);
       const { data: payments, error: payError } = await paymentsQuery;
       if (payError) throw payError;
 
@@ -615,11 +629,12 @@ export function useRevenueSharesBySacco(countyId?: string, startDate?: string, e
         `)
         .eq('county_id', countyId);
 
-      if (startDate) {
-        sharesQuery = sharesQuery.gte('created_at', startDate);
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      if (startBound) {
+        sharesQuery = sharesQuery.gte('created_at', startBound);
       }
-      if (endDate) {
-        sharesQuery = sharesQuery.lte('created_at', endDate);
+      if (endBound) {
+        sharesQuery = sharesQuery.lte('created_at', endBound);
       }
 
       const { data: shares, error } = await sharesQuery;
