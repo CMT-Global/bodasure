@@ -26,7 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Map, Loader2, Save, History, FileCheck, Scale, ShieldCheck } from 'lucide-react';
+import { Map, Loader2, Save, History, FileCheck, Scale, ShieldCheck, ChevronRight, ChevronDown } from 'lucide-react';
 export default function CountyConfigurationPage() {
   const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
   const { data: counties = [], isLoading: countiesLoading } = useAllCounties();
@@ -57,6 +57,19 @@ export default function CountyConfigurationPage() {
 
   const updateMutation = useUpdateCountyConfig();
   const { data: history = [] } = useCountyConfigHistory(selectedCountyId);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+
+  const HISTORY_PAGE_SIZE = 12;
+  const historyTotalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
+  const paginatedHistory = history.slice(
+    (historyPage - 1) * HISTORY_PAGE_SIZE,
+    historyPage * HISTORY_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    if (historyPage > historyTotalPages) setHistoryPage(1);
+  }, [history.length, historyPage, historyTotalPages]);
 
   const handleSavePermit = () => {
     if (!selectedCountyId) return;
@@ -547,19 +560,73 @@ export default function CountyConfigurationPage() {
                   {history.length === 0 ? (
                     <p className="text-muted-foreground">No configuration changes recorded yet.</p>
                   ) : (
-                    <ul className="space-y-3">
-                      {history.map(log => (
-                        <li key={log.id} className="rounded-lg border p-3 text-sm">
-                          <div className="flex items-center justify-between gap-2 text-muted-foreground">
-                            <span>{new Date(log.created_at).toLocaleString()}</span>
-                            <span className="font-medium text-foreground">{log.action}</span>
-                          </div>
-                          <pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-xs">
-                            {JSON.stringify(log.new_values, null, 2)}
-                          </pre>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="space-y-3">
+                        {paginatedHistory.map(log => {
+                          const isExpanded = expandedHistoryId === log.id;
+                          return (
+                            <li key={log.id} className="rounded-lg border text-sm">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedHistoryId(prev => (prev === log.id ? null : log.id));
+                                }}
+                                className="flex w-full items-center justify-between gap-2 p-3 text-left hover:bg-muted/50 transition-colors rounded-lg"
+                              >
+                                <span className="text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                                <span className="font-medium text-foreground">{log.action}</span>
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                )}
+                              </button>
+                              {isExpanded && (
+                                <div className="border-t px-3 pb-3 pt-2">
+                                  <div className="max-h-[280px] overflow-y-auto overflow-x-auto rounded bg-muted">
+                                    <pre className="min-w-min p-2 text-xs">
+                                      {JSON.stringify(log.new_values, null, 2)}
+                                    </pre>
+                                  </div>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+                        <p className="text-sm text-muted-foreground">
+                          Showing {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of {history.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={historyPage <= 1}
+                            onClick={() => {
+                              setHistoryPage(p => p - 1);
+                              setExpandedHistoryId(null);
+                            }}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {historyPage} of {historyTotalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={historyPage >= historyTotalPages}
+                            onClick={() => {
+                              setHistoryPage(p => p + 1);
+                              setExpandedHistoryId(null);
+                            }}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
