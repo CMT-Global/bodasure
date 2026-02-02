@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SACCO_PORTAL_ROLE_KEYS } from '@/config/portalRoles';
 
 export interface SaccoOfficial {
   id: string;
@@ -13,6 +14,8 @@ export interface SaccoOfficial {
     id: string;
     role: string;
     county_id: string | null;
+    sacco_id?: string | null;
+    welfare_group_id?: string | null;
     granted_at: string;
     granted_by: string | null;
   }[];
@@ -38,20 +41,27 @@ export interface RevenueShare {
   } | null;
 }
 
-// Fetch sacco officials (users with sacco roles in the county)
+const SACCO_OFFICIAL_ROLES = [...SACCO_PORTAL_ROLE_KEYS, 'welfare_admin', 'welfare_officer'] as const;
+
+// Fetch sacco officials (users with sacco roles in the county; when saccoId provided, only officials of that sacco)
 export function useSaccoOfficials(countyId?: string, saccoId?: string) {
   return useQuery({
     queryKey: ['sacco-officials', countyId, saccoId],
     queryFn: async () => {
       if (!countyId) return [];
 
-      // Fetch users with sacco roles in this county
-      const { data: roles, error: rolesError } = await supabase
+      let roleQuery = supabase
         .from('user_roles')
-        .select('id, user_id, role, county_id, granted_at, granted_by')
+        .select('id, user_id, role, county_id, sacco_id, welfare_group_id, granted_at, granted_by')
         .eq('county_id', countyId)
-        .in('role', ['sacco_admin', 'sacco_officer', 'welfare_admin', 'welfare_officer'])
+        .in('role', SACCO_OFFICIAL_ROLES as unknown as string[])
         .order('granted_at', { ascending: false });
+
+      if (saccoId) {
+        roleQuery = roleQuery.eq('sacco_id', saccoId);
+      }
+
+      const { data: roles, error: rolesError } = await roleQuery;
 
       if (rolesError) throw rolesError;
       if (!roles || roles.length === 0) return [];
@@ -151,7 +161,7 @@ export function useUpdateSaccoProfile() {
   });
 }
 
-// Assign role to user for sacco
+// Assign role to user for sacco or welfare (entity-scoped when saccoId or welfareGroupId provided)
 export function useAssignSaccoRole() {
   const queryClient = useQueryClient();
 
@@ -160,27 +170,33 @@ export function useAssignSaccoRole() {
       userId,
       role,
       countyId,
+      saccoId,
+      welfareGroupId,
     }: {
       userId: string;
-      role: 'sacco_admin' | 'sacco_officer' | 'welfare_admin' | 'welfare_officer';
+      role: string;
       countyId: string;
+      saccoId?: string;
+      welfareGroupId?: string;
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
       const grantedBy = session?.user?.id;
 
-      const { error } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: userId,
-          role,
-          county_id: countyId,
-          granted_by: grantedBy,
-        });
+      const insert: Record<string, unknown> = {
+        user_id: userId,
+        role,
+        county_id: countyId,
+        granted_by: grantedBy,
+      };
+      if (saccoId) insert.sacco_id = saccoId;
+      if (welfareGroupId) insert.welfare_group_id = welfareGroupId;
+
+      const { error } = await supabase.from('user_roles').insert(insert);
 
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sacco-officials', variables.countyId] });
+      queryClient.invalidateQueries({ queryKey: ['sacco-officials', variables.countyId, variables.saccoId] });
       toast.success('Role assigned successfully');
     },
     onError: (error: Error) => {
@@ -189,7 +205,7 @@ export function useAssignSaccoRole() {
   });
 }
 
-// Remove role from user
+// Remove role from user (match sacco_id / welfare_group_id when provided for entity-scoped rows)
 export function useRemoveSaccoRole() {
   const queryClient = useQueryClient();
 
@@ -198,22 +214,31 @@ export function useRemoveSaccoRole() {
       userId,
       role,
       countyId,
+      saccoId,
+      welfareGroupId,
     }: {
       userId: string;
       role: string;
       countyId: string;
+      saccoId?: string | null;
+      welfareGroupId?: string | null;
     }) => {
-      const { error } = await supabase
+      let deleteQuery = supabase
         .from('user_roles')
         .delete()
         .eq('user_id', userId)
         .eq('role', role)
         .eq('county_id', countyId);
+      if (saccoId != null) deleteQuery = deleteQuery.eq('sacco_id', saccoId);
+      else deleteQuery = deleteQuery.is('sacco_id', null);
+      if (welfareGroupId != null) deleteQuery = deleteQuery.eq('welfare_group_id', welfareGroupId);
+      else deleteQuery = deleteQuery.is('welfare_group_id', null);
 
+      const { error } = await deleteQuery;
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sacco-officials', variables.countyId] });
+      queryClient.invalidateQueries({ queryKey: ['sacco-officials', variables.countyId, variables.saccoId] });
       toast.success('Role removed successfully');
     },
     onError: (error: Error) => {

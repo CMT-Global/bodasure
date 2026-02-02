@@ -100,8 +100,8 @@ export default function SaccoProfileSettingsPage() {
 
   const [showAssignRoleDialog, setShowAssignRoleDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<'sacco_admin' | 'sacco_officer' | 'welfare_admin' | 'welfare_officer'>('sacco_officer');
-  const [roleToRemove, setRoleToRemove] = useState<{ userId: string; role: string } | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>('sacco_officer');
+  const [roleToRemove, setRoleToRemove] = useState<{ userId: string; role: string; saccoId?: string | null; welfareGroupId?: string | null } | null>(null);
 
   // Update form when sacco data loads
   useEffect(() => {
@@ -138,6 +138,7 @@ export default function SaccoProfileSettingsPage() {
         userId: selectedUser,
         role: selectedRole,
         countyId,
+        saccoId: saccoId ?? undefined,
       },
       {
         onSuccess: () => {
@@ -155,6 +156,8 @@ export default function SaccoProfileSettingsPage() {
         userId: roleToRemove.userId,
         role: roleToRemove.role,
         countyId,
+        saccoId: roleToRemove.saccoId ?? saccoId ?? undefined,
+        welfareGroupId: roleToRemove.welfareGroupId,
       },
       {
         onSuccess: () => {
@@ -388,8 +391,13 @@ export default function SaccoProfileSettingsPage() {
                               <SelectContent>
                                 <SelectItem value="sacco_admin">Sacco Admin</SelectItem>
                                 <SelectItem value="sacco_officer">Sacco Officer</SelectItem>
-                                <SelectItem value="welfare_admin">Welfare Admin</SelectItem>
-                                <SelectItem value="welfare_officer">Welfare Officer</SelectItem>
+                                <SelectItem value="chairman">Chairman</SelectItem>
+                                <SelectItem value="vice_chairman">Vice Chairman</SelectItem>
+                                <SelectItem value="secretary">Secretary</SelectItem>
+                                <SelectItem value="vice_secretary">Vice Secretary</SelectItem>
+                                <SelectItem value="treasurer">Treasurer</SelectItem>
+                                <SelectItem value="vice_treasurer">Vice Treasurer</SelectItem>
+                                <SelectItem value="general_official">General Official</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -473,7 +481,7 @@ export default function SaccoProfileSettingsPage() {
                                     key={role.id}
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => setRoleToRemove({ userId: official.user_id, role: role.role })}
+                                    onClick={() => setRoleToRemove({ userId: official.user_id, role: role.role, saccoId: role.sacco_id, welfareGroupId: role.welfare_group_id })}
                                     disabled={removeRole.isPending}
                                     className="min-h-[44px] min-w-[44px] touch-manipulation"
                                   >

@@ -7,6 +7,7 @@ export interface Rider {
   county_id: string;
   owner_id: string | null;
   sacco_id: string | null;
+  welfare_group_id: string | null;
   stage_id: string | null;
   user_id: string | null;
   full_name: string;
@@ -26,6 +27,7 @@ export interface Rider {
   // Joined relations
   owner?: { full_name: string } | null;
   sacco?: { name: string } | null;
+  welfare_group?: { name: string } | null;
   stage?: { name: string } | null;
 }
 
@@ -47,10 +49,32 @@ export interface Sacco {
   non_compliant_count?: number;
 }
 
+/** Welfare Group — first-class entity with profile, officials, members, stages, compliance (parallel to Sacco). */
+export interface WelfareGroup {
+  id: string;
+  county_id: string;
+  name: string;
+  registration_number: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  contact_email: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  settings?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  // Enriched fields
+  member_count?: number;
+  stages_count?: number;
+  compliance_rate?: number;
+  penalties_count?: number;
+  non_compliant_count?: number;
+}
+
 export interface Stage {
   id: string;
   county_id: string;
   sacco_id: string | null;
+  welfare_group_id: string | null;
   name: string;
   location: string | null;
   latitude: number | null;
@@ -59,6 +83,7 @@ export interface Stage {
   capacity: number | null;
   created_at: string;
   sacco?: { name: string } | null;
+  welfare_group?: { name: string } | null;
   // Enriched fields
   member_count?: number;
   compliance_rate?: number;
@@ -138,6 +163,7 @@ export function useRiders(countyId?: string) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .order('created_at', { ascending: false });
@@ -218,6 +244,7 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `;
 
@@ -393,6 +420,7 @@ const riderProfileSelect = `
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name),
           county:counties(name)
         `;
@@ -517,6 +545,7 @@ export function useRidersWithDetails(countyId?: string) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .order('created_at', { ascending: false });
@@ -599,6 +628,7 @@ export function useSaccoMembers(saccoId: string | undefined, countyId: string | 
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .eq('sacco_id', saccoId)
@@ -649,6 +679,69 @@ export function useSaccoMembers(saccoId: string | undefined, countyId: string | 
       });
     },
     enabled: !!saccoId && !!countyId,
+  });
+}
+
+// Fetch welfare group members (riders) with permit and motorbike details
+export function useWelfareGroupMembers(welfareGroupId: string | undefined, countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['welfare-group-members', welfareGroupId, countyId],
+    queryFn: async () => {
+      if (!welfareGroupId || !countyId) return [] as RiderWithDetails[];
+
+      const { data: riders, error } = await supabase
+        .from('riders')
+        .select(`
+          *,
+          owner:owners(full_name),
+          sacco:saccos(name),
+          welfare_group:welfare_groups(name),
+          stage:stages(name)
+        `)
+        .eq('welfare_group_id', welfareGroupId)
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!riders || riders.length === 0) return [] as RiderWithDetails[];
+
+      const riderIds = riders.map((r) => r.id);
+      const { data: motorbikes } = await supabase
+        .from('motorbikes')
+        .select('id, registration_number, rider_id')
+        .in('rider_id', riderIds);
+      const { data: permits } = await supabase
+        .from('permits')
+        .select('id, permit_number, status, expires_at, rider_id')
+        .in('rider_id', riderIds)
+        .order('created_at', { ascending: false });
+
+      const motorbikeMap = new Map(
+        (motorbikes || []).map((m) => [m.rider_id, { id: m.id, registration_number: m.registration_number }])
+      );
+      const permitMap = new Map<string, (typeof permits)[0]>();
+      (permits || []).forEach((p) => {
+        if (!permitMap.has(p.rider_id)) permitMap.set(p.rider_id, p);
+      });
+
+      return (riders as Rider[]).map((rider) => {
+        const motorbike = motorbikeMap.get(rider.id);
+        const permitData = permitMap.get(rider.id);
+        return {
+          ...rider,
+          motorbike: motorbike ? { id: motorbike.id, registration_number: motorbike.registration_number } : null,
+          permit: permitData
+            ? {
+                id: permitData.id,
+                permit_number: permitData.permit_number,
+                status: permitData.status as 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled',
+                expires_at: permitData.expires_at,
+              }
+            : null,
+        } as RiderWithDetails;
+      });
+    },
+    enabled: !!welfareGroupId && !!countyId,
   });
 }
 
@@ -760,6 +853,7 @@ export function useRider(riderId: string) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .eq('id', riderId)
@@ -907,14 +1001,119 @@ export function useSaccos(countyId?: string) {
   });
 }
 
-// Fetch stages with statistics
-export function useStages(countyId?: string, saccoId?: string) {
+// Fetch welfare groups with statistics (first-class entity: profile, officials, members, stages, compliance)
+export function useWelfareGroups(countyId?: string) {
   return useQuery({
-    queryKey: ['stages', countyId, saccoId],
+    queryKey: ['welfare-groups', countyId],
+    queryFn: async () => {
+      let query = supabase
+        .from('welfare_groups')
+        .select('*')
+        .order('name');
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data: groups, error } = await query;
+      if (error) throw error;
+      if (!groups || groups.length === 0) return [] as WelfareGroup[];
+
+      const groupIds = groups.map((g) => g.id);
+
+      const { data: riders } = await supabase
+        .from('riders')
+        .select('id, welfare_group_id, compliance_status')
+        .in('welfare_group_id', groupIds);
+
+      const { data: stages } = await supabase
+        .from('stages')
+        .select('id, welfare_group_id')
+        .in('welfare_group_id', groupIds);
+
+      const riderIds = riders?.map((r) => r.id) || [];
+      let penalties: { rider_id: string }[] = [];
+      if (riderIds.length > 0) {
+        const { data: penaltiesData } = await supabase
+          .from('penalties')
+          .select('id, rider_id')
+          .in('rider_id', riderIds);
+        penalties = penaltiesData || [];
+      }
+
+      const stats = new Map<
+        string,
+        { member_count: number; stages_count: number; compliant_count: number; non_compliant_count: number; penalties_count: number }
+      >();
+      groups.forEach((g) => {
+        stats.set(g.id, {
+          member_count: 0,
+          stages_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        });
+      });
+      riders?.forEach((r) => {
+        if (r.welfare_group_id) {
+          const s = stats.get(r.welfare_group_id);
+          if (s) {
+            s.member_count++;
+            if (r.compliance_status === 'compliant') s.compliant_count++;
+            else if (r.compliance_status === 'non_compliant' || r.compliance_status === 'blacklisted') s.non_compliant_count++;
+          }
+        }
+      });
+      stages?.forEach((st) => {
+        if (st.welfare_group_id) {
+          const s = stats.get(st.welfare_group_id);
+          if (s) s.stages_count++;
+        }
+      });
+      const riderToGroup = new Map<string, string>();
+      riders?.forEach((r) => {
+        if (r.welfare_group_id) riderToGroup.set(r.id, r.welfare_group_id);
+      });
+      penalties.forEach((p) => {
+        const gid = riderToGroup.get(p.rider_id);
+        if (gid) {
+          const s = stats.get(gid);
+          if (s) s.penalties_count++;
+        }
+      });
+
+      return groups.map((g) => {
+        const s = stats.get(g.id) || {
+          member_count: 0,
+          stages_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        };
+        const total = s.member_count;
+        const compliance_rate = total > 0 ? Math.round((s.compliant_count / total) * 100) : 100;
+        return {
+          ...g,
+          member_count: s.member_count,
+          stages_count: s.stages_count,
+          compliance_rate,
+          penalties_count: s.penalties_count,
+          non_compliant_count: s.non_compliant_count,
+        } as WelfareGroup;
+      });
+    },
+    enabled: true,
+  });
+}
+
+// Fetch stages with statistics
+export function useStages(countyId?: string, saccoId?: string, welfareGroupId?: string) {
+  return useQuery({
+    queryKey: ['stages', countyId, saccoId, welfareGroupId],
     queryFn: async () => {
       let query = supabase
         .from('stages')
-        .select(`*, sacco:saccos(name)`)
+        .select(`*, sacco:saccos(name), welfare_group:welfare_groups(name)`)
         .order('name');
 
       if (countyId) {
@@ -922,6 +1121,9 @@ export function useStages(countyId?: string, saccoId?: string) {
       }
       if (saccoId) {
         query = query.eq('sacco_id', saccoId);
+      }
+      if (welfareGroupId) {
+        query = query.eq('welfare_group_id', welfareGroupId);
       }
 
       const { data: stages, error } = await query;

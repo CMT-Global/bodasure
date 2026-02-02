@@ -45,10 +45,14 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, hasRole } = useAuth();
   const { data: notifications = [] } = useUserNotifications(15, !!user);
-  /** Only Sacco/Welfare Admin (and platform super admin) can edit Sacco profile and view audit logs. */
+  /** Sacco/Welfare officials with profile permission can edit profile (Chairman, Vice Chairman, Secretary, Vice Secretary, Admin). */
   const canEditSaccoProfile =
     hasRole('sacco_admin') ||
     hasRole('welfare_admin') ||
+    hasRole('chairman') ||
+    hasRole('vice_chairman') ||
+    hasRole('secretary') ||
+    hasRole('vice_secretary') ||
     hasRole('platform_super_admin');
   const unreadCount = notifications.filter((n) => !n.read_at).length;
   const markRead = useMarkNotificationRead();

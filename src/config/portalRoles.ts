@@ -198,9 +198,21 @@ export const RIDER_OWNER_PORTAL_ACCESS_ROLES: readonly string[] = [
 
 // ——— SACCO & WELFARE PORTAL ———
 // Saccos and Welfare Groups are treated as equal first-class entities.
+// Official roles: Chairman, Vice Chairman, Secretary, Vice Secretary, Treasurer, Vice Treasurer, General Official.
+// Legacy: sacco_admin / welfare_admin (full access); sacco_officer / welfare_officer.
 
-/** All Sacco/Welfare portal role keys (auth: user_roles.role). */
-export const SACCO_PORTAL_ROLE_KEYS = ['sacco_admin', 'sacco_officer'] as const;
+/** All Sacco/Welfare org-level role keys (auth: user_roles.role). Includes official + legacy. */
+export const SACCO_PORTAL_ROLE_KEYS = [
+  'sacco_admin',
+  'sacco_officer',
+  'chairman',
+  'vice_chairman',
+  'secretary',
+  'vice_secretary',
+  'treasurer',
+  'vice_treasurer',
+  'general_official',
+] as const;
 
 export type SaccoPortalRoleKey = (typeof SACCO_PORTAL_ROLE_KEYS)[number];
 
@@ -209,19 +221,16 @@ export function isSaccoPortalRole(role: string): role is SaccoPortalRoleKey {
   return SACCO_PORTAL_ROLE_KEYS.includes(role as SaccoPortalRoleKey);
 }
 
-/** Sacco/Welfare Portal role definitions: permissions and restrictions. */
+/** Sacco/Welfare Portal role definitions: permissions and restrictions. Each role has distinct permissions enforced server-side. */
 export const SACCO_PORTAL_ROLES = {
   sacco_admin: {
     name: 'Sacco / Welfare Admin',
     permissions: [
-      'Manage Sacco/Welfare profile',
+      'Full access: manage profile, officials, members, finances',
       'Add/remove officials',
       'Approve/reject members',
-      'Suspend members',
-      'View compliance & penalties',
       'View revenue share (if enabled)',
-      'Receive county communications',
-      'Generate Sacco/Welfare reports',
+      'Generate reports',
       'Submit incident reports to county',
     ],
     restrictions: [] as string[],
@@ -241,6 +250,102 @@ export const SACCO_PORTAL_ROLES = {
       'Cannot edit Sacco profile',
     ],
   },
+  chairman: {
+    name: 'Chairman',
+    permissions: [
+      'Manage Sacco/Welfare profile',
+      'Add/remove officials',
+      'Manage members (approve, suspend)',
+      'View and manage finances',
+      'Generate reports',
+      'Submit incident reports to county',
+    ],
+    restrictions: [] as string[],
+  },
+  vice_chairman: {
+    name: 'Vice Chairman',
+    permissions: [
+      'Manage Sacco/Welfare profile',
+      'Add/remove officials',
+      'Manage members (approve, suspend)',
+      'View and manage finances',
+      'Generate reports',
+      'Submit incident reports to county',
+    ],
+    restrictions: [] as string[],
+  },
+  secretary: {
+    name: 'Secretary',
+    permissions: [
+      'Manage Sacco/Welfare profile (contact, records)',
+      'Manage members (approve, suspend)',
+      'View finances (read-only)',
+      'Generate reports',
+      'Submit incident reports',
+    ],
+    restrictions: [
+      'Cannot add/remove officials',
+      'Cannot manage financial records',
+    ],
+  },
+  vice_secretary: {
+    name: 'Vice Secretary',
+    permissions: [
+      'Manage Sacco/Welfare profile (contact, records)',
+      'Manage members (approve, suspend)',
+      'View finances (read-only)',
+      'Generate reports',
+      'Submit incident reports',
+    ],
+    restrictions: [
+      'Cannot add/remove officials',
+      'Cannot manage financial records',
+    ],
+  },
+  treasurer: {
+    name: 'Treasurer',
+    permissions: [
+      'View and manage finances',
+      'View members (read-only)',
+      'View compliance & revenue share',
+      'Generate financial reports',
+    ],
+    restrictions: [
+      'Cannot edit Sacco/Welfare profile',
+      'Cannot add/remove officials',
+      'Cannot approve/suspend members',
+    ],
+  },
+  vice_treasurer: {
+    name: 'Vice Treasurer',
+    permissions: [
+      'View finances (read-only)',
+      'View members (read-only)',
+      'View compliance & revenue share',
+      'Generate financial reports',
+    ],
+    restrictions: [
+      'Cannot edit financial records',
+      'Cannot edit Sacco/Welfare profile',
+      'Cannot add/remove officials',
+      'Cannot approve/suspend members',
+    ],
+  },
+  general_official: {
+    name: 'General Official',
+    permissions: [
+      'View members',
+      'View compliance & penalties',
+      'Assist with registration',
+      'Submit incident reports',
+    ],
+    restrictions: [
+      'Cannot edit profile',
+      'Cannot add/remove officials',
+      'Cannot manage members',
+      'Cannot view/manage finances',
+    ],
+  },
 } as const satisfies Record<
   SaccoPortalRoleKey,
   { name: string; permissions: string[]; restrictions: string[] }
@@ -254,6 +359,7 @@ export const STAGE_ROLE_KEYS = [
   'stage_chairman',
   'stage_secretary',
   'stage_treasurer',
+  'stage_assistant',
 ] as const;
 
 export type StageRoleKey = (typeof STAGE_ROLE_KEYS)[number];
@@ -298,12 +404,24 @@ export const STAGE_ROLES = {
       'Cannot edit member status',
     ],
   },
+  stage_assistant: {
+    name: 'Stage Assistant',
+    permissions: [
+      'Assist registration',
+      'View stage member list (read-only)',
+      'Submit reports',
+    ],
+    restrictions: [
+      'Cannot edit stage records',
+      'Cannot enforce or recommend discipline',
+    ],
+  },
 } as const satisfies Record<
   StageRoleKey,
   { name: string; permissions: string[]; restrictions: string[] }
 >;
 
-/** Roles that can access the Sacco & Welfare Portal (org + stage roles). Includes welfare_admin, welfare_officer as aliases for Sacco/Welfare. */
+/** Roles that can access the Sacco & Welfare Portal (org + stage roles). Welfare uses same official role keys with welfare_group_id. */
 export const SACCO_PORTAL_ACCESS_ROLES: readonly string[] = [
   ...SACCO_PORTAL_ROLE_KEYS,
   'welfare_admin',
