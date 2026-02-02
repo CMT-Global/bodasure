@@ -35,8 +35,15 @@ import {
   MessageSquare,
   Calendar,
   AlertCircle,
+  Calculator,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  calculatePaymentDeductions,
+  type PaymentType,
+  type SubscriptionPeriodKey as CalcPeriodKey,
+} from '@/utils/paymentCalculation';
 
 const PERIOD_LABELS: Record<SubscriptionPeriodKey, string> = {
   weekly: 'Weekly',
@@ -45,6 +52,112 @@ const PERIOD_LABELS: Record<SubscriptionPeriodKey, string> = {
   six_months: '6 months',
   annual: 'Annual',
 };
+
+/** Preview calculator: uses current county monetization to show deduction breakdown. */
+function CalculationEnginePreview({
+  monetization,
+}: {
+  monetization: CountyMonetizationSettings;
+}) {
+  const [paymentType, setPaymentType] = useState<PaymentType>('PERMIT');
+  const [period, setPeriod] = useState<CalcPeriodKey>('monthly');
+  const [grossInput, setGrossInput] = useState<string>('1500');
+
+  const grossKES = useMemo(() => {
+    const n = Number(grossInput);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }, [grossInput]);
+
+  const breakdown = useMemo(() => {
+    return calculatePaymentDeductions({
+      grossAmountKES: grossKES,
+      paymentType,
+      period: paymentType === 'PERMIT' ? period : null,
+      monetization: {
+        platformServiceFee: monetization.platformServiceFee,
+        paymentConvenienceFee: monetization.paymentConvenienceFee,
+        penaltyCommission: monetization.penaltyCommission,
+      },
+    });
+  }, [monetization, paymentType, period, grossKES]);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-medium">Preview (using this county&apos;s current settings)</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1">
+          <Label className="text-xs">Payment type</Label>
+          <Select
+            value={paymentType}
+            onValueChange={(v) => setPaymentType(v as PaymentType)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PERMIT">PERMIT</SelectItem>
+              <SelectItem value="PENALTY">PENALTY</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {paymentType === 'PERMIT' && (
+          <div className="space-y-1">
+            <Label className="text-xs">Period</Label>
+            <Select
+              value={period}
+              onValueChange={(v) => setPeriod(v as CalcPeriodKey)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PERIOD_LABELS) as CalcPeriodKey[]).map((p) => (
+                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="space-y-1">
+          <Label className="text-xs">Gross amount (KES)</Label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={grossInput}
+            onChange={(e) => setGrossInput(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 font-mono text-sm space-y-2">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Gross (KES)</span>
+          <span>{breakdown.grossAmountKES.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Platform fee (KES)</span>
+          <span>{breakdown.platformFeeKES.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Processing fee (KES)</span>
+          <span>{breakdown.processingFeeKES.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Penalty commission (KES)</span>
+          <span>{breakdown.penaltyCommissionKES.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between border-t pt-2 font-medium">
+          <span>Total deductions (KES)</span>
+          <span>{breakdown.totalDeductionsKES.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between font-medium">
+          <span>Net to county (KES)</span>
+          <span>{breakdown.netToCountyKES.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function validatePlatformServiceFee(c: PlatformServiceFeeConfig): string | null {
   if (c.feeType === 'fixed') {
@@ -276,13 +389,16 @@ export default function CountyMonetizationSettingsPage() {
                 <TabsTrigger value="period-controls" className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" /> Subscription Periods
                 </TabsTrigger>
+                <TabsTrigger value="calculation-engine" className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4" /> Calculation Engine
+                </TabsTrigger>
               </TabsList>
 
               {/* A. Platform Service Fee (Primary) */}
               <TabsContent value="platform-fee" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>A. Platform Service Fee (Primary)</CardTitle>
+                    <CardTitle>Platform Service Fee (Primary)</CardTitle>
                     <CardDescription>
                       Fee type: Fixed (KES) or Percentage (%). Apply scope: Permit payments only. Basis: per subscription period. Rule: proportional by weeks (weekly fee × number of weeks). Optional discounts per period.
                     </CardDescription>
@@ -422,7 +538,7 @@ export default function CountyMonetizationSettingsPage() {
               <TabsContent value="convenience-fee" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>B. Payment Processing / Convenience Fee</CardTitle>
+                    <CardTitle>Payment Processing / Convenience Fee</CardTitle>
                     <CardDescription>
                       Toggle: Included in Platform Fee (on/off). If not included: set fee type (Fixed or %), apply to all transactions (permits + penalties). Purpose label (internal): &quot;processing/convenience fee&quot;.
                     </CardDescription>
@@ -496,7 +612,7 @@ export default function CountyMonetizationSettingsPage() {
               <TabsContent value="penalty-commission" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>C. Penalty Commission</CardTitle>
+                    <CardTitle>Penalty Commission</CardTitle>
                     <CardDescription>
                       Fee type: Percentage (%) only. Apply scope: Penalty payments only. Charged only when penalty payment succeeds. Validation: 0–100%.
                     </CardDescription>
@@ -528,7 +644,7 @@ export default function CountyMonetizationSettingsPage() {
               <TabsContent value="sms-recovery" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>D. Bulk SMS Cost Recovery</CardTitle>
+                    <CardTitle>Bulk SMS Cost Recovery</CardTitle>
                     <CardDescription>
                       Cost per SMS (KES, required). Optional markup per SMS (KES) or markup %. Message category toggles control charging/reporting. Apply scope: deducted from county collections periodically (recommended) or per transaction. Total SMS charges per county should be tracked and shown.
                     </CardDescription>
@@ -623,11 +739,45 @@ export default function CountyMonetizationSettingsPage() {
                 </Card>
               </TabsContent>
 
+              {/* Calculation Engine + Deduction Rules */}
+              <TabsContent value="calculation-engine" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" /> Calculation Engine & Deduction Rules
+                    </CardTitle>
+                    <CardDescription>
+                      Consistent calculation process used everywhere. For each payment we determine county, payment type, and period; compute deductions from this county&apos;s active settings; store gross, total deductions, and net to county on the payment record once successful.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-3">
+                      <p className="font-medium">Process (per payment)</p>
+                      <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                        <li>Determine <code className="text-foreground">countyId</code>, <code className="text-foreground">paymentType</code> (PERMIT or PENALTY), and <code className="text-foreground">period</code> (if permit).</li>
+                        <li>Compute applicable deductions: Platform fee (permit only), Processing fee (if enabled; permit + penalty), Penalty commission (penalty only).</li>
+                        <li>Compute <code className="text-foreground">grossAmount</code> (KES), <code className="text-foreground">totalDeductions</code> (KES), <code className="text-foreground">netToCounty</code> (KES).</li>
+                        <li>Store these values on the payment record once successful (immutable thereafter).</li>
+                      </ol>
+                    </div>
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm space-y-2">
+                      <p className="font-medium text-amber-800 dark:text-amber-200">Important rules</p>
+                      <ul className="list-disc list-inside space-y-1 text-amber-700 dark:text-amber-300">
+                        <li>Deductions must never exceed gross amount.</li>
+                        <li>Idempotent processing: no double deductions on retries or webhooks.</li>
+                        <li>All calculations use this county&apos;s active settings at the time of the transaction.</li>
+                      </ul>
+                    </div>
+                    <CalculationEnginePreview monetization={monetization} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               {/* E. Subscription Period Controls */}
               <TabsContent value="period-controls" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>E. Subscription Period Controls (Permit Durations)</CardTitle>
+                    <CardTitle>Subscription Period Controls (Permit Durations)</CardTitle>
                     <CardDescription>
                       Enable/disable which permit durations are available in this county. Set the county&apos;s base permit price per period (if not already elsewhere). Monetization deductions must align with enabled periods only.
                     </CardDescription>

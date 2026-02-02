@@ -244,16 +244,21 @@ export type Database = {
           county_id: string
           created_at: string
           description: string | null
+          gross_amount: number | null
           id: string
           metadata: Json | null
+          net_to_county: number | null
           paid_at: string | null
           payment_method: string | null
           payment_reference: string | null
+          payment_type: string | null
+          period: string | null
           permit_id: string | null
           provider: string | null
           provider_reference: string | null
           rider_id: string | null
           status: Database["public"]["Enums"]["payment_status"]
+          total_deductions: number | null
           updated_at: string
         }
         Insert: {
@@ -261,16 +266,21 @@ export type Database = {
           county_id: string
           created_at?: string
           description?: string | null
+          gross_amount?: number | null
           id?: string
           metadata?: Json | null
+          net_to_county?: number | null
           paid_at?: string | null
           payment_method?: string | null
           payment_reference?: string | null
+          payment_type?: string | null
+          period?: string | null
           permit_id?: string | null
           provider?: string | null
           provider_reference?: string | null
           rider_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
+          total_deductions?: number | null
           updated_at?: string
         }
         Update: {
@@ -278,16 +288,21 @@ export type Database = {
           county_id?: string
           created_at?: string
           description?: string | null
+          gross_amount?: number | null
           id?: string
           metadata?: Json | null
+          net_to_county?: number | null
           paid_at?: string | null
           payment_method?: string | null
           payment_reference?: string | null
+          payment_type?: string | null
+          period?: string | null
           permit_id?: string | null
           provider?: string | null
           provider_reference?: string | null
           rider_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
+          total_deductions?: number | null
           updated_at?: string
         }
         Relationships: [

@@ -42,6 +42,126 @@ interface RevenueShareRule {
   isActive: boolean;
 }
 
+/** Subscription period key for permit payments. */
+type PeriodKey = 'weekly' | 'monthly' | 'three_months' | 'six_months' | 'annual';
+
+/** Monetization config shape from county.settings.monetizationSettings. */
+interface MonetizationConfig {
+  platformServiceFee?: {
+    feeType?: 'fixed' | 'percentage';
+    fixedFeeCents?: number;
+    percentageFee?: number;
+    periods?: { period: PeriodKey; enabled: boolean }[];
+    periodDiscounts?: { period: PeriodKey; discountCents?: number; discountPercent?: number }[];
+  };
+  paymentConvenienceFee?: {
+    includedInPlatformFee?: boolean;
+    feeType?: 'fixed' | 'percentage';
+    fixedFeeCents?: number;
+    percentageFee?: number;
+  };
+  penaltyCommission?: { percentageFee?: number };
+}
+
+function round2(x: number): number {
+  return Math.round(x * 100) / 100;
+}
+
+function periodEnabled(periods: { period: PeriodKey; enabled: boolean }[] | undefined, period: PeriodKey): boolean {
+  if (!periods?.length) return true;
+  const p = periods.find((x) => x.period === period);
+  return p?.enabled ?? true;
+}
+
+/** Compute deduction breakdown using county's active settings. Deductions never exceed gross. */
+function computePaymentBreakdown(
+  grossKES: number,
+  paymentType: 'PERMIT' | 'PENALTY',
+  period: PeriodKey | null,
+  mon: MonetizationConfig
+): { grossAmount: number; totalDeductions: number; netToCounty: number } {
+  const gross = round2(Number(grossKES) || 0);
+  const pf = mon.platformServiceFee ?? {};
+  const pcf = mon.paymentConvenienceFee ?? {};
+  const pc = mon.penaltyCommission ?? {};
+
+  let platformFee = 0;
+  if (paymentType === 'PERMIT' && period && periodEnabled(pf.periods, period)) {
+    if (pf.feeType === 'fixed' && pf.fixedFeeCents != null) {
+      platformFee = pf.fixedFeeCents / 100;
+    } else if (pf.feeType === 'percentage' && pf.percentageFee != null) {
+      platformFee = (gross * pf.percentageFee) / 100;
+    }
+    const discount = pf.periodDiscounts?.find((d) => d.period === period);
+    if (discount) {
+      if (discount.discountCents != null) platformFee = Math.max(0, platformFee - discount.discountCents / 100);
+      if (discount.discountPercent != null) platformFee = Math.max(0, platformFee * (1 - discount.discountPercent / 100));
+    }
+  }
+  platformFee = round2(platformFee);
+
+  let processingFee = 0;
+  if (!pcf.includedInPlatformFee) {
+    if (pcf.feeType === 'fixed' && pcf.fixedFeeCents != null) processingFee = pcf.fixedFeeCents / 100;
+    else if (pcf.feeType === 'percentage' && pcf.percentageFee != null) processingFee = (gross * pcf.percentageFee) / 100;
+  }
+  processingFee = round2(processingFee);
+
+  let penaltyCommission = 0;
+  if (paymentType === 'PENALTY' && pc.percentageFee != null) {
+    penaltyCommission = round2((gross * pc.percentageFee) / 100);
+  }
+
+  let totalDeductions = round2(platformFee + processingFee + penaltyCommission);
+  if (totalDeductions > gross) totalDeductions = gross;
+  const netToCounty = round2(gross - totalDeductions);
+  return { grossAmount: gross, totalDeductions, netToCounty };
+}
+
+function durationDaysToPeriod(days: number): PeriodKey {
+  if (days <= 7) return 'weekly';
+  if (days <= 31) return 'monthly';
+  if (days <= 100) return 'three_months';
+  if (days <= 200) return 'six_months';
+  return 'annual';
+}
+
+/** Idempotent: compute and store gross_amount, total_deductions, net_to_county (and payment_type, period) if not already set. */
+async function applyPaymentCalculation(supabase: any, payment: any) {
+  if (payment.gross_amount != null && payment.total_deductions != null && payment.net_to_county != null) {
+    return; // Already computed (idempotent)
+  }
+  const { data: county, error: countyError } = await supabase
+    .from("counties")
+    .select("settings")
+    .eq("id", payment.county_id)
+    .single();
+  if (countyError || !county) {
+    console.log("Calculation engine: no county settings", countyError);
+    return;
+  }
+  const mon: MonetizationConfig = county.settings?.monetizationSettings ?? {};
+  const meta = (payment.metadata || {}) as Record<string, unknown>;
+  const paymentType = (meta.payment_type === 'penalty' ? 'PENALTY' : 'PERMIT') as 'PERMIT' | 'PENALTY';
+  let period: PeriodKey | null = (meta.period as PeriodKey) || null;
+  if (paymentType === 'PERMIT' && !period && meta.permit_type_id) {
+    const { data: pt } = await supabase.from("permit_types").select("duration_days").eq("id", meta.permit_type_id).single();
+    if (pt?.duration_days != null) period = durationDaysToPeriod(Number(pt.duration_days));
+  }
+  const grossKES = Number(payment.amount) || 0;
+  const { grossAmount, totalDeductions, netToCounty } = computePaymentBreakdown(grossKES, paymentType, period, mon);
+  const update: Record<string, unknown> = {
+    payment_type: paymentType,
+    period: period,
+    gross_amount: grossAmount,
+    total_deductions: totalDeductions,
+    net_to_county: netToCounty,
+  };
+  const { error } = await supabase.from("payments").update(update).eq("id", payment.id);
+  if (error) console.error("Calculation engine: failed to update payment", error);
+  else console.log("Calculation engine: stored breakdown", { grossAmount, totalDeductions, netToCounty });
+}
+
 async function calculateRevenueShare(supabase: any, payment: any) {
   try {
     // Get county settings for revenue sharing
@@ -369,6 +489,9 @@ Deno.serve(async (req) => {
           console.log("Permit created successfully:", permit.id);
         }
       }
+
+      // Calculation engine: store gross_amount, total_deductions, net_to_county (idempotent)
+      await applyPaymentCalculation(supabase, payment);
 
       // Calculate and record revenue sharing (for permit payments; penalty payments may skip or use same rules per product)
       await calculateRevenueShare(supabase, payment);
