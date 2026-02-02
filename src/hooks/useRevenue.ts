@@ -523,6 +523,83 @@ export function useRevenueShares(countyId?: string, saccoId?: string, startDate?
   });
 }
 
+// Platform-wide revenue by county (Super Admin) with optional date filter
+export interface RevenueByCounty {
+  countyId: string;
+  countyName: string;
+  countyCode: string;
+  totalRevenue: number;
+  permitRevenue: number;
+  penaltyRevenue: number;
+}
+
+export function useRevenueByCounty(startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['revenue-by-county', startDate, endDate],
+    queryFn: async () => {
+      const { data: counties, error: countiesError } = await supabase
+        .from('counties')
+        .select('id, name, code')
+        .order('name');
+      if (countiesError) throw countiesError;
+      if (!counties?.length) return [] as RevenueByCounty[];
+
+      let paymentsQuery = supabase
+        .from('payments')
+        .select('county_id, amount, paid_at')
+        .eq('status', 'completed');
+      if (startDate) paymentsQuery = paymentsQuery.gte('paid_at', startDate);
+      if (endDate) paymentsQuery = paymentsQuery.lte('paid_at', endDate);
+      const { data: payments, error: payError } = await paymentsQuery;
+      if (payError) throw payError;
+
+      const { data: penalties, error: penError } = await supabase
+        .from('penalties')
+        .select('county_id, amount, is_paid, paid_at, created_at')
+        .eq('is_paid', true);
+      if (penError) throw penError;
+
+      const countyMap = new Map<string, { permit: number; penalty: number }>();
+      counties.forEach((c: { id: string }) => countyMap.set(c.id, { permit: 0, penalty: 0 }));
+
+      (payments || []).forEach((p: { county_id: string; amount: number; paid_at?: string }) => {
+        const key = p.county_id;
+        if (!key) return;
+        let dateOk = true;
+        if (startDate && p.paid_at && p.paid_at.split('T')[0] < startDate) dateOk = false;
+        if (endDate && p.paid_at && p.paid_at.split('T')[0] > endDate) dateOk = false;
+        if (!dateOk) return;
+        const cur = countyMap.get(key);
+        if (cur) cur.permit += Number(p.amount || 0);
+      });
+
+      (penalties || []).forEach((p: { county_id: string; amount: number; paid_at?: string; created_at?: string }) => {
+        const key = p.county_id;
+        if (!key) return;
+        const dateStr = (p.paid_at || p.created_at)?.split('T')[0];
+        if (!dateStr) return;
+        if (startDate && dateStr < startDate) return;
+        if (endDate && dateStr > endDate) return;
+        const cur = countyMap.get(key);
+        if (cur) cur.penalty += Number(p.amount || 0);
+      });
+
+      return counties.map((c: { id: string; name: string; code: string }) => {
+        const rev = countyMap.get(c.id) || { permit: 0, penalty: 0 };
+        return {
+          countyId: c.id,
+          countyName: c.name,
+          countyCode: c.code,
+          totalRevenue: rev.permit + rev.penalty,
+          permitRevenue: rev.permit,
+          penaltyRevenue: rev.penalty,
+        } as RevenueByCounty;
+      });
+    },
+    enabled: true,
+  });
+}
+
 // Fetch revenue shares aggregated by Sacco
 export function useRevenueSharesBySacco(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({

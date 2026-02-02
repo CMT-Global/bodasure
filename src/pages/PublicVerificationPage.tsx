@@ -6,11 +6,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, User, Loader2, AlertCircle, QrCode, Hash } from 'lucide-react';
+import { Shield, User, Loader2, AlertCircle, QrCode, Hash, MapPin, Building2, MapPinned, CheckCircle2, Home, Search } from 'lucide-react';
 import { RiderWithDetails } from '@/hooks/useData';
 
-/** Public view: only name, photo, permit status (per PUBLIC_USER in portalRoles). No personal data, penalties, or actions. */
-function PublicRiderResult({ rider }: { rider: RiderWithDetails }) {
+type PublicRider = RiderWithDetails & { countyName?: string | null };
+
+/** Public view: name, photo, permit status, county, sacco, stage, compliance. No personal data, penalties, or actions. */
+function PublicRiderResult({ rider }: { rider: PublicRider }) {
   const initials = rider.full_name
     .split(' ')
     .map((n) => n[0])
@@ -62,6 +64,40 @@ function PublicRiderResult({ rider }: { rider: RiderWithDetails }) {
           ) : (
             <p className="text-sm text-muted-foreground">No active permit on file.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Registration details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {'countyName' in rider && rider.countyName && (
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">County</span>
+              <span className="font-medium">{rider.countyName}</span>
+            </div>
+          )}
+          {rider.sacco?.name && (
+            <div className="flex items-center gap-2 text-sm">
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">Sacco</span>
+              <span className="font-medium">{rider.sacco.name}</span>
+            </div>
+          )}
+          {rider.stage?.name && (
+            <div className="flex items-center gap-2 text-sm">
+              <MapPinned className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">Stage</span>
+              <span className="font-medium">{rider.stage.name}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Compliance</span>
+            <StatusBadge status={rider.compliance_status ?? 'pending_review'} />
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -130,6 +166,11 @@ function VerifyLanding({ onPlateSubmit }: { onPlateSubmit: (plate: string) => vo
               </Button>
             </div>
           </div>
+          <div className="pt-2 flex justify-center">
+            <Button variant="secondary" onClick={() => navigate('/')}>
+              Go to home
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -138,6 +179,7 @@ function VerifyLanding({ onPlateSubmit }: { onPlateSubmit: (plate: string) => vo
 
 export default function PublicVerificationPage() {
   const { qrCode } = useParams<{ qrCode: string }>();
+  const navigate = useNavigate();
   const [plateSearch, setPlateSearch] = useState<string | null>(null);
 
   const byQr = useRiderByQRCode(qrCode ?? '', undefined);
@@ -181,9 +223,14 @@ export default function PublicVerificationPage() {
                 ? 'This QR code could not be verified. It may be invalid or the rider may no longer be registered.'
                 : 'No rider found for this plate number.'}
             </p>
-            <Button variant="outline" onClick={() => (setPlateSearch(null), window.history.replaceState({}, '', '/verify'))}>
-              Try again
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button variant="outline" onClick={() => (setPlateSearch(null), window.history.replaceState({}, '', '/verify'))}>
+                Try again
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/')}>
+                Go to home
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -194,7 +241,7 @@ export default function PublicVerificationPage() {
     <div className="min-h-screen bg-muted/30 py-8 px-4">
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold">BodaSure Verification</h1>
-        <p className="text-sm text-muted-foreground mt-1">Public rider verification — name, photo, permit status only</p>
+        <p className="text-sm text-muted-foreground mt-1">Public rider verification — name, photo, permit, county, sacco, stage & compliance</p>
       </div>
       {plateSearch && (
         <div className="max-w-md mx-auto mb-4">
@@ -208,6 +255,16 @@ export default function PublicVerificationPage() {
         </div>
       )}
       <PublicRiderResult rider={rider} />
+      <div className="max-w-md mx-auto mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+        <Button variant="outline" onClick={() => navigate('/')} className="gap-2">
+          <Home className="h-4 w-4" />
+          Home
+        </Button>
+        <Button variant="secondary" onClick={() => { setPlateSearch(null); navigate('/verify'); }} className="gap-2">
+          <Search className="h-4 w-4" />
+          Verify other rider
+        </Button>
+      </div>
     </div>
   );
 }

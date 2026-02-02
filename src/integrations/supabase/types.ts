@@ -857,6 +857,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_public_rider_by_plate: { Args: { plate_number: string }; Returns: Json }
+      get_public_rider_by_qr: { Args: { qr: string }; Returns: Json }
       get_user_county_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
