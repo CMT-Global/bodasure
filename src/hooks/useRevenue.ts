@@ -614,6 +614,102 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
   });
 }
 
+// Monetization summary per county (Super Admin Finance View)
+export interface MonetizationSummaryByCounty {
+  countyId: string;
+  countyName: string;
+  countyCode: string;
+  totalGross: number;
+  platformFees: number;
+  processingFees: number;
+  penaltyCommission: number;
+  smsCharges: number;
+  totalDeductions: number;
+  netToCounty: number;
+}
+
+export function useMonetizationSummary(startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['monetization-summary', startDate, endDate],
+    queryFn: async () => {
+      const { data: counties, error: countiesError } = await supabase
+        .from('counties')
+        .select('id, name, code')
+        .order('name');
+      if (countiesError) throw countiesError;
+      if (!counties?.length) return [] as MonetizationSummaryByCounty[];
+
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      let paymentsQuery = supabase
+        .from('payments')
+        .select(
+          'county_id, amount, gross_amount, total_deductions, net_to_county, paid_at, platform_fee, processing_fee, penalty_commission, sms_charges'
+        )
+        .eq('status', 'completed');
+      if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
+      if (endBound) paymentsQuery = paymentsQuery.lte('paid_at', endBound);
+      const { data: payments, error: payError } = await paymentsQuery;
+      if (payError) throw payError;
+
+      const countyMap = new Map<
+        string,
+        {
+          totalGross: number;
+          platformFees: number;
+          processingFees: number;
+          penaltyCommission: number;
+          smsCharges: number;
+          totalDeductions: number;
+          netToCounty: number;
+        }
+      >();
+      counties.forEach((c: { id: string }) =>
+        countyMap.set(c.id, {
+          totalGross: 0,
+          platformFees: 0,
+          processingFees: 0,
+          penaltyCommission: 0,
+          smsCharges: 0,
+          totalDeductions: 0,
+          netToCounty: 0,
+        })
+      );
+
+      (payments || []).forEach((p: any) => {
+        const key = p.county_id;
+        if (!key) return;
+        const cur = countyMap.get(key);
+        if (!cur) return;
+        const gross = Number(p.gross_amount ?? p.amount ?? 0);
+        cur.totalGross += gross;
+        cur.platformFees += Number(p.platform_fee ?? 0);
+        cur.processingFees += Number(p.processing_fee ?? 0);
+        cur.penaltyCommission += Number(p.penalty_commission ?? 0);
+        cur.smsCharges += Number(p.sms_charges ?? 0);
+        cur.totalDeductions += Number(p.total_deductions ?? 0);
+        cur.netToCounty += Number(p.net_to_county ?? gross);
+      });
+
+      return counties.map((c: { id: string; name: string; code: string }) => {
+        const agg = countyMap.get(c.id)!;
+        return {
+          countyId: c.id,
+          countyName: c.name,
+          countyCode: c.code,
+          totalGross: Math.round(agg.totalGross * 100) / 100,
+          platformFees: Math.round(agg.platformFees * 100) / 100,
+          processingFees: Math.round(agg.processingFees * 100) / 100,
+          penaltyCommission: Math.round(agg.penaltyCommission * 100) / 100,
+          smsCharges: Math.round(agg.smsCharges * 100) / 100,
+          totalDeductions: Math.round(agg.totalDeductions * 100) / 100,
+          netToCounty: Math.round(agg.netToCounty * 100) / 100,
+        } as MonetizationSummaryByCounty;
+      });
+    },
+    enabled: true,
+  });
+}
+
 // Fetch revenue shares aggregated by Sacco
 export function useRevenueSharesBySacco(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({

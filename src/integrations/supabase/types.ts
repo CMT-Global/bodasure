@@ -254,6 +254,10 @@ export type Database = {
           payment_type: string | null
           period: string | null
           permit_id: string | null
+          platform_fee: number | null
+          processing_fee: number | null
+          penalty_commission: number | null
+          sms_charges: number | null
           provider: string | null
           provider_reference: string | null
           rider_id: string | null
@@ -276,6 +280,10 @@ export type Database = {
           payment_type?: string | null
           period?: string | null
           permit_id?: string | null
+          platform_fee?: number | null
+          processing_fee?: number | null
+          penalty_commission?: number | null
+          sms_charges?: number | null
           provider?: string | null
           provider_reference?: string | null
           rider_id?: string | null
@@ -298,6 +306,10 @@ export type Database = {
           payment_type?: string | null
           period?: string | null
           permit_id?: string | null
+          platform_fee?: number | null
+          processing_fee?: number | null
+          penalty_commission?: number | null
+          sms_charges?: number | null
           provider?: string | null
           provider_reference?: string | null
           rider_id?: string | null
