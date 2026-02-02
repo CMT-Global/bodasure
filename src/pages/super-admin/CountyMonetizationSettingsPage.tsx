@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { SuperAdminLayout } from '@/components/layout/SuperAdminLayout';
 import {
   useAllCounties,
   useUpdateCountyConfig,
+  useMonetizationSettingsHistory,
   getCountyConfigFromSettings,
   type CountyMonetizationSettings,
   type PlatformServiceFeeConfig,
@@ -37,6 +38,10 @@ import {
   AlertCircle,
   Calculator,
   FileText,
+  History,
+  User,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -265,6 +270,10 @@ export default function CountyMonetizationSettingsPage() {
   const [penaltyCommission, setPenaltyCommission] = useState<PenaltyCommissionConfig>(monetization.penaltyCommission);
   const [bulkSms, setBulkSms] = useState<BulkSmsCostRecoveryConfig>(monetization.bulkSmsCostRecovery);
   const [subscriptionPeriodControls, setSubscriptionPeriodControls] = useState<SubscriptionPeriodControlsConfig>(monetization.subscriptionPeriodControls);
+  const [effectiveFrom, setEffectiveFrom] = useState<'immediate' | 'next_day' | 'next_week'>('immediate');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+
+  const monetizationHistory = useMonetizationSettingsHistory(selectedCountyId);
 
   useEffect(() => {
     setPlatformServiceFee(monetization.platformServiceFee);
@@ -299,6 +308,22 @@ export default function CountyMonetizationSettingsPage() {
     return [a, b, c, d].filter(Boolean) as string[];
   }, [platformServiceFee, paymentConvenienceFee, penaltyCommission, bulkSms]);
 
+  const getEffectiveFromDate = (): string | undefined => {
+    if (effectiveFrom === 'immediate') return undefined;
+    const d = new Date();
+    if (effectiveFrom === 'next_day') {
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    }
+    if (effectiveFrom === 'next_week') {
+      const day = d.getDay();
+      const daysUntilMonday = day === 0 ? 1 : day === 1 ? 7 : 8 - day;
+      d.setDate(d.getDate() + daysUntilMonday);
+      return d.toISOString().slice(0, 10);
+    }
+    return undefined;
+  };
+
   const handleSave = () => {
     if (!selectedCountyId) return;
     if (validationErrors.length > 0) {
@@ -310,6 +335,7 @@ export default function CountyMonetizationSettingsPage() {
         countyId: selectedCountyId,
         config: { monetizationSettings: buildMonetizationConfig() },
         section: 'monetizationSettings',
+        effectiveFrom: getEffectiveFromDate(),
       },
       { onError: () => {} }
     );
@@ -321,7 +347,7 @@ export default function CountyMonetizationSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold">County Monetization Settings</h1>
           <p className="text-muted-foreground">
-            Per-county configuration: platform service fee, payment/convenience fee, penalty commission, bulk SMS cost recovery, and subscription period controls. Monetization deductions must align with enabled periods only.
+            Active settings per county. Per-county configuration: platform service fee, payment/convenience fee, penalty commission, bulk SMS cost recovery, and subscription period controls. Monetization deductions must align with enabled periods only. Version history and optional effective dates are in the &quot;Version history&quot; tab.
           </p>
         </div>
 
@@ -391,6 +417,9 @@ export default function CountyMonetizationSettingsPage() {
                 </TabsTrigger>
                 <TabsTrigger value="calculation-engine" className="flex items-center gap-2">
                   <Calculator className="h-4 w-4" /> Calculation Engine
+                </TabsTrigger>
+                <TabsTrigger value="version-history" className="flex items-center gap-2">
+                  <History className="h-4 w-4" /> Version history
                 </TabsTrigger>
               </TabsList>
 
@@ -836,9 +865,124 @@ export default function CountyMonetizationSettingsPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+              {/* Version history: who changed, when, previous vs new, optional effective date */}
+              <TabsContent value="version-history" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <History className="h-5 w-5" /> Settings versioning & effective dates
+                    </CardTitle>
+                    <CardDescription>
+                      Active settings per county. History log: who changed it, when, previous vs new values, and optional effective date for changes (apply from next day/week).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This county&apos;s active monetization settings are shown in the tabs above. Changes apply prospectively; optional effective date is recorded for audit.
+                    </p>
+                    {monetizationHistory.isLoading ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
+                      </div>
+                    ) : !monetizationHistory.data?.length ? (
+                      <p className="text-sm text-muted-foreground">No monetization changes recorded yet.</p>
+                    ) : (
+                      <div className="rounded-lg border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left p-3 font-medium">When</th>
+                              <th className="text-left p-3 font-medium">Who</th>
+                              <th className="text-left p-3 font-medium">Role</th>
+                              <th className="text-left p-3 font-medium">Effective from</th>
+                              <th className="w-10 p-3" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {monetizationHistory.data.map((entry) => (
+                              <React.Fragment key={entry.id}>
+                                <tr
+                                  className="border-b hover:bg-muted/30 cursor-pointer"
+                                  onClick={() => setExpandedHistoryId((id) => (id === entry.id ? null : entry.id))}
+                                >
+                                  <td className="p-3">
+                                    {new Date(entry.created_at).toLocaleString(undefined, {
+                                      dateStyle: 'short',
+                                      timeStyle: 'short',
+                                    })}
+                                  </td>
+                                  <td className="p-3 flex items-center gap-1">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    {entry.who}
+                                  </td>
+                                  <td className="p-3">
+                                    <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
+                                      {entry.actor_role ?? '—'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3">
+                                    {entry.effective_from
+                                      ? new Date(entry.effective_from).toLocaleDateString(undefined, { dateStyle: 'short' })
+                                      : 'Immediate'}
+                                  </td>
+                                  <td className="p-3">
+                                    {expandedHistoryId === entry.id ? (
+                                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                  </td>
+                                </tr>
+                                {expandedHistoryId === entry.id && (
+                                  <tr className="border-b bg-muted/20">
+                                    <td colSpan={5} className="p-4">
+                                      <div className="grid gap-4 sm:grid-cols-2 text-xs">
+                                        <div>
+                                          <p className="font-medium text-muted-foreground mb-1">Previous values</p>
+                                          <pre className="rounded bg-background border p-3 overflow-auto max-h-48 font-mono whitespace-pre-wrap break-all">
+                                            {entry.old_monetization
+                                              ? JSON.stringify(entry.old_monetization, null, 2)
+                                              : '—'}
+                                          </pre>
+                                        </div>
+                                        <div>
+                                          <p className="font-medium text-muted-foreground mb-1">New values</p>
+                                          <pre className="rounded bg-background border p-3 overflow-auto max-h-48 font-mono whitespace-pre-wrap break-all">
+                                            {entry.new_monetization
+                                              ? JSON.stringify(entry.new_monetization, null, 2)
+                                              : '—'}
+                                          </pre>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </Tabs>
 
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-4">
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground">Effective date</Label>
+                <Select value={effectiveFrom} onValueChange={(v) => setEffectiveFrom(v as 'immediate' | 'next_day' | 'next_week')}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="immediate">Immediate</SelectItem>
+                    <SelectItem value="next_day">Next day</SelectItem>
+                    <SelectItem value="next_week">Next week (Monday)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">Optional; recorded in history</span>
+              </div>
               <Button onClick={handleSave} disabled={updateMutation.isPending || validationErrors.length > 0}>
                 {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Save monetization settings

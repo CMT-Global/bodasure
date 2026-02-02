@@ -1852,10 +1852,13 @@ export function useUpdateCountyConfig() {
       countyId,
       config,
       section,
+      effectiveFrom,
     }: {
       countyId: string;
       config: Partial<CountyConfig>;
       section: 'permitConfig' | 'penaltyConfig' | 'complianceRules' | 'revenueCommercialConfig' | 'monetizationSettings';
+      /** Optional: effective date for this change (ISO date string). Stored in audit log for versioning; changes still apply immediately unless deferred logic is added later. */
+      effectiveFrom?: string;
     }) => {
       const { data: row } = await supabase.from('counties').select('settings').eq('id', countyId).single();
       const settings = (row?.settings as Record<string, unknown>) ?? {};
@@ -1865,6 +1868,7 @@ export function useUpdateCountyConfig() {
       const { error: updateError } = await supabase.from('counties').update({ settings: newSettings } as any).eq('id', countyId);
       if (updateError) throw updateError;
       const { data: { user } } = await supabase.auth.getUser();
+      const newValuesForAudit = effectiveFrom ? { ...config, effective_from: effectiveFrom } : config;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await supabase.from('audit_logs').insert({
         county_id: countyId,
@@ -1873,13 +1877,14 @@ export function useUpdateCountyConfig() {
         entity_type: 'county_config',
         entity_id: null,
         old_values: oldConfig,
-        new_values: config,
+        new_values: newValuesForAudit,
       } as any);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['counties'] });
       queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
       queryClient.invalidateQueries({ queryKey: ['county-config-history', variables.countyId] });
+      queryClient.invalidateQueries({ queryKey: ['monetization-settings-history', variables.countyId] });
       toast.success('County configuration saved. Changes apply prospectively.');
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to save configuration'),
@@ -1908,6 +1913,60 @@ export function useCountyConfigHistory(countyId: string | null) {
         created_at: string;
         user_id: string | null;
       }>;
+    },
+    enabled: !!countyId,
+  });
+}
+
+/** Monetization settings version history: who changed, when, previous vs new values, optional effective date. */
+export function useMonetizationSettingsHistory(countyId: string | null) {
+  return useQuery({
+    queryKey: ['monetization-settings-history', countyId],
+    queryFn: async () => {
+      if (!countyId) return [];
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('id, action, entity_type, old_values, new_values, created_at, user_id, actor_role')
+        .eq('county_id', countyId)
+        .eq('entity_type', 'county_config')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        action: string;
+        entity_type: string;
+        old_values: Record<string, unknown> | null;
+        new_values: Record<string, unknown> | null;
+        created_at: string;
+        user_id: string | null;
+        actor_role: string | null;
+      }>;
+      const monetizationOnly = rows.filter(
+        (r) =>
+          (r.new_values && 'monetizationSettings' in (r.new_values ?? {})) ||
+          (r.old_values && 'monetizationSettings' in (r.old_values ?? {}))
+      );
+      const userIds = [...new Set(monetizationOnly.map((r) => r.user_id).filter(Boolean))] as string[];
+      let profilesMap = new Map<string, { full_name: string | null; email: string }>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+        if (profiles) profilesMap = new Map(profiles.map((p) => [p.id, { full_name: p.full_name, email: p.email }]));
+      }
+      return monetizationOnly.map((r) => ({
+        id: r.id,
+        action: r.action,
+        created_at: r.created_at,
+        user_id: r.user_id,
+        actor_role: r.actor_role ?? null,
+        who: r.user_id ? (profilesMap.get(r.user_id)?.full_name || profilesMap.get(r.user_id)?.email || r.user_id) : 'System',
+        old_monetization: (r.old_values as Record<string, unknown> | null)?.monetizationSettings ?? null,
+        new_monetization: (r.new_values as Record<string, unknown> | null)?.monetizationSettings ?? null,
+        effective_from: (r.new_values as Record<string, unknown> | null)?.effective_from as string | undefined,
+      }));
     },
     enabled: !!countyId,
   });
