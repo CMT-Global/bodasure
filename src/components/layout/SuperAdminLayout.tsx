@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders, DollarSign, ShieldCheck, UsersRound, Building2, Headset, Cog, ClipboardCheck, Server } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders, DollarSign, ShieldCheck, UsersRound, Building2, Headset, Cog, ClipboardCheck, Server, Banknote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SuperAdminLayoutProps {
@@ -129,6 +129,19 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
             >
               <DollarSign className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/revenue-config' && 'text-primary')} />
               {!isCollapsed && <span className="break-words">Revenue & Commercial</span>}
+            </Link>
+            <Link
+              to="/super-admin/monetization-settings"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px] min-w-0',
+                location.pathname === '/super-admin/monetization-settings'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <Banknote className={cn('h-5 w-5 shrink-0', location.pathname === '/super-admin/monetization-settings' && 'text-primary')} />
+              {!isCollapsed && <span className="break-words">County Monetization Settings</span>}
             </Link>
             <Link
               to="/super-admin/roles-governance"

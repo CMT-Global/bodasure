@@ -45,6 +45,7 @@ import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
 import CountyManagementPage from "./pages/super-admin/CountyManagementPage";
 import CountyConfigurationPage from "./pages/super-admin/CountyConfigurationPage";
 import RevenueCommercialConfigPage from "./pages/super-admin/RevenueCommercialConfigPage";
+import CountyMonetizationSettingsPage from "./pages/super-admin/CountyMonetizationSettingsPage";
 import RolePermissionGovernancePage from "./pages/super-admin/RolePermissionGovernancePage";
 import UserAccessGovernancePage from "./pages/super-admin/UserAccessGovernancePage";
 import SaccoWelfareOversightPage from "./pages/super-admin/SaccoWelfareOversightPage";
@@ -140,6 +141,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <RevenueCommercialConfigPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/monetization-settings"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <CountyMonetizationSettingsPage />
                 </ProtectedRoute>
               }
             />

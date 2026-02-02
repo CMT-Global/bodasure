@@ -1505,11 +1505,70 @@ export interface CountyRevenueCommercialConfig {
   saccoWelfareRevenueSharing: SaccoWelfareRevenueSharingConfig;
 }
 
+// ——— County Monetization Settings (Super Admin, per county) ———
+export type SubscriptionPeriodKey = 'weekly' | 'monthly' | 'three_months' | 'six_months' | 'annual';
+
+export interface PlatformServiceFeeConfig {
+  feeType: 'fixed' | 'percentage';
+  fixedFeeCents?: number;
+  percentageFee?: number;
+  applyScope: 'permit_payments_only';
+  basis: 'per_subscription_period';
+  periods: { period: SubscriptionPeriodKey; enabled: boolean }[];
+  proportionalByWeeks: boolean;
+  periodDiscounts: { period: SubscriptionPeriodKey; discountCents?: number; discountPercent?: number }[];
+}
+
+export interface PaymentConvenienceFeeConfig {
+  includedInPlatformFee: boolean;
+  feeType: 'fixed' | 'percentage';
+  fixedFeeCents?: number;
+  percentageFee?: number;
+  applyScope: 'all_transactions';
+  purposeLabel: string;
+}
+
+export interface PenaltyCommissionConfig {
+  feeType: 'percentage';
+  percentageFee: number;
+  applyScope: 'penalty_payments_only';
+  chargedOnSuccessOnly: boolean;
+}
+
+export interface SmsMessageCategoryToggles {
+  paymentConfirmation: boolean;
+  permitExpiryReminders: boolean;
+  penaltyAlerts: boolean;
+  enforcementNotices: boolean;
+}
+
+export interface BulkSmsCostRecoveryConfig {
+  costPerSmsCents: number;
+  markupPerSmsCents?: number;
+  markupPercent?: number;
+  messageCategories: SmsMessageCategoryToggles;
+  applyScope: 'periodic_deduction' | 'per_transaction';
+}
+
+export interface SubscriptionPeriodControlsConfig {
+  enabledDurations: Record<SubscriptionPeriodKey, boolean>;
+  basePermitPriceCentsPerPeriod: Partial<Record<SubscriptionPeriodKey, number>>;
+}
+
+export interface CountyMonetizationSettings {
+  platformServiceFee: PlatformServiceFeeConfig;
+  paymentConvenienceFee: PaymentConvenienceFeeConfig;
+  penaltyCommission: PenaltyCommissionConfig;
+  bulkSmsCostRecovery: BulkSmsCostRecoveryConfig;
+  subscriptionPeriodControls: SubscriptionPeriodControlsConfig;
+}
+
 export interface CountyConfig {
   permitConfig: CountyPermitConfig;
   penaltyConfig: CountyPenaltyConfig;
   complianceRules: CountyComplianceRules;
   revenueCommercialConfig?: CountyRevenueCommercialConfig;
+  monetizationSettings?: CountyMonetizationSettings;
 }
 
 const DEFAULT_PERMIT_CONFIG: CountyPermitConfig = {
@@ -1578,6 +1637,68 @@ const DEFAULT_REVENUE_COMMERCIAL_CONFIG: CountyRevenueCommercialConfig = {
   },
 };
 
+const SUBSCRIPTION_PERIODS: SubscriptionPeriodKey[] = ['weekly', 'monthly', 'three_months', 'six_months', 'annual'];
+
+const DEFAULT_PLATFORM_SERVICE_FEE: PlatformServiceFeeConfig = {
+  feeType: 'fixed',
+  fixedFeeCents: 0,
+  applyScope: 'permit_payments_only',
+  basis: 'per_subscription_period',
+  periods: SUBSCRIPTION_PERIODS.map(p => ({ period: p, enabled: true })),
+  proportionalByWeeks: true,
+  periodDiscounts: [],
+};
+
+const DEFAULT_PAYMENT_CONVENIENCE_FEE: PaymentConvenienceFeeConfig = {
+  includedInPlatformFee: true,
+  feeType: 'fixed',
+  fixedFeeCents: 0,
+  applyScope: 'all_transactions',
+  purposeLabel: 'processing/convenience fee',
+};
+
+const DEFAULT_PENALTY_COMMISSION: PenaltyCommissionConfig = {
+  feeType: 'percentage',
+  percentageFee: 0,
+  applyScope: 'penalty_payments_only',
+  chargedOnSuccessOnly: true,
+};
+
+const DEFAULT_SMS_MESSAGE_CATEGORIES: SmsMessageCategoryToggles = {
+  paymentConfirmation: true,
+  permitExpiryReminders: true,
+  penaltyAlerts: true,
+  enforcementNotices: true,
+};
+
+const DEFAULT_BULK_SMS_COST_RECOVERY: BulkSmsCostRecoveryConfig = {
+  costPerSmsCents: 0,
+  messageCategories: { ...DEFAULT_SMS_MESSAGE_CATEGORIES },
+  applyScope: 'periodic_deduction',
+};
+
+const DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS: SubscriptionPeriodControlsConfig = {
+  enabledDurations: {
+    weekly: true,
+    monthly: true,
+    three_months: true,
+    six_months: true,
+    annual: true,
+  },
+  basePermitPriceCentsPerPeriod: {},
+};
+
+const DEFAULT_MONETIZATION_SETTINGS: CountyMonetizationSettings = {
+  platformServiceFee: { ...DEFAULT_PLATFORM_SERVICE_FEE, periods: SUBSCRIPTION_PERIODS.map(p => ({ period: p, enabled: true })) },
+  paymentConvenienceFee: { ...DEFAULT_PAYMENT_CONVENIENCE_FEE },
+  penaltyCommission: { ...DEFAULT_PENALTY_COMMISSION },
+  bulkSmsCostRecovery: { ...DEFAULT_BULK_SMS_COST_RECOVERY, messageCategories: { ...DEFAULT_SMS_MESSAGE_CATEGORIES } },
+  subscriptionPeriodControls: {
+    enabledDurations: { ...DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS.enabledDurations },
+    basePermitPriceCentsPerPeriod: { ...DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS.basePermitPriceCentsPerPeriod },
+  },
+};
+
 export function getDefaultCountyConfig(): CountyConfig {
   return {
     permitConfig: { ...DEFAULT_PERMIT_CONFIG, permitTypes: DEFAULT_PERMIT_CONFIG.permitTypes.map(t => ({ ...t })) },
@@ -1596,6 +1717,16 @@ export function getDefaultCountyConfig(): CountyConfig {
         visibility: { ...DEFAULT_REVENUE_SHARING_VISIBILITY },
       },
     },
+    monetizationSettings: {
+      platformServiceFee: { ...DEFAULT_PLATFORM_SERVICE_FEE, periods: SUBSCRIPTION_PERIODS.map(p => ({ period: p, enabled: true })) },
+      paymentConvenienceFee: { ...DEFAULT_PAYMENT_CONVENIENCE_FEE },
+      penaltyCommission: { ...DEFAULT_PENALTY_COMMISSION },
+      bulkSmsCostRecovery: { ...DEFAULT_BULK_SMS_COST_RECOVERY, messageCategories: { ...DEFAULT_SMS_MESSAGE_CATEGORIES } },
+      subscriptionPeriodControls: {
+        enabledDurations: { ...DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS.enabledDurations },
+        basePermitPriceCentsPerPeriod: {},
+      },
+    },
   };
 }
 
@@ -1606,7 +1737,9 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
   const penalty = settings.penaltyConfig as Partial<CountyPenaltyConfig> | undefined;
   const compliance = settings.complianceRules as Partial<CountyComplianceRules> | undefined;
   const revenue = settings.revenueCommercialConfig as Partial<CountyRevenueCommercialConfig> | undefined;
+  const monetization = settings.monetizationSettings as Partial<CountyMonetizationSettings> | undefined;
   const defRev = defaultConfig.revenueCommercialConfig!;
+  const defMon = defaultConfig.monetizationSettings!;
   return {
     permitConfig: {
       permitTypes: permit?.permitTypes ?? defaultConfig.permitConfig.permitTypes,
@@ -1661,6 +1794,54 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
         },
       },
     },
+    monetizationSettings: {
+      platformServiceFee: {
+        feeType: monetization?.platformServiceFee?.feeType ?? defMon.platformServiceFee.feeType,
+        fixedFeeCents: monetization?.platformServiceFee?.fixedFeeCents ?? defMon.platformServiceFee.fixedFeeCents,
+        percentageFee: monetization?.platformServiceFee?.percentageFee ?? defMon.platformServiceFee.percentageFee,
+        applyScope: 'permit_payments_only',
+        basis: 'per_subscription_period',
+        periods: monetization?.platformServiceFee?.periods?.length ? monetization.platformServiceFee.periods : defMon.platformServiceFee.periods,
+        proportionalByWeeks: monetization?.platformServiceFee?.proportionalByWeeks ?? defMon.platformServiceFee.proportionalByWeeks,
+        periodDiscounts: monetization?.platformServiceFee?.periodDiscounts ?? defMon.platformServiceFee.periodDiscounts,
+      },
+      paymentConvenienceFee: {
+        includedInPlatformFee: monetization?.paymentConvenienceFee?.includedInPlatformFee ?? defMon.paymentConvenienceFee.includedInPlatformFee,
+        feeType: monetization?.paymentConvenienceFee?.feeType ?? defMon.paymentConvenienceFee.feeType,
+        fixedFeeCents: monetization?.paymentConvenienceFee?.fixedFeeCents ?? defMon.paymentConvenienceFee.fixedFeeCents,
+        percentageFee: monetization?.paymentConvenienceFee?.percentageFee ?? defMon.paymentConvenienceFee.percentageFee,
+        applyScope: 'all_transactions',
+        purposeLabel: monetization?.paymentConvenienceFee?.purposeLabel ?? defMon.paymentConvenienceFee.purposeLabel,
+      },
+      penaltyCommission: {
+        feeType: 'percentage',
+        percentageFee: monetization?.penaltyCommission?.percentageFee ?? defMon.penaltyCommission.percentageFee,
+        applyScope: 'penalty_payments_only',
+        chargedOnSuccessOnly: monetization?.penaltyCommission?.chargedOnSuccessOnly ?? defMon.penaltyCommission.chargedOnSuccessOnly,
+      },
+      bulkSmsCostRecovery: {
+        costPerSmsCents: monetization?.bulkSmsCostRecovery?.costPerSmsCents ?? defMon.bulkSmsCostRecovery.costPerSmsCents,
+        markupPerSmsCents: monetization?.bulkSmsCostRecovery?.markupPerSmsCents ?? defMon.bulkSmsCostRecovery.markupPerSmsCents,
+        markupPercent: monetization?.bulkSmsCostRecovery?.markupPercent ?? defMon.bulkSmsCostRecovery.markupPercent,
+        messageCategories: {
+          paymentConfirmation: monetization?.bulkSmsCostRecovery?.messageCategories?.paymentConfirmation ?? defMon.bulkSmsCostRecovery.messageCategories.paymentConfirmation,
+          permitExpiryReminders: monetization?.bulkSmsCostRecovery?.messageCategories?.permitExpiryReminders ?? defMon.bulkSmsCostRecovery.messageCategories.permitExpiryReminders,
+          penaltyAlerts: monetization?.bulkSmsCostRecovery?.messageCategories?.penaltyAlerts ?? defMon.bulkSmsCostRecovery.messageCategories.penaltyAlerts,
+          enforcementNotices: monetization?.bulkSmsCostRecovery?.messageCategories?.enforcementNotices ?? defMon.bulkSmsCostRecovery.messageCategories.enforcementNotices,
+        },
+        applyScope: monetization?.bulkSmsCostRecovery?.applyScope ?? defMon.bulkSmsCostRecovery.applyScope,
+      },
+      subscriptionPeriodControls: {
+        enabledDurations: {
+          weekly: monetization?.subscriptionPeriodControls?.enabledDurations?.weekly ?? defMon.subscriptionPeriodControls.enabledDurations.weekly,
+          monthly: monetization?.subscriptionPeriodControls?.enabledDurations?.monthly ?? defMon.subscriptionPeriodControls.enabledDurations.monthly,
+          three_months: monetization?.subscriptionPeriodControls?.enabledDurations?.three_months ?? defMon.subscriptionPeriodControls.enabledDurations.three_months,
+          six_months: monetization?.subscriptionPeriodControls?.enabledDurations?.six_months ?? defMon.subscriptionPeriodControls.enabledDurations.six_months,
+          annual: monetization?.subscriptionPeriodControls?.enabledDurations?.annual ?? defMon.subscriptionPeriodControls.enabledDurations.annual,
+        },
+        basePermitPriceCentsPerPeriod: monetization?.subscriptionPeriodControls?.basePermitPriceCentsPerPeriod ?? defMon.subscriptionPeriodControls.basePermitPriceCentsPerPeriod,
+      },
+    },
   };
 }
 
@@ -1674,7 +1855,7 @@ export function useUpdateCountyConfig() {
     }: {
       countyId: string;
       config: Partial<CountyConfig>;
-      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules' | 'revenueCommercialConfig';
+      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules' | 'revenueCommercialConfig' | 'monetizationSettings';
     }) => {
       const { data: row } = await supabase.from('counties').select('settings').eq('id', countyId).single();
       const settings = (row?.settings as Record<string, unknown>) ?? {};
