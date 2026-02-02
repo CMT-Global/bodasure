@@ -86,6 +86,71 @@ export function EnforcementVerificationView({
           </CardContent>
         </Card>
 
+        {/* QR Code & Hex ID Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <QrCode className="h-5 w-5" />
+              QR Code & Verification ID
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Scan QR or use hex code for verification
+            </p>
+          </CardHeader>
+          <CardContent>
+            {rider.qr_code ? (
+              <div className="flex flex-wrap items-center gap-4">
+                <div
+                  className="cursor-pointer [perspective:320px] w-[136px] h-[136px] flex-shrink-0 rounded-lg"
+                  onClick={() => setQrFlipped((f) => !f)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && setQrFlipped((f) => !f)}
+                  aria-label={qrFlipped ? 'Show QR code' : 'Show hex code'}
+                >
+                  <div
+                    className={cn(
+                      'relative w-full h-full transition-transform duration-500 [transform-style:preserve-3d]',
+                      qrFlipped && '[transform:rotateY(180deg)]'
+                    )}
+                  >
+                    <div className="absolute inset-0 [backface-visibility:hidden] bg-white p-2 rounded-lg border shadow-sm inline-flex items-center justify-center">
+                      <QRCodeCanvas
+                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/verify/${encodeURIComponent(rider.qr_code)}`}
+                        size={112}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                    <div
+                      className={cn(
+                        'absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]',
+                        'bg-muted/80 rounded-lg border shadow-sm inline-flex items-center justify-center p-3'
+                      )}
+                    >
+                      <p className="font-mono text-xs break-all text-center text-foreground select-all">
+                        {rider.qr_code}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="text-xs text-muted-foreground">Click QR to flip and show hex code</p>
+                  <p className="text-xs text-muted-foreground">Verification ID (hex)</p>
+                  <p className="font-mono font-medium text-foreground break-all">{rider.qr_code}</p>
+                  <p className="text-xs text-muted-foreground">Verify at: /verify/{rider.qr_code}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/30 gap-2">
+                <QrCode className="h-10 w-10 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground font-medium">No QR code assigned</p>
+                <p className="text-xs text-muted-foreground">This rider has no verification QR/hex ID.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Permit Status Card */}
         <Card>
           <CardHeader>
