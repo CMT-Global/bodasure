@@ -14,13 +14,13 @@ interface RevenueChartProps {
 
 export function RevenueChart({ data, title = 'Revenue Overview', description = 'Monthly revenue collection' }: RevenueChartProps) {
   return (
-    <Card className="border-border bg-card">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+    <Card className="border-border bg-card min-w-0 overflow-hidden">
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
+        <CardDescription className="text-sm">{description}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
+      <CardContent className="p-4 sm:p-6 pt-0">
+        <div className="h-[240px] sm:h-[300px] min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>

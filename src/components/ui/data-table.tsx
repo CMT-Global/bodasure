@@ -69,60 +69,64 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  // Mobile card view
+  // Mobile card view: show paginated rows as cards
   if (isMobile && mobileCardRender) {
-    const filteredData = table.getFilteredRowModel().rows.map(row => row.original);
-    
+    const rowModel = table.getRowModel();
+    const paginatedRows = rowModel.rows;
+    const paginatedData = paginatedRows.map(row => row.original);
+    const totalFiltered = table.getFilteredRowModel().rows.length;
+    const pageSize = table.getState().pagination.pageSize;
+    const pageIndex = table.getState().pagination.pageIndex;
+    const start = pageIndex * pageSize + 1;
+    const end = Math.min((pageIndex + 1) * pageSize, totalFiltered);
+
     return (
-      <div className="space-y-4 w-full">
+      <div className="space-y-4 w-full min-w-0 overflow-x-hidden">
         {/* Search */}
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative w-full min-w-0">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground shrink-0 pointer-events-none" />
           <Input
             placeholder={searchPlaceholder}
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            className="pl-10 min-h-[44px] text-base"
+            className="pl-10 min-h-[44px] text-base w-full min-w-0 touch-manipulation"
           />
         </div>
 
-        {/* Mobile Cards */}
+        {/* Mobile Cards - current page only */}
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(5)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
+              <Card key={i} className="animate-pulse min-w-0 overflow-hidden">
                 <CardContent className="p-4">
-                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-                  <div className="h-4 bg-muted rounded w-1/2"></div>
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-muted rounded w-1/2" />
                 </CardContent>
               </Card>
             ))}
           </div>
-        ) : filteredData.length > 0 ? (
+        ) : paginatedData.length > 0 ? (
           <div className="space-y-3">
-            {filteredData.map((item, index) => (
-              <div key={index}>
+            {paginatedData.map((item, index) => (
+              <div key={paginatedRows[index]?.id ?? index} className="min-w-0">
                 {mobileCardRender(item)}
               </div>
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">
+          <Card className="min-w-0 overflow-hidden">
+            <CardContent className="p-6 sm:p-8 text-center text-muted-foreground text-sm">
               No results found.
             </CardContent>
           </Card>
         )}
 
         {/* Pagination */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 pt-2">
           <p className="text-xs text-muted-foreground text-center">
-            Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
-            {Math.min(
-              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-              table.getFilteredRowModel().rows.length
-            )}{' '}
-            of {table.getFilteredRowModel().rows.length} results
+            {totalFiltered === 0
+              ? 'No results'
+              : `Showing ${start}–${end} of ${totalFiltered} results`}
           </p>
           <div className="flex items-center gap-2 w-full">
             <Button
@@ -130,9 +134,9 @@ export function DataTable<TData, TValue>({
               size="sm"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
-              className="flex-1 min-h-[44px]"
+              className="flex-1 min-h-[44px] touch-manipulation"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 shrink-0" />
               Previous
             </Button>
             <Button
@@ -140,10 +144,10 @@ export function DataTable<TData, TValue>({
               size="sm"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
-              className="flex-1 min-h-[44px]"
+              className="flex-1 min-h-[44px] touch-manipulation"
             >
               Next
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 shrink-0" />
             </Button>
           </div>
         </div>

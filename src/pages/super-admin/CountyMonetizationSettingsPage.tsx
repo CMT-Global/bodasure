@@ -207,8 +207,13 @@ function validatePaymentConvenienceFee(c: PaymentConvenienceFeeConfig): string |
 }
 
 function validatePenaltyCommission(c: PenaltyCommissionConfig): string | null {
-  const v = c.percentageFee ?? 0;
-  if (v < 0 || v > 100) return 'Penalty commission must be between 0 and 100%.';
+  if (c.feeType === 'fixed') {
+    const v = c.fixedFeeCents ?? 0;
+    if (v < 0) return 'Penalty commission (KES) must be ≥ 0.';
+  } else {
+    const v = c.percentageFee ?? 0;
+    if (v < 0 || v > 100) return 'Penalty commission must be between 0 and 100%.';
+  }
   return null;
 }
 
@@ -241,7 +246,9 @@ function hasHighImpactChanges(
       if ((pa.percentageFee ?? 0) !== (pb.percentageFee ?? 0)) return true;
     }
   }
-  if ((current.penaltyCommission.percentageFee ?? 0) !== (next.penaltyCommission.percentageFee ?? 0)) return true;
+  if (current.penaltyCommission.feeType === 'percentage' || next.penaltyCommission.feeType === 'percentage') {
+    if ((current.penaltyCommission.percentageFee ?? 0) !== (next.penaltyCommission.percentageFee ?? 0)) return true;
+  }
   if ((current.bulkSmsCostRecovery.markupPercent ?? 0) !== (next.bulkSmsCostRecovery.markupPercent ?? 0)) return true;
   return false;
 }
@@ -292,6 +299,7 @@ export default function CountyMonetizationSettingsPage() {
     },
     penaltyCommission: {
       feeType: 'percentage' as const,
+      fixedFeeCents: 0,
       percentageFee: 0,
       applyScope: 'penalty_payments_only' as const,
       chargedOnSuccessOnly: true,
@@ -343,10 +351,26 @@ export default function CountyMonetizationSettingsPage() {
   const updateMutation = useUpdateCountyConfig();
 
   const buildMonetizationConfig = (): CountyMonetizationSettings => ({
-    platformServiceFee: { ...platformServiceFee },
-    paymentConvenienceFee: { ...paymentConvenienceFee },
-    penaltyCommission: { ...penaltyCommission },
-    bulkSmsCostRecovery: { ...bulkSms, messageCategories: { ...bulkSms.messageCategories } },
+    platformServiceFee: {
+      ...platformServiceFee,
+      fixedFeeCents: platformServiceFee.fixedFeeCents ?? 0,
+      percentageFee: platformServiceFee.percentageFee ?? 0,
+    },
+    paymentConvenienceFee: {
+      ...paymentConvenienceFee,
+      fixedFeeCents: paymentConvenienceFee.fixedFeeCents ?? 0,
+      percentageFee: paymentConvenienceFee.percentageFee ?? 0,
+    },
+    penaltyCommission: {
+      ...penaltyCommission,
+      fixedFeeCents: penaltyCommission.fixedFeeCents ?? 0,
+      percentageFee: penaltyCommission.percentageFee ?? 0,
+    },
+    bulkSmsCostRecovery: {
+      ...bulkSms,
+      messageCategories: { ...bulkSms.messageCategories },
+      costPerSmsCents: bulkSms.costPerSmsCents ?? 0,
+    },
     subscriptionPeriodControls: {
       enabledDurations: { ...subscriptionPeriodControls.enabledDurations },
       basePermitPriceCentsPerPeriod: { ...subscriptionPeriodControls.basePermitPriceCentsPerPeriod },
@@ -418,10 +442,10 @@ export default function CountyMonetizationSettingsPage() {
 
   return (
     <SuperAdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0 overflow-x-hidden">
         <div>
-          <h1 className="text-2xl font-bold">County Monetization Settings</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">County Monetization Settings</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
             Active settings per county. Per-county configuration: platform service fee, payment/convenience fee, penalty commission, bulk SMS cost recovery, and subscription period controls. Monetization deductions must align with enabled periods only. Version history and optional effective dates are in the &quot;Version history&quot; tab.
           </p>
         </div>
@@ -439,17 +463,17 @@ export default function CountyMonetizationSettingsPage() {
         )}
 
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Select county</CardTitle>
             <CardDescription>Monetization settings are configured per county.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             <Select
               value={selectedCountyId ?? ''}
               onValueChange={v => setSelectedCountyId(v || null)}
               disabled={countiesLoading}
             >
-              <SelectTrigger className="max-w-sm">
+              <SelectTrigger className="w-full sm:max-w-sm min-h-[44px] sm:min-h-0">
                 <SelectValue placeholder="Select a county" />
               </SelectTrigger>
               <SelectContent>
@@ -486,40 +510,40 @@ export default function CountyMonetizationSettingsPage() {
             )}
 
             <Tabs defaultValue="platform-fee" className="space-y-4">
-              <TabsList className="flex flex-wrap h-auto gap-1 bg-muted p-1">
-                <TabsTrigger value="platform-fee" className="flex items-center gap-2">
-                  <Percent className="h-4 w-4" /> Platform Service Fee
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 p-1 h-auto gap-1 rounded-lg bg-muted [&>button]:min-h-[44px] [&>button]:min-w-0">
+                <TabsTrigger value="platform-fee" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <Percent className="h-4 w-4 shrink-0" /> <span className="truncate">Platform Fee</span>
                 </TabsTrigger>
-                <TabsTrigger value="convenience-fee" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" /> Payment / Convenience
+                <TabsTrigger value="convenience-fee" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <CreditCard className="h-4 w-4 shrink-0" /> <span className="truncate">Convenience</span>
                 </TabsTrigger>
-                <TabsTrigger value="penalty-commission" className="flex items-center gap-2">
-                  <Scale className="h-4 w-4" /> Penalty Commission
+                <TabsTrigger value="penalty-commission" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <Scale className="h-4 w-4 shrink-0" /> <span className="truncate">Penalty</span>
                 </TabsTrigger>
-                <TabsTrigger value="sms-recovery" className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" /> Bulk SMS
+                <TabsTrigger value="sms-recovery" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <MessageSquare className="h-4 w-4 shrink-0" /> <span className="truncate">Bulk SMS</span>
                 </TabsTrigger>
-                <TabsTrigger value="period-controls" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" /> Subscription Periods
+                <TabsTrigger value="period-controls" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <Calendar className="h-4 w-4 shrink-0" /> <span className="truncate">Periods</span>
                 </TabsTrigger>
-                <TabsTrigger value="calculation-engine" className="flex items-center gap-2">
-                  <Calculator className="h-4 w-4" /> Calculation Engine
+                <TabsTrigger value="calculation-engine" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <Calculator className="h-4 w-4 shrink-0" /> <span className="truncate">Calculator</span>
                 </TabsTrigger>
-                <TabsTrigger value="version-history" className="flex items-center gap-2">
-                  <History className="h-4 w-4" /> Version history
+                <TabsTrigger value="version-history" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                  <History className="h-4 w-4 shrink-0" /> <span className="truncate">History</span>
                 </TabsTrigger>
               </TabsList>
 
               {/* A. Platform Service Fee (Primary) */}
               <TabsContent value="platform-fee" className="space-y-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Platform Service Fee (Primary)</CardTitle>
-                    <CardDescription>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-base sm:text-lg">Platform Service Fee (Primary)</CardTitle>
+                    <CardDescription className="text-sm">
                       Fee type: Fixed (KES) or Percentage (%). Apply scope: Permit payments only. Basis: per subscription period. Rule: proportional by weeks (weekly fee × number of weeks). Optional discounts per period.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                     <div className="grid gap-2">
                       <Label>Fee type</Label>
                       <Select
@@ -527,7 +551,7 @@ export default function CountyMonetizationSettingsPage() {
                         onValueChange={v => setPlatformServiceFee(prev => ({ ...prev, feeType: v as 'fixed' | 'percentage' }))}
                         disabled={!canEditMonetization}
                       >
-                        <SelectTrigger className="max-w-xs">
+                        <SelectTrigger className="w-full sm:max-w-xs min-h-[44px] sm:min-h-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -543,10 +567,12 @@ export default function CountyMonetizationSettingsPage() {
                           type="number"
                           min={0}
                           step={1}
-                          value={(platformServiceFee.fixedFeeCents ?? 0) / 100}
-                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, fixedFeeCents: Math.round(Number(e.target.value) * 100) }))}
+                          className="min-h-[44px] sm:min-h-0"
+                          value={platformServiceFee.fixedFeeCents != null ? platformServiceFee.fixedFeeCents / 100 : ''}
+                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                           disabled={!canEditMonetization}
                           readOnly={!canEditMonetization}
+                          placeholder="0"
                         />
                       </div>
                     )}
@@ -558,10 +584,12 @@ export default function CountyMonetizationSettingsPage() {
                           min={0}
                           max={100}
                           step={0.01}
-                          value={platformServiceFee.percentageFee ?? 0}
-                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, percentageFee: Number(e.target.value) }))}
+                          className="min-h-[44px] sm:min-h-0"
+                          value={platformServiceFee.percentageFee ?? ''}
+                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
                           disabled={!canEditMonetization}
                           readOnly={!canEditMonetization}
+                          placeholder="0"
                         />
                       </div>
                     )}
@@ -588,7 +616,7 @@ export default function CountyMonetizationSettingsPage() {
                             }
                             disabled={!canEditMonetization}
                           >
-                            <SelectTrigger className="w-[140px]">
+                            <SelectTrigger className="w-full min-w-0 sm:w-[140px] min-h-[44px] sm:min-h-0">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -600,7 +628,7 @@ export default function CountyMonetizationSettingsPage() {
                           <Input
                             type="number"
                             placeholder="Discount KES"
-                            className="w-28"
+                            className="w-full min-w-0 sm:w-28 min-h-[44px] sm:min-h-0"
                             value={d.discountCents != null ? d.discountCents / 100 : ''}
                             onChange={e =>
                               setPlatformServiceFee(prev => ({
@@ -616,7 +644,7 @@ export default function CountyMonetizationSettingsPage() {
                           <Input
                             type="number"
                             placeholder="Discount %"
-                            className="w-24"
+                            className="w-full min-w-0 sm:w-24 min-h-[44px] sm:min-h-0"
                             min={0}
                             max={100}
                             value={d.discountPercent ?? ''}
@@ -635,6 +663,7 @@ export default function CountyMonetizationSettingsPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto"
                             onClick={() =>
                               setPlatformServiceFee(prev => ({ ...prev, periodDiscounts: prev.periodDiscounts.filter((_, j) => j !== i) }))
                             }
@@ -648,6 +677,7 @@ export default function CountyMonetizationSettingsPage() {
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto"
                         onClick={() =>
                           setPlatformServiceFee(prev => ({
                             ...prev,
@@ -666,14 +696,14 @@ export default function CountyMonetizationSettingsPage() {
               {/* B. Payment Processing / Convenience Fee */}
               <TabsContent value="convenience-fee" className="space-y-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Payment Processing / Convenience Fee</CardTitle>
-                    <CardDescription>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-base sm:text-lg">Payment Processing / Convenience Fee</CardTitle>
+                    <CardDescription className="text-sm">
                       Toggle: Included in Platform Fee (on/off). If not included: set fee type (Fixed or %), apply to all transactions (permits + penalties). Purpose label (internal): &quot;processing/convenience fee&quot;.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2">
+                  <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
+                    <div className="flex items-center gap-2 min-h-[44px]">
                       <Switch
                         checked={paymentConvenienceFee.includedInPlatformFee}
                         onCheckedChange={v => setPaymentConvenienceFee(prev => ({ ...prev, includedInPlatformFee: v }))}
@@ -690,7 +720,7 @@ export default function CountyMonetizationSettingsPage() {
                             onValueChange={v => setPaymentConvenienceFee(prev => ({ ...prev, feeType: v as 'fixed' | 'percentage' }))}
                             disabled={!canEditMonetization}
                           >
-                            <SelectTrigger className="max-w-xs">
+                            <SelectTrigger className="w-full sm:max-w-xs min-h-[44px] sm:min-h-0">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -706,10 +736,11 @@ export default function CountyMonetizationSettingsPage() {
                               type="number"
                               min={0}
                               step={1}
-                              value={(paymentConvenienceFee.fixedFeeCents ?? 0) / 100}
-                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, fixedFeeCents: Math.round(Number(e.target.value) * 100) }))}
+                              value={paymentConvenienceFee.fixedFeeCents != null ? paymentConvenienceFee.fixedFeeCents / 100 : ''}
+                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                               disabled={!canEditMonetization}
                               readOnly={!canEditMonetization}
+                              placeholder="0"
                             />
                           </div>
                         )}
@@ -721,10 +752,11 @@ export default function CountyMonetizationSettingsPage() {
                               min={0}
                               max={100}
                               step={0.01}
-                              value={paymentConvenienceFee.percentageFee ?? 0}
-                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, percentageFee: Number(e.target.value) }))}
+                              value={paymentConvenienceFee.percentageFee ?? ''}
+                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
                               disabled={!canEditMonetization}
                               readOnly={!canEditMonetization}
+                              placeholder="0"
                             />
                           </div>
                         )}
@@ -748,26 +780,60 @@ export default function CountyMonetizationSettingsPage() {
               {/* C. Penalty Commission */}
               <TabsContent value="penalty-commission" className="space-y-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Penalty Commission</CardTitle>
-                    <CardDescription>
-                      Fee type: Percentage (%) only. Apply scope: Penalty payments only. Charged only when penalty payment succeeds. Validation: 0–100%.
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-base sm:text-lg">Penalty Commission</CardTitle>
+                    <CardDescription className="text-sm">
+                      Fee type: Fixed (KES) or Percentage (%). Apply scope: Penalty payments only. Charged only when penalty payment succeeds. Validation: KES ≥ 0 or 0–100%.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                     <div className="grid gap-2">
-                      <Label>Percentage (%) — 0–100</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.01}
-                        value={penaltyCommission.percentageFee}
-                        onChange={e => setPenaltyCommission(prev => ({ ...prev, percentageFee: Number(e.target.value) }))}
+                      <Label>Fee type</Label>
+                      <Select
+                        value={penaltyCommission.feeType}
+                        onValueChange={v => setPenaltyCommission(prev => ({ ...prev, feeType: v as 'fixed' | 'percentage' }))}
                         disabled={!canEditMonetization}
-                        readOnly={!canEditMonetization}
-                      />
+                      >
+                        <SelectTrigger className="w-full sm:max-w-xs min-h-[44px] sm:min-h-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixed (KES)</SelectItem>
+                          <SelectItem value="percentage">Percentage (%)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    {penaltyCommission.feeType === 'fixed' && (
+                      <div className="grid gap-2">
+                        <Label>Fixed fee (KES) — must be ≥ 0</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={penaltyCommission.fixedFeeCents != null ? penaltyCommission.fixedFeeCents / 100 : ''}
+                          onChange={e => setPenaltyCommission(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
+                          disabled={!canEditMonetization}
+                          readOnly={!canEditMonetization}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                    {penaltyCommission.feeType === 'percentage' && (
+                      <div className="grid gap-2">
+                        <Label>Percentage (%) — 0–100</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={penaltyCommission.percentageFee ?? ''}
+                          onChange={e => setPenaltyCommission(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                          disabled={!canEditMonetization}
+                          readOnly={!canEditMonetization}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={penaltyCommission.chargedOnSuccessOnly}
@@ -783,23 +849,24 @@ export default function CountyMonetizationSettingsPage() {
               {/* D. Bulk SMS Cost Recovery */}
               <TabsContent value="sms-recovery" className="space-y-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Bulk SMS Cost Recovery</CardTitle>
-                    <CardDescription>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-base sm:text-lg">Bulk SMS Cost Recovery</CardTitle>
+                    <CardDescription className="text-sm">
                       Cost per SMS (KES, required). Optional markup per SMS (KES) or markup %. Message category toggles control charging/reporting. Apply scope: deducted from county collections periodically (recommended) or per transaction. Total SMS charges per county should be tracked and shown.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                     <div className="grid gap-2">
                       <Label>Cost per SMS (KES) — required, ≥ 0</Label>
                       <Input
                         type="number"
                         min={0}
                         step={0.01}
-                        value={(bulkSms.costPerSmsCents ?? 0) / 100}
-                        onChange={e => setBulkSms(prev => ({ ...prev, costPerSmsCents: Math.round(Number(e.target.value) * 100) }))}
+                        value={bulkSms.costPerSmsCents != null ? bulkSms.costPerSmsCents / 100 : ''}
+                        onChange={e => setBulkSms(prev => ({ ...prev, costPerSmsCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                         disabled={!canEditMonetization}
                         readOnly={!canEditMonetization}
+                        placeholder="0"
                       />
                     </div>
                     <div className="grid gap-2">
@@ -890,15 +957,15 @@ export default function CountyMonetizationSettingsPage() {
               {/* Calculation Engine + Deduction Rules */}
               <TabsContent value="calculation-engine" className="space-y-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" /> Calculation Engine & Deduction Rules
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <FileText className="h-5 w-5 shrink-0" /> Calculation Engine & Deduction Rules
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-sm">
                       Consistent calculation process used everywhere. For each payment we determine county, payment type, and period; compute deductions from this county&apos;s active settings; store gross, total deductions, and net to county on the payment record once successful.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                     <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-3">
                       <p className="font-medium">Process (per payment)</p>
                       <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
@@ -990,15 +1057,15 @@ export default function CountyMonetizationSettingsPage() {
               {/* Version history: who changed, when, previous vs new, optional effective date */}
               <TabsContent value="version-history" className="space-y-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <History className="h-5 w-5" /> Settings versioning & effective dates
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <History className="h-5 w-5 shrink-0" /> Settings versioning & effective dates
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-sm">
                       Active settings per county. History log: who changed it, when, previous vs new values, and optional effective date for changes (apply from next day/week).
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-4 sm:p-6 pt-0">
                     <p className="text-sm text-muted-foreground mb-4">
                       This county&apos;s active monetization settings are shown in the tabs above. Changes apply prospectively; optional effective date is recorded for audit.
                     </p>
@@ -1009,8 +1076,8 @@ export default function CountyMonetizationSettingsPage() {
                     ) : !monetizationHistory.data?.length ? (
                       <p className="text-sm text-muted-foreground">No monetization changes recorded yet.</p>
                     ) : (
-                      <div className="rounded-lg border overflow-hidden">
-                        <table className="w-full text-sm">
+                      <div className="rounded-lg border overflow-x-auto">
+                        <table className="w-full text-sm min-w-[500px]">
                           <thead>
                             <tr className="border-b bg-muted/50">
                               <th className="text-left p-3 font-medium">When</th>
@@ -1024,7 +1091,7 @@ export default function CountyMonetizationSettingsPage() {
                             {monetizationHistory.data.map((entry) => (
                               <React.Fragment key={entry.id}>
                                 <tr
-                                  className="border-b hover:bg-muted/30 cursor-pointer"
+                                  className="border-b hover:bg-muted/30 cursor-pointer min-h-[44px] touch-manipulation"
                                   onClick={() => setExpandedHistoryId((id) => (id === entry.id ? null : entry.id))}
                                 >
                                   <td className="p-3">
@@ -1091,11 +1158,11 @@ export default function CountyMonetizationSettingsPage() {
             </Tabs>
 
             {canEditMonetization && (
-              <div className="flex flex-wrap items-center justify-end gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-end gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
                   <Label className="text-sm text-muted-foreground">Effective date</Label>
                   <Select value={effectiveFrom} onValueChange={(v) => setEffectiveFrom(v as 'immediate' | 'next_day' | 'next_week')}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] sm:min-h-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1106,7 +1173,7 @@ export default function CountyMonetizationSettingsPage() {
                   </Select>
                   <span className="text-xs text-muted-foreground">Optional; recorded in history</span>
                 </div>
-                <Button onClick={handleSave} disabled={updateMutation.isPending || validationErrors.length > 0}>
+                <Button onClick={handleSave} disabled={updateMutation.isPending || validationErrors.length > 0} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                   {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                   Save monetization settings
                 </Button>

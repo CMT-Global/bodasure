@@ -73,11 +73,25 @@ export default function RevenueCommercialConfigPage() {
   const updateMutation = useUpdateCountyConfig();
 
   const buildRevenueConfig = (): CountyRevenueCommercialConfig => ({
-    countyRevenueModel: { ...countyRevenueModel },
-    platformFeeModel: { ...platformFeeModel },
+    countyRevenueModel: {
+      ...countyRevenueModel,
+      chargeAmountCents: countyRevenueModel.chargeAmountCents ?? 0,
+    },
+    platformFeeModel: {
+      ...platformFeeModel,
+      fixedFeeCentsPerRider: platformFeeModel.fixedFeeCentsPerRider ?? 0,
+      percentageFee: platformFeeModel.percentageFee ?? 0,
+      hybridFixedCents: platformFeeModel.hybridFixedCents ?? 0,
+      hybridPercentage: platformFeeModel.hybridPercentage ?? 0,
+    },
     saccoWelfareRevenueSharing: {
       enabled: saccoWelfare.enabled,
-      rules: saccoWelfare.rules.map(r => ({ ...r })),
+      rules: saccoWelfare.rules.map(r => ({
+        ...r,
+        percentageShare: r.percentageShare ?? 0,
+        fixedAmountCents: r.fixedAmountCents ?? 0,
+        complianceThresholdPercent: r.complianceThresholdPercent ?? 0,
+      })),
       visibility: { ...saccoWelfare.visibility },
     },
   });
@@ -165,15 +179,15 @@ export default function RevenueCommercialConfigPage() {
           <p className="text-muted-foreground">Select a county to configure revenue and commercial settings.</p>
         ) : (
           <Tabs defaultValue="county-revenue" className="space-y-4">
-            <TabsList className="grid w-full max-w-2xl grid-cols-3">
-              <TabsTrigger value="county-revenue" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" /> County Revenue
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 p-1 h-auto gap-1 sm:gap-0 rounded-lg [&>button]:min-h-[44px] [&>button]:min-w-0">
+              <TabsTrigger value="county-revenue" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <DollarSign className="h-4 w-4 shrink-0" /> <span className="truncate">County Revenue</span>
               </TabsTrigger>
-              <TabsTrigger value="platform-fee" className="flex items-center gap-2">
-                <Percent className="h-4 w-4" /> Platform Fee
+              <TabsTrigger value="platform-fee" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <Percent className="h-4 w-4 shrink-0" /> <span className="truncate">Platform Fee</span>
               </TabsTrigger>
-              <TabsTrigger value="sacco-welfare" className="flex items-center gap-2">
-                <Users className="h-4 w-4" /> Sacco & Welfare
+              <TabsTrigger value="sacco-welfare" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <Users className="h-4 w-4 shrink-0" /> <span className="truncate">Sacco & Welfare</span>
               </TabsTrigger>
             </TabsList>
 
@@ -190,8 +204,9 @@ export default function RevenueCommercialConfigPage() {
                       type="number"
                       min={0}
                       step={1}
-                      value={countyRevenueModel.chargeAmountCents / 100}
-                      onChange={e => setCountyRevenueModel(prev => ({ ...prev, chargeAmountCents: Math.round(Number(e.target.value) * 100) }))}
+                      placeholder="0"
+                      value={countyRevenueModel.chargeAmountCents != null ? countyRevenueModel.chargeAmountCents / 100 : ''}
+                      onChange={e => setCountyRevenueModel(prev => ({ ...prev, chargeAmountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -270,11 +285,21 @@ export default function RevenueCommercialConfigPage() {
                         type="number"
                         min={0}
                         step={1}
-                        value={((platformFeeModel.modelType === 'hybrid' ? platformFeeModel.hybridFixedCents : platformFeeModel.fixedFeeCentsPerRider) ?? 0) / 100}
+                        placeholder="0"
+                        value={
+                          platformFeeModel.modelType === 'hybrid'
+                            ? (platformFeeModel.hybridFixedCents != null ? platformFeeModel.hybridFixedCents / 100 : '')
+                            : (platformFeeModel.fixedFeeCentsPerRider != null ? platformFeeModel.fixedFeeCentsPerRider / 100 : '')
+                        }
                         onChange={e => {
-                          const cents = Math.round(Number(e.target.value) * 100);
-                          if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridFixedCents: cents }));
-                          else setPlatformFeeModel(prev => ({ ...prev, fixedFeeCentsPerRider: cents }));
+                          if (e.target.value === '') {
+                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridFixedCents: undefined }));
+                            else setPlatformFeeModel(prev => ({ ...prev, fixedFeeCentsPerRider: undefined }));
+                          } else {
+                            const cents = Math.round(Number(e.target.value) * 100);
+                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridFixedCents: cents }));
+                            else setPlatformFeeModel(prev => ({ ...prev, fixedFeeCentsPerRider: cents }));
+                          }
                         }}
                       />
                     </div>
@@ -287,11 +312,17 @@ export default function RevenueCommercialConfigPage() {
                         min={0}
                         max={100}
                         step={0.01}
-                        value={platformFeeModel.modelType === 'hybrid' ? (platformFeeModel.hybridPercentage ?? 0) : (platformFeeModel.percentageFee ?? 0)}
+                        placeholder="0"
+                        value={platformFeeModel.modelType === 'hybrid' ? (platformFeeModel.hybridPercentage ?? '') : (platformFeeModel.percentageFee ?? '')}
                         onChange={e => {
-                          const pct = Number(e.target.value);
-                          if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridPercentage: pct }));
-                          else setPlatformFeeModel(prev => ({ ...prev, percentageFee: pct }));
+                          if (e.target.value === '') {
+                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridPercentage: undefined }));
+                            else setPlatformFeeModel(prev => ({ ...prev, percentageFee: undefined }));
+                          } else {
+                            const pct = Number(e.target.value);
+                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridPercentage: pct }));
+                            else setPlatformFeeModel(prev => ({ ...prev, percentageFee: pct }));
+                          }
                         }}
                       />
                     </div>
@@ -378,8 +409,9 @@ export default function RevenueCommercialConfigPage() {
                                   max={100}
                                   step={0.01}
                                   className="w-24"
-                                  value={rule.percentageShare ?? 0}
-                                  onChange={e => updateRevenueSharingRule(i, { percentageShare: Number(e.target.value) })}
+                                  placeholder="0"
+                                  value={rule.percentageShare ?? ''}
+                                  onChange={e => updateRevenueSharingRule(i, { percentageShare: e.target.value === '' ? undefined : Number(e.target.value) })}
                                 />
                               </div>
                             ) : (
@@ -390,8 +422,9 @@ export default function RevenueCommercialConfigPage() {
                                   min={0}
                                   step={1}
                                   className="w-32"
-                                  value={((rule.fixedAmountCents ?? 0) / 100)}
-                                  onChange={e => updateRevenueSharingRule(i, { fixedAmountCents: Math.round(Number(e.target.value) * 100) })}
+                                  placeholder="0"
+                                  value={rule.fixedAmountCents != null ? rule.fixedAmountCents / 100 : ''}
+                                  onChange={e => updateRevenueSharingRule(i, { fixedAmountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) })}
                                 />
                               </div>
                             )}
@@ -418,8 +451,9 @@ export default function RevenueCommercialConfigPage() {
                                     min={0}
                                     max={100}
                                     className="w-20"
-                                    value={rule.complianceThresholdPercent ?? 0}
-                                    onChange={e => updateRevenueSharingRule(i, { complianceThresholdPercent: Number(e.target.value) })}
+                                    placeholder="0"
+                                    value={rule.complianceThresholdPercent ?? ''}
+                                    onChange={e => updateRevenueSharingRule(i, { complianceThresholdPercent: e.target.value === '' ? undefined : Number(e.target.value) })}
                                   />
                                 </div>
                               )}

@@ -73,15 +73,37 @@ export default function CountyConfigurationPage() {
 
   const handleSavePermit = () => {
     if (!selectedCountyId) return;
+    const sanitized: CountyPermitConfig = {
+      ...permitConfig,
+      gracePeriodDays: permitConfig.gracePeriodDays ?? 0,
+      permitTypes: permitConfig.permitTypes.map(pt => ({
+        ...pt,
+        feeCents: pt.feeCents ?? 0,
+        validityDays: pt.validityDays ?? 0,
+      })),
+    };
     updateMutation.mutate(
-      { countyId: selectedCountyId, config: { permitConfig: permitConfig }, section: 'permitConfig' },
+      { countyId: selectedCountyId, config: { permitConfig: sanitized }, section: 'permitConfig' },
       { onError: () => {} }
     );
   };
   const handleSavePenalty = () => {
     if (!selectedCountyId) return;
+    const sanitized: CountyPenaltyConfig = {
+      ...penaltyConfig,
+      categories: penaltyConfig.categories.map(c => ({ ...c, amountCents: c.amountCents ?? 0 })),
+      escalationLogic: penaltyConfig.escalationLogic.map(r => ({
+        ...r,
+        multiplier: r.multiplier ?? 1,
+        maxAmountCents: r.maxAmountCents ?? undefined,
+      })),
+      waiverRules: {
+        ...penaltyConfig.waiverRules,
+        maxWaiverAmountCents: penaltyConfig.waiverRules.maxWaiverAmountCents ?? undefined,
+      },
+    };
     updateMutation.mutate(
-      { countyId: selectedCountyId, config: { penaltyConfig: penaltyConfig }, section: 'penaltyConfig' },
+      { countyId: selectedCountyId, config: { penaltyConfig: sanitized }, section: 'penaltyConfig' },
       { onError: () => {} }
     );
   };
@@ -154,26 +176,26 @@ export default function CountyConfigurationPage() {
 
   return (
     <SuperAdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0 overflow-x-hidden">
         <div>
-          <h1 className="text-2xl font-bold">County-Specific Configuration</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">County-Specific Configuration</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
             Each county has independent permit, penalty, and compliance settings. Editable anytime; changes apply prospectively and are logged with version history.
           </p>
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Select county</CardTitle>
             <CardDescription>Configure permit types, fees, penalties, and compliance rules for the selected county.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <Select
               value={selectedCountyId ?? ''}
               onValueChange={v => setSelectedCountyId(v || null)}
               disabled={countiesLoading}
             >
-              <SelectTrigger className="max-w-sm">
+              <SelectTrigger className="w-full sm:max-w-sm">
                 <SelectValue placeholder="Select a county" />
               </SelectTrigger>
               <SelectContent>
@@ -194,33 +216,32 @@ export default function CountyConfigurationPage() {
           <p className="text-muted-foreground">Select a county to edit its configuration.</p>
         ) : (
           <Tabs defaultValue="permit" className="space-y-4">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4">
-              <TabsTrigger value="permit" className="flex items-center gap-2">
-                <FileCheck className="h-4 w-4" /> Permit
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 p-1 h-auto gap-1 sm:gap-0 rounded-lg [&>button]:min-h-[44px] [&>button]:min-w-0">
+              <TabsTrigger value="permit" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <FileCheck className="h-4 w-4 shrink-0" /> <span className="truncate">Permit</span>
               </TabsTrigger>
-              <TabsTrigger value="penalty" className="flex items-center gap-2">
-                <Scale className="h-4 w-4" /> Penalty
+              <TabsTrigger value="penalty" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <Scale className="h-4 w-4 shrink-0" /> <span className="truncate">Penalty</span>
               </TabsTrigger>
-              <TabsTrigger value="compliance" className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Compliance
+              <TabsTrigger value="compliance" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <ShieldCheck className="h-4 w-4 shrink-0" /> <span className="truncate">Compliance</span>
               </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center gap-2">
-                <History className="h-4 w-4" /> History
+              <TabsTrigger value="history" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <History className="h-4 w-4 shrink-0" /> <span className="truncate">History</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="permit" className="space-y-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle>Permit configuration</CardTitle>
                   <CardDescription>Permit types, fees, validity rules, grace periods, and auto-renew.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
+                <CardContent className="space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
+                  <div className="space-y-2 min-w-0">
                     <Label>Permit types & fees</Label>
-                    {/* Table header */}
                     {permitConfig.permitTypes.length > 0 && (
-                      <div className="grid gap-3 px-3 py-2.5 text-xs font-medium text-muted-foreground border rounded-t-lg bg-muted/50 grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                      <div className="hidden sm:grid gap-3 px-3 py-2.5 text-xs font-medium text-muted-foreground border rounded-t-lg bg-muted/50 grid-cols-[2fr_1fr_1fr_1fr_auto]">
                         <span>Name</span>
                         <span>Type</span>
                         <span>Fee (KES)</span>
@@ -228,53 +249,68 @@ export default function CountyConfigurationPage() {
                         <span className="text-right">Actions</span>
                       </div>
                     )}
-                    {permitConfig.permitTypes.map((pt, i) => (
-                      <div
-                        key={pt.id}
-                        className="grid gap-3 items-center rounded-lg border p-3 grid-cols-[2fr_1fr_1fr_1fr_auto] last:rounded-b-lg"
-                      >
-                        <Input
-                          className="w-full min-w-0"
-                          placeholder="e.g. Weekly, Monthly"
-                          value={pt.name}
-                          onChange={e => updatePermitType(i, { name: e.target.value })}
-                        />
-                        <Select
-                          value={pt.type}
-                          onValueChange={v => updatePermitType(i, { type: v as PermitTypeConfig['type'] })}
+                    <div className="space-y-3 sm:space-y-0">
+                      {permitConfig.permitTypes.map((pt, i) => (
+                        <div
+                          key={pt.id}
+                          className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-start sm:items-center rounded-lg border p-3 sm:rounded-none sm:border-t-0 sm:border-x first:sm:rounded-t-none last:sm:rounded-b-lg"
                         >
-                          <SelectTrigger className="w-full min-w-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="annual">Annual</SelectItem>
-                            <SelectItem value="custom">Custom</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          className="w-full min-w-0"
-                          placeholder="0"
-                          value={pt.feeCents / 100}
-                          onChange={e => updatePermitType(i, { feeCents: Math.round(Number(e.target.value) * 100) })}
-                        />
-                        <Input
-                          type="number"
-                          className="w-full min-w-0"
-                          placeholder="0"
-                          value={pt.validityDays}
-                          onChange={e => updatePermitType(i, { validityDays: Number(e.target.value) || 0 })}
-                        />
-                        <div className="flex justify-end">
-                          <Button type="button" variant="ghost" size="sm" onClick={() => removePermitType(i)}>
-                            Remove
-                          </Button>
+                          <div className="flex flex-col gap-1 sm:contents">
+                            <span className="text-xs text-muted-foreground sm:hidden">Name</span>
+                            <Input
+                              className="w-full min-w-0"
+                              placeholder="e.g. Weekly, Monthly"
+                              value={pt.name}
+                              onChange={e => updatePermitType(i, { name: e.target.value })}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 sm:contents">
+                            <span className="text-xs text-muted-foreground sm:hidden">Type</span>
+                            <Select
+                              value={pt.type}
+                              onValueChange={v => updatePermitType(i, { type: v as PermitTypeConfig['type'] })}
+                            >
+                              <SelectTrigger className="w-full min-w-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="weekly">Weekly</SelectItem>
+                                <SelectItem value="monthly">Monthly</SelectItem>
+                                <SelectItem value="annual">Annual</SelectItem>
+                                <SelectItem value="custom">Custom</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex flex-col gap-1 sm:contents">
+                            <span className="text-xs text-muted-foreground sm:hidden">Fee (KES)</span>
+                            <Input
+                              type="number"
+                              className="w-full min-w-0"
+                              placeholder="0"
+                              value={pt.feeCents != null ? pt.feeCents / 100 : ''}
+                              onChange={e => updatePermitType(i, { feeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PermitTypeConfig>)}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 sm:contents">
+                            <span className="text-xs text-muted-foreground sm:hidden">Validity (days)</span>
+                            <Input
+                              type="number"
+                              className="w-full min-w-0"
+                              placeholder="0"
+                              value={pt.validityDays ?? ''}
+                              onChange={e => updatePermitType(i, { validityDays: e.target.value === '' ? undefined : Number(e.target.value) } as Partial<PermitTypeConfig>)}
+                            />
+                          </div>
+                          <div className="flex justify-end sm:contents">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removePermitType(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation">
+                              Remove
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    <Button type="button" variant="outline" size="sm" onClick={addPermitType}>
+                      ))}
+                    </div>
+                    {permitConfig.permitTypes.length > 0 && <div className="hidden sm:block rounded-b-lg border border-t-0" />}
+                    <Button type="button" variant="outline" size="sm" onClick={addPermitType} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                       Add permit type
                     </Button>
                   </div>
@@ -282,16 +318,18 @@ export default function CountyConfigurationPage() {
                     <Label>Grace period (days)</Label>
                     <Input
                       type="number"
-                      value={permitConfig.gracePeriodDays}
-                      onChange={e => setPermitConfig(prev => ({ ...prev, gracePeriodDays: Number(e.target.value) || 0 }))}
+                      className="min-h-[44px]"
+                      placeholder="0"
+                      value={permitConfig.gracePeriodDays ?? ''}
+                      onChange={e => setPermitConfig(prev => ({ ...prev, gracePeriodDays: e.target.value === '' ? undefined : Number(e.target.value) }))}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-h-[44px]">
                     <Switch
                       checked={permitConfig.autoRenewEnabled}
                       onCheckedChange={v => setPermitConfig(prev => ({ ...prev, autoRenewEnabled: v }))}
                     />
-                    <Label>Auto-renew permits (when enabled)</Label>
+                    <Label className="flex-1">Auto-renew permits (when enabled)</Label>
                   </div>
                   <div className="grid gap-2">
                     <Label>Validity rules note (optional)</Label>
@@ -302,7 +340,7 @@ export default function CountyConfigurationPage() {
                       rows={2}
                     />
                   </div>
-                  <Button onClick={handleSavePermit} disabled={updateMutation.isPending}>
+                  <Button onClick={handleSavePermit} disabled={updateMutation.isPending} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save permit config
                   </Button>
@@ -312,35 +350,38 @@ export default function CountyConfigurationPage() {
 
             <TabsContent value="penalty" className="space-y-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle>Penalty configuration</CardTitle>
                   <CardDescription>Penalty categories, amounts, auto-penalty rules, escalation logic, and waiver rules.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
                   <div className="grid gap-2">
                     <Label>Penalty categories & amounts</Label>
                     {penaltyConfig.categories.map((cat, i) => (
-                      <div key={cat.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                      <div key={cat.id} className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-2 sm:items-center rounded-lg border p-3">
                         <Input
-                          className="flex-1 min-w-[200px]"
+                          className="flex-1 min-w-0"
                           placeholder="Category name"
                           value={cat.name}
                           onChange={e => updatePenaltyCategory(i, { name: e.target.value })}
                         />
-                        <Label className="text-muted-foreground shrink-0">Amount (KES):</Label>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <Label className="text-muted-foreground text-sm">Amount (KES):</Label>
+                          <Input
+                            type="number"
+                            className="w-full sm:w-28 min-h-[44px] sm:min-h-0"
+                            placeholder="0"
+                            value={cat.amountCents != null ? cat.amountCents / 100 : ''}
+                            onChange={e => updatePenaltyCategory(i, { amountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PenaltyCategoryConfig>)}
+                          />
+                        </div>
                         <Input
-                          type="number"
-                          className="w-28"
-                          value={cat.amountCents / 100}
-                          onChange={e => updatePenaltyCategory(i, { amountCents: Math.round(Number(e.target.value) * 100) })}
-                        />
-                        <Input
-                          className="flex-1 min-w-[120px]"
+                          className="flex-1 min-w-0"
                           placeholder="Description (optional)"
                           value={cat.description ?? ''}
                           onChange={e => updatePenaltyCategory(i, { description: e.target.value || undefined })}
                         />
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removePenaltyCategory(i)}>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removePenaltyCategory(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto">
                           Remove
                         </Button>
                       </div>
@@ -368,35 +409,40 @@ export default function CountyConfigurationPage() {
                   <div className="grid gap-2">
                     <Label>Escalation logic (repeat offenders)</Label>
                     {penaltyConfig.escalationLogic.map((rule, i) => (
-                      <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
-                        <Label className="text-muted-foreground shrink-0">After</Label>
-                        <Input
-                          type="number"
-                          className="w-20"
-                          value={rule.repeatCount}
-                          onChange={e => updateEscalationRule(i, { repeatCount: Number(e.target.value) || 0 })}
-                        />
-                        <Label className="text-muted-foreground shrink-0">offenses, multiply by</Label>
+                      <div key={i} className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-2 sm:items-center rounded-lg border p-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <Label className="text-muted-foreground text-sm">After</Label>
+                          <Input
+                            type="number"
+                            className="w-full sm:w-20 min-h-[44px] sm:min-h-0"
+                            value={rule.repeatCount}
+                            onChange={e => updateEscalationRule(i, { repeatCount: Number(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <Label className="text-muted-foreground text-sm">offenses, multiply by</Label>
                         <Input
                           type="number"
                           step="0.5"
-                          className="w-20"
-                          value={rule.multiplier}
-                          onChange={e => updateEscalationRule(i, { multiplier: Number(e.target.value) || 1 })}
+                          className="w-full sm:w-20 min-h-[44px] sm:min-h-0"
+                          placeholder="1"
+                          value={rule.multiplier ?? ''}
+                          onChange={e => updateEscalationRule(i, { multiplier: e.target.value === '' ? undefined : Number(e.target.value) })}
                         />
-                        <Label className="text-muted-foreground shrink-0">Max (KES, optional):</Label>
-                        <Input
-                          type="number"
-                          className="w-28"
-                          value={rule.maxAmountCents != null ? rule.maxAmountCents / 100 : ''}
-                          onChange={e =>
-                            updateEscalationRule(i, {
-                              maxAmountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100),
-                            })
-                          }
-                          placeholder="—"
-                        />
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeEscalationRule(i)}>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <Label className="text-muted-foreground text-sm">Max (KES, optional):</Label>
+                          <Input
+                            type="number"
+                            className="w-full sm:w-28 min-h-[44px] sm:min-h-0"
+                            value={rule.maxAmountCents != null ? rule.maxAmountCents / 100 : ''}
+                            onChange={e =>
+                              updateEscalationRule(i, {
+                                maxAmountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100),
+                              })
+                            }
+                            placeholder="—"
+                          />
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeEscalationRule(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto sm:ml-auto">
                           Remove
                         </Button>
                       </div>
@@ -408,6 +454,7 @@ export default function CountyConfigurationPage() {
                   <div className="grid gap-2">
                     <Label>Waiver rules — roles that can waive</Label>
                     <Input
+                      className="min-h-[44px]"
                       value={penaltyConfig.waiverRules.roles.join(', ')}
                       onChange={e =>
                         setPenaltyConfig(prev => ({
@@ -420,7 +467,7 @@ export default function CountyConfigurationPage() {
                     <Label className="text-muted-foreground text-xs">Max waiver amount (KES, optional)</Label>
                     <Input
                       type="number"
-                      className="max-w-xs"
+                      className="w-full sm:max-w-xs min-h-[44px] sm:min-h-0"
                       value={
                         penaltyConfig.waiverRules.maxWaiverAmountCents != null
                           ? penaltyConfig.waiverRules.maxWaiverAmountCents / 100
@@ -450,7 +497,7 @@ export default function CountyConfigurationPage() {
                       <Label>Require approval for waiver</Label>
                     </div>
                   </div>
-                  <Button onClick={handleSavePenalty} disabled={updateMutation.isPending}>
+                  <Button onClick={handleSavePenalty} disabled={updateMutation.isPending} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save penalty config
                   </Button>
@@ -460,11 +507,11 @@ export default function CountyConfigurationPage() {
 
             <TabsContent value="compliance" className="space-y-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle>Compliance rules</CardTitle>
                   <CardDescription>What defines non-compliant, suspension/blacklist thresholds, and optional compliance scoring.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
                   <div className="grid gap-2">
                     <Label>What defines &quot;non-compliant&quot;</Label>
                     <Textarea
@@ -542,7 +589,7 @@ export default function CountyConfigurationPage() {
                       rows={3}
                     />
                   </div>
-                  <Button onClick={handleSaveCompliance} disabled={updateMutation.isPending}>
+                  <Button onClick={handleSaveCompliance} disabled={updateMutation.isPending} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save compliance rules
                   </Button>
@@ -552,11 +599,11 @@ export default function CountyConfigurationPage() {
 
             <TabsContent value="history" className="space-y-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle>Version history</CardTitle>
                   <CardDescription>Recent changes to this county&apos;s configuration. All edits are logged and applied prospectively.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                   {history.length === 0 ? (
                     <p className="text-muted-foreground">No configuration changes recorded yet.</p>
                   ) : (
@@ -571,20 +618,22 @@ export default function CountyConfigurationPage() {
                                 onClick={() => {
                                   setExpandedHistoryId(prev => (prev === log.id ? null : log.id));
                                 }}
-                                className="flex w-full items-center justify-between gap-2 p-3 text-left hover:bg-muted/50 transition-colors rounded-lg"
+                                className="flex w-full flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 text-left hover:bg-muted/50 transition-colors rounded-lg min-h-[44px] touch-manipulation"
                               >
-                                <span className="text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
-                                <span className="font-medium text-foreground">{log.action}</span>
-                                {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                )}
+                                <span className="text-muted-foreground text-sm order-2 sm:order-1">{new Date(log.created_at).toLocaleString()}</span>
+                                <span className="font-medium text-foreground order-1 sm:order-2 flex items-center justify-between sm:justify-start gap-2">
+                                  {log.action}
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  )}
+                                </span>
                               </button>
                               {isExpanded && (
                                 <div className="border-t px-3 pb-3 pt-2">
-                                  <div className="max-h-[280px] overflow-y-auto overflow-x-auto rounded bg-muted">
-                                    <pre className="min-w-min p-2 text-xs">
+                                  <div className="max-h-[280px] overflow-y-auto overflow-x-auto rounded bg-muted -mx-1 px-1 sm:mx-0 sm:px-0">
+                                    <pre className="min-w-min p-2 text-xs break-all sm:break-normal">
                                       {JSON.stringify(log.new_values, null, 2)}
                                     </pre>
                                   </div>
@@ -594,11 +643,11 @@ export default function CountyConfigurationPage() {
                           );
                         })}
                       </ul>
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-                        <p className="text-sm text-muted-foreground">
+                      <div className="mt-4 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3 border-t pt-4">
+                        <p className="text-sm text-muted-foreground order-2 sm:order-1">
                           Showing {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(historyPage * HISTORY_PAGE_SIZE, history.length)} of {history.length}
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between sm:justify-end gap-2 order-1 sm:order-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -607,10 +656,11 @@ export default function CountyConfigurationPage() {
                               setHistoryPage(p => p - 1);
                               setExpandedHistoryId(null);
                             }}
+                            className="min-h-[44px] flex-1 sm:flex-initial touch-manipulation"
                           >
                             Previous
                           </Button>
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm text-muted-foreground px-2 shrink-0">
                             Page {historyPage} of {historyTotalPages}
                           </span>
                           <Button
@@ -621,6 +671,7 @@ export default function CountyConfigurationPage() {
                               setHistoryPage(p => p + 1);
                               setExpandedHistoryId(null);
                             }}
+                            className="min-h-[44px] flex-1 sm:flex-initial touch-manipulation"
                           >
                             Next
                           </Button>

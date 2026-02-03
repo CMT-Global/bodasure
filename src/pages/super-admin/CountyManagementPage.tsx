@@ -14,6 +14,7 @@ import {
   CountyUpdate,
 } from '@/hooks/useData';
 import { useQueries } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -225,7 +226,7 @@ export default function CountyManagementPage() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Multi-County Management</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Multi-County Management</h1>
             <p className="text-muted-foreground">
               Create, edit, activate/deactivate counties • View rider count, permits, revenue, compliance • Lock or delete county data
             </p>
@@ -241,6 +242,96 @@ export default function CountyManagementPage() {
           searchKey="name"
           searchPlaceholder="Search counties..."
           isLoading={countiesLoading}
+          mobileCardRender={(county) => {
+            const stats = statsMap[county.id];
+            const settings = county.settings as Record<string, unknown> | undefined;
+            const locked = !!settings?.locked;
+            return (
+              <Card className="overflow-hidden">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        {county.logo_url ? (
+                          <img src={county.logo_url} alt="" className="h-8 w-8 rounded object-contain" />
+                        ) : (
+                          <Map className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{county.name}</p>
+                        <p className="text-xs text-muted-foreground">{county.code}</p>
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { setSelectedCounty(county); setIsFormOpen(true); }}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        {county.status !== 'active' && (
+                          <DropdownMenuItem onClick={() => updateMutation.mutate({ id: county.id, payload: { status: 'active' } })}>
+                            <CheckCircle className="mr-2 h-4 w-4" /> Activate
+                          </DropdownMenuItem>
+                        )}
+                        {county.status !== 'inactive' && (
+                          <DropdownMenuItem onClick={() => updateMutation.mutate({ id: county.id, payload: { status: 'inactive' } })}>
+                            <XCircle className="mr-2 h-4 w-4" /> Deactivate
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => lockMutation.mutate({ id: county.id, locked: !locked })}>
+                          {locked ? <Unlock className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />}
+                          {locked ? 'Unlock' : 'Lock (read-only)'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => { setSelectedCounty(county); setIsDeleteOpen(true); setDeleteConfirmName(''); }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete county data
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Riders</span>
+                      <p className="font-medium">{stats?.totalRiders ?? '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Permits</span>
+                      <p className="font-medium">{stats?.activePermits ?? '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Revenue</span>
+                      <p className="font-medium truncate">{stats ? formatCurrency(stats.totalRevenue) : '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Compliance</span>
+                      <p className="font-medium">
+                        {stats?.complianceRate != null ? (
+                          <span className={stats.complianceRate < 80 ? 'text-amber-600' : 'text-green-600'}>{stats.complianceRate}%</span>
+                        ) : (
+                          '—'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                    <span className="text-xs font-medium">{COUNTY_STATUS_LABELS[county.status] ?? county.status}</span>
+                    {locked ? <Lock className="h-4 w-4 text-amber-600 shrink-0" /> : <Unlock className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }}
         />
 
         {/* Create / Edit County Dialog */}

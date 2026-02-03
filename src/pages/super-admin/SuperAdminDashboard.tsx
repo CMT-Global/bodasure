@@ -204,27 +204,29 @@ export default function SuperAdminDashboard() {
             <CardTitle className="text-base">Filters</CardTitle>
             <CardDescription>Apply date range and county to all metrics and tables below.</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-4">
-            <div className="flex flex-col gap-2">
+          <CardContent className="flex flex-col sm:flex-row flex-wrap gap-4">
+            <div className="flex flex-col gap-2 min-w-0">
               <Label>Date range</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  className="min-h-[44px]"
                 />
-                <span className="text-muted-foreground">to</span>
+                <span className="text-muted-foreground hidden sm:inline shrink-0">to</span>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  className="min-h-[44px]"
                 />
               </div>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 min-w-0">
               <Label>County</Label>
               <Select value={countyFilter} onValueChange={setCountyFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px] min-h-[44px]">
                   <SelectValue placeholder="All counties" />
                 </SelectTrigger>
                 <SelectContent>

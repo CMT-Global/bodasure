@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders, DollarSign, ShieldCheck, UsersRound, Building2, Headset, Cog, ClipboardCheck, Server, Banknote, Receipt } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Map, Sliders, DollarSign, ShieldCheck, UsersRound, Building2, Headset, Cog, ClipboardCheck, Server, Banknote, Receipt, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SuperAdminLayoutProps {
@@ -54,7 +54,8 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 lg:relative lg:flex-shrink-0',
-          isCollapsed ? 'w-16' : 'w-72',
+          'w-72',
+          isCollapsed && 'lg:w-16',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
@@ -281,39 +282,79 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
           </Button>
 
           {/* Super Admin Portal — can see and switch to all portals */}
-          <div className="flex items-center gap-2 ml-2 sm:ml-4">
-            <Button
-              variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/super-admin')}
-              className="min-h-[36px] font-semibold"
-            >
-              Super Admin Portal
-            </Button>
-            <Button
-              variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="min-h-[36px]"
-            >
-              County Portal
-            </Button>
-            <Button
-              variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/sacco')}
-              className="min-h-[36px]"
-            >
-              Sacco Portal
-            </Button>
-            <Button
-              variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/rider-owner')}
-              className="min-h-[36px]"
-            >
-              Rider & Owner Portal
-            </Button>
+          <div className="flex items-center gap-2 ml-2 sm:ml-4 min-w-0">
+            {/* Mobile: single dropdown to save space */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="md:hidden min-h-[40px] gap-1.5 font-medium shrink-0"
+                >
+                  <span className="truncate">
+                    {location.pathname.startsWith('/super-admin') && 'Super Admin'}
+                    {location.pathname.startsWith('/dashboard') && 'County'}
+                    {location.pathname.startsWith('/sacco') && 'Sacco'}
+                    {location.pathname.startsWith('/rider-owner') && 'Rider & Owner'}
+                    {!location.pathname.startsWith('/super-admin') && !location.pathname.startsWith('/dashboard') && !location.pathname.startsWith('/sacco') && !location.pathname.startsWith('/rider-owner') && 'Portals'}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onClick={() => navigate('/super-admin')} className="min-h-[44px]">
+                  <span className="sm:hidden">Super Admin</span>
+                  <span className="hidden sm:inline">Super Admin Portal</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/dashboard')} className="min-h-[44px]">
+                  <span className="sm:hidden">County</span>
+                  <span className="hidden sm:inline">County Portal</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/sacco')} className="min-h-[44px]">
+                  <span className="sm:hidden">Sacco</span>
+                  <span className="hidden sm:inline">Sacco Portal</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/rider-owner')} className="min-h-[44px]">
+                  <span className="sm:hidden">Rider & Owner</span>
+                  <span className="hidden sm:inline">Rider & Owner Portal</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* Desktop: all portal buttons */}
+            <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+              <Button
+                variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/super-admin')}
+                className="min-h-[36px] font-semibold"
+              >
+                Super Admin Portal
+              </Button>
+              <Button
+                variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/dashboard')}
+                className="min-h-[36px]"
+              >
+                County Portal
+              </Button>
+              <Button
+                variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/sacco')}
+                className="min-h-[36px]"
+              >
+                Sacco Portal
+              </Button>
+              <Button
+                variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/rider-owner')}
+                className="min-h-[36px]"
+              >
+                Rider & Owner Portal
+              </Button>
+            </div>
           </div>
 
           <div className="flex-1" />
@@ -341,7 +382,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
+                <DropdownMenuItem onClick={() => navigate('/super-admin/system-settings')} className="min-h-[44px]">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>

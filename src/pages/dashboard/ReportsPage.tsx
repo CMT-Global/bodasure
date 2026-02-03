@@ -1262,28 +1262,38 @@ export default function ReportsPage() {
   );
 
   const renderAuditLogCard = (item: UserActivityLog) => (
-    <Card className="w-full">
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-xs">{format(new Date(item.created_at), 'MMM dd, yyyy HH:mm')}</span>
+    <Card className="w-full min-w-0 overflow-hidden border-border">
+      <CardContent className="p-4 sm:p-4 space-y-3">
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="font-medium text-xs sm:text-sm text-muted-foreground shrink-0">
+            {format(new Date(item.created_at), 'MMM dd, yyyy HH:mm')}
+          </span>
         </div>
-        <div className="space-y-1 text-xs">
-          <div>
-            <p className="font-medium">{item.user?.full_name || item.user?.email || 'System'}</p>
-            {item.user?.email && <p className="text-muted-foreground text-xs">{item.user.email}</p>}
+        <div className="space-y-2 text-xs sm:text-sm min-w-0">
+          <div className="min-w-0">
+            <p className="font-medium truncate" title={item.user?.full_name || item.user?.email || 'System'}>
+              {item.user?.full_name || item.user?.email || 'System'}
+            </p>
+            {item.user?.email && (
+              <p className="text-muted-foreground text-xs truncate break-all" title={item.user.email}>
+                {item.user.email}
+              </p>
+            )}
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Action:</span>
-            <Badge variant="outline" className="text-xs">{item.action}</Badge>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+            <span className="text-muted-foreground shrink-0">Action</span>
+            <Badge variant="outline" className="text-xs w-fit break-all font-normal">
+              {item.action}
+            </Badge>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Entity Type:</span>
-            <span>{item.entity_type}</span>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 min-w-0">
+            <span className="text-muted-foreground shrink-0">Entity Type</span>
+            <span className="truncate break-all">{item.entity_type}</span>
           </div>
           {item.entity_id && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Entity ID:</span>
-              <span className="text-xs font-mono">{item.entity_id.slice(0, 8)}...</span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 min-w-0">
+              <span className="text-muted-foreground shrink-0">Entity ID</span>
+              <span className="text-xs font-mono truncate break-all">{item.entity_id.slice(0, 12)}{item.entity_id.length > 12 ? '…' : ''}</span>
             </div>
           )}
         </div>
@@ -1802,11 +1812,11 @@ export default function ReportsPage() {
 
           {/* Audit Logs Tab */}
           <TabsContent value="audit-logs">
-            <Card>
-              <CardHeader className="pb-3 sm:pb-6">
-                <div className="flex flex-col gap-3 sm:gap-4">
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-3 sm:pb-6 p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <CardTitle className="text-base sm:text-lg">Audit Logs</CardTitle>
                       <CardDescription className="text-xs sm:text-sm">Track all user actions, enforcement actions, and payment status changes</CardDescription>
                     </div>
@@ -1816,9 +1826,9 @@ export default function ReportsPage() {
                       title="Audit Logs" 
                     />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 min-w-0">
                     <Select value={auditLogFilter} onValueChange={setAuditLogFilter}>
-                      <SelectTrigger className="w-full sm:w-[200px] min-h-[44px] text-base">
+                      <SelectTrigger className="w-full sm:w-[200px] min-h-[44px] text-base min-w-0 touch-manipulation">
                         <SelectValue placeholder="Filter by type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1831,7 +1841,7 @@ export default function ReportsPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0 min-w-0 overflow-x-hidden">
                 <DataTable
                   columns={auditLogColumns}
                   data={filteredAuditLogs}
