@@ -244,16 +244,25 @@ export type Database = {
           county_id: string
           created_at: string
           description: string | null
+          gross_amount: number | null
           id: string
           metadata: Json | null
+          net_to_county: number | null
           paid_at: string | null
           payment_method: string | null
           payment_reference: string | null
+          payment_type: string | null
+          period: string | null
           permit_id: string | null
+          platform_fee: number | null
+          processing_fee: number | null
+          penalty_commission: number | null
+          sms_charges: number | null
           provider: string | null
           provider_reference: string | null
           rider_id: string | null
           status: Database["public"]["Enums"]["payment_status"]
+          total_deductions: number | null
           updated_at: string
         }
         Insert: {
@@ -261,16 +270,25 @@ export type Database = {
           county_id: string
           created_at?: string
           description?: string | null
+          gross_amount?: number | null
           id?: string
           metadata?: Json | null
+          net_to_county?: number | null
           paid_at?: string | null
           payment_method?: string | null
           payment_reference?: string | null
+          payment_type?: string | null
+          period?: string | null
           permit_id?: string | null
+          platform_fee?: number | null
+          processing_fee?: number | null
+          penalty_commission?: number | null
+          sms_charges?: number | null
           provider?: string | null
           provider_reference?: string | null
           rider_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
+          total_deductions?: number | null
           updated_at?: string
         }
         Update: {
@@ -278,16 +296,25 @@ export type Database = {
           county_id?: string
           created_at?: string
           description?: string | null
+          gross_amount?: number | null
           id?: string
           metadata?: Json | null
+          net_to_county?: number | null
           paid_at?: string | null
           payment_method?: string | null
           payment_reference?: string | null
+          payment_type?: string | null
+          period?: string | null
           permit_id?: string | null
+          platform_fee?: number | null
+          processing_fee?: number | null
+          penalty_commission?: number | null
+          sms_charges?: number | null
           provider?: string | null
           provider_reference?: string | null
           rider_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
+          total_deductions?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -568,6 +595,7 @@ export type Database = {
           status: Database["public"]["Enums"]["registration_status"]
           updated_at: string
           user_id: string | null
+          welfare_group_id: string | null
         }
         Insert: {
           address?: string | null
@@ -587,6 +615,7 @@ export type Database = {
           qr_code?: string | null
           sacco_id?: string | null
           stage_id?: string | null
+          welfare_group_id?: string | null
           status?: Database["public"]["Enums"]["registration_status"]
           updated_at?: string
           user_id?: string | null
@@ -612,6 +641,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["registration_status"]
           updated_at?: string
           user_id?: string | null
+          welfare_group_id?: string | null
         }
         Relationships: [
           {
@@ -640,6 +670,63 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "riders_welfare_group_id_fkey"
+            columns: ["welfare_group_id"]
+            isOneToOne: false
+            referencedRelation: "welfare_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      welfare_groups: {
+        Row: {
+          address: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          county_id: string
+          created_at: string
+          id: string
+          name: string
+          registration_number: string | null
+          settings: Json | null
+          status: Database["public"]["Enums"]["registration_status"]
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          county_id: string
+          created_at?: string
+          id?: string
+          name: string
+          registration_number?: string | null
+          settings?: Json | null
+          status?: Database["public"]["Enums"]["registration_status"]
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          county_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          registration_number?: string | null
+          settings?: Json | null
+          status?: Database["public"]["Enums"]["registration_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "welfare_groups_county_id_fkey"
+            columns: ["county_id"]
+            isOneToOne: false
+            referencedRelation: "counties"
             referencedColumns: ["id"]
           },
         ]
@@ -707,6 +794,7 @@ export type Database = {
           sacco_id: string | null
           status: Database["public"]["Enums"]["registration_status"]
           updated_at: string
+          welfare_group_id: string | null
         }
         Insert: {
           capacity?: number | null
@@ -720,6 +808,7 @@ export type Database = {
           sacco_id?: string | null
           status?: Database["public"]["Enums"]["registration_status"]
           updated_at?: string
+          welfare_group_id?: string | null
         }
         Update: {
           capacity?: number | null
@@ -733,6 +822,7 @@ export type Database = {
           sacco_id?: string | null
           status?: Database["public"]["Enums"]["registration_status"]
           updated_at?: string
+          welfare_group_id?: string | null
         }
         Relationships: [
           {
@@ -749,6 +839,13 @@ export type Database = {
             referencedRelation: "saccos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stages_welfare_group_id_fkey"
+            columns: ["welfare_group_id"]
+            isOneToOne: false
+            referencedRelation: "welfare_groups"
+            referencedColumns: ["id"]
+          },
         ]
       }
       user_roles: {
@@ -758,7 +855,9 @@ export type Database = {
           granted_by: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          sacco_id: string | null
           user_id: string
+          welfare_group_id: string | null
         }
         Insert: {
           county_id?: string | null
@@ -766,7 +865,9 @@ export type Database = {
           granted_by?: string | null
           id?: string
           role: Database["public"]["Enums"]["app_role"]
+          sacco_id?: string | null
           user_id: string
+          welfare_group_id?: string | null
         }
         Update: {
           county_id?: string | null
@@ -774,7 +875,9 @@ export type Database = {
           granted_by?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          sacco_id?: string | null
           user_id?: string
+          welfare_group_id?: string | null
         }
         Relationships: [
           {
@@ -782,6 +885,20 @@ export type Database = {
             columns: ["county_id"]
             isOneToOne: false
             referencedRelation: "counties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_sacco_id_fkey"
+            columns: ["sacco_id"]
+            isOneToOne: false
+            referencedRelation: "saccos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_welfare_group_id_fkey"
+            columns: ["welfare_group_id"]
+            isOneToOne: false
+            referencedRelation: "welfare_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -852,11 +969,43 @@ export type Database = {
         }
         Relationships: []
       }
+      system_role_templates: {
+        Row: {
+          id: string
+          role_key: string
+          name: string
+          category: string
+          locked: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          role_key: string
+          name: string
+          category: string
+          locked?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          role_key?: string
+          name?: string
+          category?: string
+          locked?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_public_rider_by_plate: { Args: { plate_number: string }; Returns: Json }
+      get_public_rider_by_qr: { Args: { qr: string }; Returns: Json }
       get_user_county_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -893,9 +1042,17 @@ export type Database = {
         | "sacco_officer"
         | "welfare_admin"
         | "welfare_officer"
+        | "chairman"
+        | "vice_chairman"
+        | "secretary"
+        | "vice_secretary"
+        | "treasurer"
+        | "vice_treasurer"
+        | "general_official"
         | "stage_chairman"
         | "stage_secretary"
         | "stage_treasurer"
+        | "stage_assistant"
         | "rider"
         | "owner"
       compliance_status:
@@ -1057,9 +1214,17 @@ export const Constants = {
         "sacco_officer",
         "welfare_admin",
         "welfare_officer",
+        "chairman",
+        "vice_chairman",
+        "secretary",
+        "vice_secretary",
+        "treasurer",
+        "vice_treasurer",
+        "general_official",
         "stage_chairman",
         "stage_secretary",
         "stage_treasurer",
+        "stage_assistant",
         "rider",
         "owner",
       ],

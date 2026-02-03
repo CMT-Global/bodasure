@@ -7,6 +7,7 @@ export interface Rider {
   county_id: string;
   owner_id: string | null;
   sacco_id: string | null;
+  welfare_group_id: string | null;
   stage_id: string | null;
   user_id: string | null;
   full_name: string;
@@ -26,6 +27,7 @@ export interface Rider {
   // Joined relations
   owner?: { full_name: string } | null;
   sacco?: { name: string } | null;
+  welfare_group?: { name: string } | null;
   stage?: { name: string } | null;
 }
 
@@ -47,10 +49,32 @@ export interface Sacco {
   non_compliant_count?: number;
 }
 
+/** Welfare Group — first-class entity with profile, officials, members, stages, compliance (parallel to Sacco). */
+export interface WelfareGroup {
+  id: string;
+  county_id: string;
+  name: string;
+  registration_number: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  contact_email: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  settings?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  // Enriched fields
+  member_count?: number;
+  stages_count?: number;
+  compliance_rate?: number;
+  penalties_count?: number;
+  non_compliant_count?: number;
+}
+
 export interface Stage {
   id: string;
   county_id: string;
   sacco_id: string | null;
+  welfare_group_id: string | null;
   name: string;
   location: string | null;
   latitude: number | null;
@@ -59,6 +83,7 @@ export interface Stage {
   capacity: number | null;
   created_at: string;
   sacco?: { name: string } | null;
+  welfare_group?: { name: string } | null;
   // Enriched fields
   member_count?: number;
   compliance_rate?: number;
@@ -138,6 +163,7 @@ export function useRiders(countyId?: string) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .order('created_at', { ascending: false });
@@ -218,6 +244,7 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `;
 
@@ -393,6 +420,7 @@ const riderProfileSelect = `
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name),
           county:counties(name)
         `;
@@ -517,6 +545,7 @@ export function useRidersWithDetails(countyId?: string) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .order('created_at', { ascending: false });
@@ -599,6 +628,7 @@ export function useSaccoMembers(saccoId: string | undefined, countyId: string | 
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .eq('sacco_id', saccoId)
@@ -649,6 +679,69 @@ export function useSaccoMembers(saccoId: string | undefined, countyId: string | 
       });
     },
     enabled: !!saccoId && !!countyId,
+  });
+}
+
+// Fetch welfare group members (riders) with permit and motorbike details
+export function useWelfareGroupMembers(welfareGroupId: string | undefined, countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['welfare-group-members', welfareGroupId, countyId],
+    queryFn: async () => {
+      if (!welfareGroupId || !countyId) return [] as RiderWithDetails[];
+
+      const { data: riders, error } = await supabase
+        .from('riders')
+        .select(`
+          *,
+          owner:owners(full_name),
+          sacco:saccos(name),
+          welfare_group:welfare_groups(name),
+          stage:stages(name)
+        `)
+        .eq('welfare_group_id', welfareGroupId)
+        .eq('county_id', countyId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!riders || riders.length === 0) return [] as RiderWithDetails[];
+
+      const riderIds = riders.map((r) => r.id);
+      const { data: motorbikes } = await supabase
+        .from('motorbikes')
+        .select('id, registration_number, rider_id')
+        .in('rider_id', riderIds);
+      const { data: permits } = await supabase
+        .from('permits')
+        .select('id, permit_number, status, expires_at, rider_id')
+        .in('rider_id', riderIds)
+        .order('created_at', { ascending: false });
+
+      const motorbikeMap = new Map(
+        (motorbikes || []).map((m) => [m.rider_id, { id: m.id, registration_number: m.registration_number }])
+      );
+      const permitMap = new Map<string, (typeof permits)[0]>();
+      (permits || []).forEach((p) => {
+        if (!permitMap.has(p.rider_id)) permitMap.set(p.rider_id, p);
+      });
+
+      return (riders as Rider[]).map((rider) => {
+        const motorbike = motorbikeMap.get(rider.id);
+        const permitData = permitMap.get(rider.id);
+        return {
+          ...rider,
+          motorbike: motorbike ? { id: motorbike.id, registration_number: motorbike.registration_number } : null,
+          permit: permitData
+            ? {
+                id: permitData.id,
+                permit_number: permitData.permit_number,
+                status: permitData.status as 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled',
+                expires_at: permitData.expires_at,
+              }
+            : null,
+        } as RiderWithDetails;
+      });
+    },
+    enabled: !!welfareGroupId && !!countyId,
   });
 }
 
@@ -760,6 +853,7 @@ export function useRider(riderId: string) {
           *,
           owner:owners(full_name),
           sacco:saccos(name),
+          welfare_group:welfare_groups(name),
           stage:stages(name)
         `)
         .eq('id', riderId)
@@ -907,14 +1001,119 @@ export function useSaccos(countyId?: string) {
   });
 }
 
-// Fetch stages with statistics
-export function useStages(countyId?: string, saccoId?: string) {
+// Fetch welfare groups with statistics (first-class entity: profile, officials, members, stages, compliance)
+export function useWelfareGroups(countyId?: string) {
   return useQuery({
-    queryKey: ['stages', countyId, saccoId],
+    queryKey: ['welfare-groups', countyId],
+    queryFn: async () => {
+      let query = supabase
+        .from('welfare_groups')
+        .select('*')
+        .order('name');
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data: groups, error } = await query;
+      if (error) throw error;
+      if (!groups || groups.length === 0) return [] as WelfareGroup[];
+
+      const groupIds = groups.map((g) => g.id);
+
+      const { data: riders } = await supabase
+        .from('riders')
+        .select('id, welfare_group_id, compliance_status')
+        .in('welfare_group_id', groupIds);
+
+      const { data: stages } = await supabase
+        .from('stages')
+        .select('id, welfare_group_id')
+        .in('welfare_group_id', groupIds);
+
+      const riderIds = riders?.map((r) => r.id) || [];
+      let penalties: { rider_id: string }[] = [];
+      if (riderIds.length > 0) {
+        const { data: penaltiesData } = await supabase
+          .from('penalties')
+          .select('id, rider_id')
+          .in('rider_id', riderIds);
+        penalties = penaltiesData || [];
+      }
+
+      const stats = new Map<
+        string,
+        { member_count: number; stages_count: number; compliant_count: number; non_compliant_count: number; penalties_count: number }
+      >();
+      groups.forEach((g) => {
+        stats.set(g.id, {
+          member_count: 0,
+          stages_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        });
+      });
+      riders?.forEach((r) => {
+        if (r.welfare_group_id) {
+          const s = stats.get(r.welfare_group_id);
+          if (s) {
+            s.member_count++;
+            if (r.compliance_status === 'compliant') s.compliant_count++;
+            else if (r.compliance_status === 'non_compliant' || r.compliance_status === 'blacklisted') s.non_compliant_count++;
+          }
+        }
+      });
+      stages?.forEach((st) => {
+        if (st.welfare_group_id) {
+          const s = stats.get(st.welfare_group_id);
+          if (s) s.stages_count++;
+        }
+      });
+      const riderToGroup = new Map<string, string>();
+      riders?.forEach((r) => {
+        if (r.welfare_group_id) riderToGroup.set(r.id, r.welfare_group_id);
+      });
+      penalties.forEach((p) => {
+        const gid = riderToGroup.get(p.rider_id);
+        if (gid) {
+          const s = stats.get(gid);
+          if (s) s.penalties_count++;
+        }
+      });
+
+      return groups.map((g) => {
+        const s = stats.get(g.id) || {
+          member_count: 0,
+          stages_count: 0,
+          compliant_count: 0,
+          non_compliant_count: 0,
+          penalties_count: 0,
+        };
+        const total = s.member_count;
+        const compliance_rate = total > 0 ? Math.round((s.compliant_count / total) * 100) : 100;
+        return {
+          ...g,
+          member_count: s.member_count,
+          stages_count: s.stages_count,
+          compliance_rate,
+          penalties_count: s.penalties_count,
+          non_compliant_count: s.non_compliant_count,
+        } as WelfareGroup;
+      });
+    },
+    enabled: true,
+  });
+}
+
+// Fetch stages with statistics
+export function useStages(countyId?: string, saccoId?: string, welfareGroupId?: string) {
+  return useQuery({
+    queryKey: ['stages', countyId, saccoId, welfareGroupId],
     queryFn: async () => {
       let query = supabase
         .from('stages')
-        .select(`*, sacco:saccos(name)`)
+        .select(`*, sacco:saccos(name), welfare_group:welfare_groups(name)`)
         .order('name');
 
       if (countyId) {
@@ -922,6 +1121,9 @@ export function useStages(countyId?: string, saccoId?: string) {
       }
       if (saccoId) {
         query = query.eq('sacco_id', saccoId);
+      }
+      if (welfareGroupId) {
+        query = query.eq('welfare_group_id', welfareGroupId);
       }
 
       const { data: stages, error } = await query;
@@ -1303,11 +1505,70 @@ export interface CountyRevenueCommercialConfig {
   saccoWelfareRevenueSharing: SaccoWelfareRevenueSharingConfig;
 }
 
+// ——— County Monetization Settings (Super Admin, per county) ———
+export type SubscriptionPeriodKey = 'weekly' | 'monthly' | 'three_months' | 'six_months' | 'annual';
+
+export interface PlatformServiceFeeConfig {
+  feeType: 'fixed' | 'percentage';
+  fixedFeeCents?: number;
+  percentageFee?: number;
+  applyScope: 'permit_payments_only';
+  basis: 'per_subscription_period';
+  periods: { period: SubscriptionPeriodKey; enabled: boolean }[];
+  proportionalByWeeks: boolean;
+  periodDiscounts: { period: SubscriptionPeriodKey; discountCents?: number; discountPercent?: number }[];
+}
+
+export interface PaymentConvenienceFeeConfig {
+  includedInPlatformFee: boolean;
+  feeType: 'fixed' | 'percentage';
+  fixedFeeCents?: number;
+  percentageFee?: number;
+  applyScope: 'all_transactions';
+  purposeLabel: string;
+}
+
+export interface PenaltyCommissionConfig {
+  feeType: 'percentage';
+  percentageFee: number;
+  applyScope: 'penalty_payments_only';
+  chargedOnSuccessOnly: boolean;
+}
+
+export interface SmsMessageCategoryToggles {
+  paymentConfirmation: boolean;
+  permitExpiryReminders: boolean;
+  penaltyAlerts: boolean;
+  enforcementNotices: boolean;
+}
+
+export interface BulkSmsCostRecoveryConfig {
+  costPerSmsCents: number;
+  markupPerSmsCents?: number;
+  markupPercent?: number;
+  messageCategories: SmsMessageCategoryToggles;
+  applyScope: 'periodic_deduction' | 'per_transaction';
+}
+
+export interface SubscriptionPeriodControlsConfig {
+  enabledDurations: Record<SubscriptionPeriodKey, boolean>;
+  basePermitPriceCentsPerPeriod: Partial<Record<SubscriptionPeriodKey, number>>;
+}
+
+export interface CountyMonetizationSettings {
+  platformServiceFee: PlatformServiceFeeConfig;
+  paymentConvenienceFee: PaymentConvenienceFeeConfig;
+  penaltyCommission: PenaltyCommissionConfig;
+  bulkSmsCostRecovery: BulkSmsCostRecoveryConfig;
+  subscriptionPeriodControls: SubscriptionPeriodControlsConfig;
+}
+
 export interface CountyConfig {
   permitConfig: CountyPermitConfig;
   penaltyConfig: CountyPenaltyConfig;
   complianceRules: CountyComplianceRules;
   revenueCommercialConfig?: CountyRevenueCommercialConfig;
+  monetizationSettings?: CountyMonetizationSettings;
 }
 
 const DEFAULT_PERMIT_CONFIG: CountyPermitConfig = {
@@ -1376,6 +1637,68 @@ const DEFAULT_REVENUE_COMMERCIAL_CONFIG: CountyRevenueCommercialConfig = {
   },
 };
 
+const SUBSCRIPTION_PERIODS: SubscriptionPeriodKey[] = ['weekly', 'monthly', 'three_months', 'six_months', 'annual'];
+
+const DEFAULT_PLATFORM_SERVICE_FEE: PlatformServiceFeeConfig = {
+  feeType: 'fixed',
+  fixedFeeCents: 0,
+  applyScope: 'permit_payments_only',
+  basis: 'per_subscription_period',
+  periods: SUBSCRIPTION_PERIODS.map(p => ({ period: p, enabled: true })),
+  proportionalByWeeks: true,
+  periodDiscounts: [],
+};
+
+const DEFAULT_PAYMENT_CONVENIENCE_FEE: PaymentConvenienceFeeConfig = {
+  includedInPlatformFee: true,
+  feeType: 'fixed',
+  fixedFeeCents: 0,
+  applyScope: 'all_transactions',
+  purposeLabel: 'processing/convenience fee',
+};
+
+const DEFAULT_PENALTY_COMMISSION: PenaltyCommissionConfig = {
+  feeType: 'percentage',
+  percentageFee: 0,
+  applyScope: 'penalty_payments_only',
+  chargedOnSuccessOnly: true,
+};
+
+const DEFAULT_SMS_MESSAGE_CATEGORIES: SmsMessageCategoryToggles = {
+  paymentConfirmation: true,
+  permitExpiryReminders: true,
+  penaltyAlerts: true,
+  enforcementNotices: true,
+};
+
+const DEFAULT_BULK_SMS_COST_RECOVERY: BulkSmsCostRecoveryConfig = {
+  costPerSmsCents: 0,
+  messageCategories: { ...DEFAULT_SMS_MESSAGE_CATEGORIES },
+  applyScope: 'periodic_deduction',
+};
+
+const DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS: SubscriptionPeriodControlsConfig = {
+  enabledDurations: {
+    weekly: true,
+    monthly: true,
+    three_months: true,
+    six_months: true,
+    annual: true,
+  },
+  basePermitPriceCentsPerPeriod: {},
+};
+
+const DEFAULT_MONETIZATION_SETTINGS: CountyMonetizationSettings = {
+  platformServiceFee: { ...DEFAULT_PLATFORM_SERVICE_FEE, periods: SUBSCRIPTION_PERIODS.map(p => ({ period: p, enabled: true })) },
+  paymentConvenienceFee: { ...DEFAULT_PAYMENT_CONVENIENCE_FEE },
+  penaltyCommission: { ...DEFAULT_PENALTY_COMMISSION },
+  bulkSmsCostRecovery: { ...DEFAULT_BULK_SMS_COST_RECOVERY, messageCategories: { ...DEFAULT_SMS_MESSAGE_CATEGORIES } },
+  subscriptionPeriodControls: {
+    enabledDurations: { ...DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS.enabledDurations },
+    basePermitPriceCentsPerPeriod: { ...DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS.basePermitPriceCentsPerPeriod },
+  },
+};
+
 export function getDefaultCountyConfig(): CountyConfig {
   return {
     permitConfig: { ...DEFAULT_PERMIT_CONFIG, permitTypes: DEFAULT_PERMIT_CONFIG.permitTypes.map(t => ({ ...t })) },
@@ -1394,6 +1717,16 @@ export function getDefaultCountyConfig(): CountyConfig {
         visibility: { ...DEFAULT_REVENUE_SHARING_VISIBILITY },
       },
     },
+    monetizationSettings: {
+      platformServiceFee: { ...DEFAULT_PLATFORM_SERVICE_FEE, periods: SUBSCRIPTION_PERIODS.map(p => ({ period: p, enabled: true })) },
+      paymentConvenienceFee: { ...DEFAULT_PAYMENT_CONVENIENCE_FEE },
+      penaltyCommission: { ...DEFAULT_PENALTY_COMMISSION },
+      bulkSmsCostRecovery: { ...DEFAULT_BULK_SMS_COST_RECOVERY, messageCategories: { ...DEFAULT_SMS_MESSAGE_CATEGORIES } },
+      subscriptionPeriodControls: {
+        enabledDurations: { ...DEFAULT_SUBSCRIPTION_PERIOD_CONTROLS.enabledDurations },
+        basePermitPriceCentsPerPeriod: {},
+      },
+    },
   };
 }
 
@@ -1404,7 +1737,9 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
   const penalty = settings.penaltyConfig as Partial<CountyPenaltyConfig> | undefined;
   const compliance = settings.complianceRules as Partial<CountyComplianceRules> | undefined;
   const revenue = settings.revenueCommercialConfig as Partial<CountyRevenueCommercialConfig> | undefined;
+  const monetization = settings.monetizationSettings as Partial<CountyMonetizationSettings> | undefined;
   const defRev = defaultConfig.revenueCommercialConfig!;
+  const defMon = defaultConfig.monetizationSettings!;
   return {
     permitConfig: {
       permitTypes: permit?.permitTypes ?? defaultConfig.permitConfig.permitTypes,
@@ -1459,6 +1794,54 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
         },
       },
     },
+    monetizationSettings: {
+      platformServiceFee: {
+        feeType: monetization?.platformServiceFee?.feeType ?? defMon.platformServiceFee.feeType,
+        fixedFeeCents: monetization?.platformServiceFee?.fixedFeeCents ?? defMon.platformServiceFee.fixedFeeCents,
+        percentageFee: monetization?.platformServiceFee?.percentageFee ?? defMon.platformServiceFee.percentageFee,
+        applyScope: 'permit_payments_only',
+        basis: 'per_subscription_period',
+        periods: monetization?.platformServiceFee?.periods?.length ? monetization.platformServiceFee.periods : defMon.platformServiceFee.periods,
+        proportionalByWeeks: monetization?.platformServiceFee?.proportionalByWeeks ?? defMon.platformServiceFee.proportionalByWeeks,
+        periodDiscounts: monetization?.platformServiceFee?.periodDiscounts ?? defMon.platformServiceFee.periodDiscounts,
+      },
+      paymentConvenienceFee: {
+        includedInPlatformFee: monetization?.paymentConvenienceFee?.includedInPlatformFee ?? defMon.paymentConvenienceFee.includedInPlatformFee,
+        feeType: monetization?.paymentConvenienceFee?.feeType ?? defMon.paymentConvenienceFee.feeType,
+        fixedFeeCents: monetization?.paymentConvenienceFee?.fixedFeeCents ?? defMon.paymentConvenienceFee.fixedFeeCents,
+        percentageFee: monetization?.paymentConvenienceFee?.percentageFee ?? defMon.paymentConvenienceFee.percentageFee,
+        applyScope: 'all_transactions',
+        purposeLabel: monetization?.paymentConvenienceFee?.purposeLabel ?? defMon.paymentConvenienceFee.purposeLabel,
+      },
+      penaltyCommission: {
+        feeType: 'percentage',
+        percentageFee: monetization?.penaltyCommission?.percentageFee ?? defMon.penaltyCommission.percentageFee,
+        applyScope: 'penalty_payments_only',
+        chargedOnSuccessOnly: monetization?.penaltyCommission?.chargedOnSuccessOnly ?? defMon.penaltyCommission.chargedOnSuccessOnly,
+      },
+      bulkSmsCostRecovery: {
+        costPerSmsCents: monetization?.bulkSmsCostRecovery?.costPerSmsCents ?? defMon.bulkSmsCostRecovery.costPerSmsCents,
+        markupPerSmsCents: monetization?.bulkSmsCostRecovery?.markupPerSmsCents ?? defMon.bulkSmsCostRecovery.markupPerSmsCents,
+        markupPercent: monetization?.bulkSmsCostRecovery?.markupPercent ?? defMon.bulkSmsCostRecovery.markupPercent,
+        messageCategories: {
+          paymentConfirmation: monetization?.bulkSmsCostRecovery?.messageCategories?.paymentConfirmation ?? defMon.bulkSmsCostRecovery.messageCategories.paymentConfirmation,
+          permitExpiryReminders: monetization?.bulkSmsCostRecovery?.messageCategories?.permitExpiryReminders ?? defMon.bulkSmsCostRecovery.messageCategories.permitExpiryReminders,
+          penaltyAlerts: monetization?.bulkSmsCostRecovery?.messageCategories?.penaltyAlerts ?? defMon.bulkSmsCostRecovery.messageCategories.penaltyAlerts,
+          enforcementNotices: monetization?.bulkSmsCostRecovery?.messageCategories?.enforcementNotices ?? defMon.bulkSmsCostRecovery.messageCategories.enforcementNotices,
+        },
+        applyScope: monetization?.bulkSmsCostRecovery?.applyScope ?? defMon.bulkSmsCostRecovery.applyScope,
+      },
+      subscriptionPeriodControls: {
+        enabledDurations: {
+          weekly: monetization?.subscriptionPeriodControls?.enabledDurations?.weekly ?? defMon.subscriptionPeriodControls.enabledDurations.weekly,
+          monthly: monetization?.subscriptionPeriodControls?.enabledDurations?.monthly ?? defMon.subscriptionPeriodControls.enabledDurations.monthly,
+          three_months: monetization?.subscriptionPeriodControls?.enabledDurations?.three_months ?? defMon.subscriptionPeriodControls.enabledDurations.three_months,
+          six_months: monetization?.subscriptionPeriodControls?.enabledDurations?.six_months ?? defMon.subscriptionPeriodControls.enabledDurations.six_months,
+          annual: monetization?.subscriptionPeriodControls?.enabledDurations?.annual ?? defMon.subscriptionPeriodControls.enabledDurations.annual,
+        },
+        basePermitPriceCentsPerPeriod: monetization?.subscriptionPeriodControls?.basePermitPriceCentsPerPeriod ?? defMon.subscriptionPeriodControls.basePermitPriceCentsPerPeriod,
+      },
+    },
   };
 }
 
@@ -1469,10 +1852,13 @@ export function useUpdateCountyConfig() {
       countyId,
       config,
       section,
+      effectiveFrom,
     }: {
       countyId: string;
       config: Partial<CountyConfig>;
-      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules' | 'revenueCommercialConfig';
+      section: 'permitConfig' | 'penaltyConfig' | 'complianceRules' | 'revenueCommercialConfig' | 'monetizationSettings';
+      /** Optional: effective date for this change (ISO date string). Stored in audit log for versioning; changes still apply immediately unless deferred logic is added later. */
+      effectiveFrom?: string;
     }) => {
       const { data: row } = await supabase.from('counties').select('settings').eq('id', countyId).single();
       const settings = (row?.settings as Record<string, unknown>) ?? {};
@@ -1482,6 +1868,7 @@ export function useUpdateCountyConfig() {
       const { error: updateError } = await supabase.from('counties').update({ settings: newSettings } as any).eq('id', countyId);
       if (updateError) throw updateError;
       const { data: { user } } = await supabase.auth.getUser();
+      const newValuesForAudit = effectiveFrom ? { ...config, effective_from: effectiveFrom } : config;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await supabase.from('audit_logs').insert({
         county_id: countyId,
@@ -1490,13 +1877,14 @@ export function useUpdateCountyConfig() {
         entity_type: 'county_config',
         entity_id: null,
         old_values: oldConfig,
-        new_values: config,
+        new_values: newValuesForAudit,
       } as any);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['counties'] });
       queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
       queryClient.invalidateQueries({ queryKey: ['county-config-history', variables.countyId] });
+      queryClient.invalidateQueries({ queryKey: ['monetization-settings-history', variables.countyId] });
       toast.success('County configuration saved. Changes apply prospectively.');
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to save configuration'),
@@ -1525,6 +1913,60 @@ export function useCountyConfigHistory(countyId: string | null) {
         created_at: string;
         user_id: string | null;
       }>;
+    },
+    enabled: !!countyId,
+  });
+}
+
+/** Monetization settings version history: who changed, when, previous vs new values, optional effective date. */
+export function useMonetizationSettingsHistory(countyId: string | null) {
+  return useQuery({
+    queryKey: ['monetization-settings-history', countyId],
+    queryFn: async () => {
+      if (!countyId) return [];
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('id, action, entity_type, old_values, new_values, created_at, user_id, actor_role')
+        .eq('county_id', countyId)
+        .eq('entity_type', 'county_config')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        action: string;
+        entity_type: string;
+        old_values: Record<string, unknown> | null;
+        new_values: Record<string, unknown> | null;
+        created_at: string;
+        user_id: string | null;
+        actor_role: string | null;
+      }>;
+      const monetizationOnly = rows.filter(
+        (r) =>
+          (r.new_values && 'monetizationSettings' in (r.new_values ?? {})) ||
+          (r.old_values && 'monetizationSettings' in (r.old_values ?? {}))
+      );
+      const userIds = [...new Set(monetizationOnly.map((r) => r.user_id).filter(Boolean))] as string[];
+      let profilesMap = new Map<string, { full_name: string | null; email: string }>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+        if (profiles) profilesMap = new Map(profiles.map((p) => [p.id, { full_name: p.full_name, email: p.email }]));
+      }
+      return monetizationOnly.map((r) => ({
+        id: r.id,
+        action: r.action,
+        created_at: r.created_at,
+        user_id: r.user_id,
+        actor_role: r.actor_role ?? null,
+        who: r.user_id ? (profilesMap.get(r.user_id)?.full_name || profilesMap.get(r.user_id)?.email || r.user_id) : 'System',
+        old_monetization: (r.old_values as Record<string, unknown> | null)?.monetizationSettings ?? null,
+        new_monetization: (r.new_values as Record<string, unknown> | null)?.monetizationSettings ?? null,
+        effective_from: (r.new_values as Record<string, unknown> | null)?.effective_from as string | undefined,
+      }));
     },
     enabled: !!countyId,
   });

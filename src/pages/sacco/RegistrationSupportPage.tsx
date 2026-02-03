@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,6 +38,8 @@ import {
   Search,
   Users,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { RegistrationTable } from '@/components/registration/RegistrationTable';
 import { RiderDetailDialog } from '@/components/registration/RiderDetailDialog';
@@ -64,6 +66,40 @@ interface DuplicateCheck {
   existingRider?: RiderWithDetails;
 }
 
+// Step 1: Personal & Contact + DOB | Step 2: ID + DL, expiry + address | Step 3: Sacco, Stage + Initial Status
+const REGISTRATION_WIZARD_STEP_GROUPS: {
+  label: string;
+  fields: { name: keyof RegistrationFormValues; label: string; placeholder?: string; description?: string }[];
+}[] = [
+  {
+    label: 'Personal & Contact',
+    fields: [
+      { name: 'full_name', label: 'Full Name', placeholder: 'John Doe' },
+      { name: 'phone', label: 'Phone Number', placeholder: '+254700000000' },
+      { name: 'date_of_birth', label: 'Date of Birth' },
+      { name: 'email', label: 'Email', placeholder: 'email@example.com' },
+     
+    ],
+  },
+  {
+    label: 'Driver Licence & Additional',
+    fields: [
+      { name: 'id_number', label: 'ID Number', placeholder: '12345678', description: 'Checking for duplicates...' },
+      { name: 'license_number', label: 'License Number (DL)', placeholder: 'DL-123456' },
+      { name: 'license_expiry', label: 'License Expiry' },
+      { name: 'address', label: 'Address', placeholder: 'Kisumu, Kenya' },
+    ],
+  },
+  {
+    label: 'Sacco & Stage',
+    fields: [
+      { name: 'sacco_id', label: 'Sacco/Welfare Membership', description: "Confirm the rider's Sacco/Welfare membership" },
+      { name: 'stage_id', label: 'Stage' },
+      { name: 'status', label: 'Initial Status', description: 'Choose to approve immediately or mark for review' },
+    ],
+  },
+];
+
 export default function RegistrationSupportPage() {
   const { profile, roles } = useAuth();
   const queryClient = useQueryClient();
@@ -72,6 +108,8 @@ export default function RegistrationSupportPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [duplicateCheck, setDuplicateCheck] = useState<DuplicateCheck | null>(null);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [wizardStep, setWizardStep] = useState(0);
+  const stepFieldsRef = useRef<HTMLDivElement>(null);
 
   const countyId = useMemo(
     () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
@@ -249,6 +287,19 @@ export default function RegistrationSupportPage() {
     }
   }, [saccoId, formSaccoId, form]);
 
+  // Focus first field when step changes so submit button doesn't receive focus (avoids auto-submit on step 4)
+  useEffect(() => {
+    const el = stepFieldsRef.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>(
+      'input:not([type=hidden]), select, [role="combobox"]'
+    );
+    if (first && 'focus' in first) {
+      const t = setTimeout(() => (first as HTMLElement).focus({ preventScroll: true }), 0);
+      return () => clearTimeout(t);
+    }
+  }, [wizardStep]);
+
   const registrationMutation = useMutation({
     mutationFn: async (values: RegistrationFormValues) => {
       if (!countyId) {
@@ -290,6 +341,7 @@ export default function RegistrationSupportPage() {
       toast.success('Rider registered successfully');
       form.reset();
       setDuplicateCheck(null);
+      setWizardStep(0);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Registration failed');
@@ -387,12 +439,45 @@ export default function RegistrationSupportPage() {
                 Register New Rider
               </CardTitle>
               <CardDescription className="text-sm">
-                Enter rider information. The system will automatically check for duplicates.
+                Step through each field one at a time. The system will automatically check for duplicates.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (wizardStep === REGISTRATION_WIZARD_STEP_GROUPS.length - 1) {
+                      form.handleSubmit(onSubmit)();
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    const target = e.target as HTMLElement;
+                    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="space-y-6"
+                >
+                  {/* Progress */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-muted-foreground">
+                        Step {wizardStep + 1} of {REGISTRATION_WIZARD_STEP_GROUPS.length}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {REGISTRATION_WIZARD_STEP_GROUPS[wizardStep].label}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${((wizardStep + 1) / REGISTRATION_WIZARD_STEP_GROUPS.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
                   {/* Duplicate Alert */}
                   {hasDuplicate && duplicateCheck?.existingRider && (
                     <Alert variant="destructive">
@@ -449,244 +534,293 @@ export default function RegistrationSupportPage() {
                     </Alert>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="full_name"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Full Name *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John Doe" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="id_number"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>ID Number *</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input placeholder="12345678" {...field} />
-                              {isCheckingDuplicate && (
-                                <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                              )}
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                          <FormDescription>Checking for duplicates...</FormDescription>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Number *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+254700000000" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="email@example.com" type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="date_of_birth"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date of Birth</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Address</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Kisumu, Kenya" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="license_number"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>License Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="DL-123456" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="license_expiry"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>License Expiry</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="sacco_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Sacco/Welfare Membership *</FormLabel>
-                          <Select
-                            onValueChange={(value) => {
-                              field.onChange(value);
-                              setSaccoId(value);
-                            }}
-                            value={field.value || saccoId || ''}
-                            disabled={saccosLoading}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Sacco" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {saccos.map((sacco) => (
-                                <SelectItem key={sacco.id} value={sacco.id}>
-                                  {sacco.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                          <FormDescription>Confirm the rider's Sacco/Welfare membership</FormDescription>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="stage_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Stage</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === '__none__' ? '' : v)}
-                            value={field.value || '__none__'}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Stage (Optional)" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="__none__">None</SelectItem>
-                              {stages
-                                .filter((s) => s.sacco_id === (form.watch('sacco_id') || saccoId))
-                                .map((stage) => (
-                                  <SelectItem key={stage.id} value={stage.id}>
-                                    {stage.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Initial Status</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="pending">Pending Review</SelectItem>
-                              <SelectItem value="approved">Approve Immediately</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                          <FormDescription>
-                            Choose to approve immediately or mark for review
-                          </FormDescription>
-                        </FormItem>
-                      )}
-                    />
+                  {/* Current step fields (grouped) */}
+                  <div ref={stepFieldsRef} className="min-h-[120px] space-y-4">
+                    {REGISTRATION_WIZARD_STEP_GROUPS[wizardStep].fields.map((fieldDef) => (
+                      <div key={fieldDef.name}>
+                        {fieldDef.name === 'full_name' && (
+                          <FormField
+                            control={form.control}
+                            name="full_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Full Name *</FormLabel>
+                                <FormControl>
+                                  <Input placeholder={fieldDef.placeholder ?? 'John Doe'} className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'id_number' && (
+                          <FormField
+                            control={form.control}
+                            name="id_number"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>ID Number *</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Input placeholder={fieldDef.placeholder ?? '12345678'} className="text-base min-h-[48px]" {...field} />
+                                    {isCheckingDuplicate && (
+                                      <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                                    )}
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                                {fieldDef.description && <FormDescription>{fieldDef.description}</FormDescription>}
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'phone' && (
+                          <FormField
+                            control={form.control}
+                            name="phone"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Phone Number *</FormLabel>
+                                <FormControl>
+                                  <Input placeholder={fieldDef.placeholder ?? '+254700000000'} className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'email' && (
+                          <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <Input placeholder={fieldDef.placeholder ?? 'email@example.com'} type="email" className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'date_of_birth' && (
+                          <FormField
+                            control={form.control}
+                            name="date_of_birth"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Date of Birth</FormLabel>
+                                <FormControl>
+                                  <Input type="date" className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'address' && (
+                          <FormField
+                            control={form.control}
+                            name="address"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Address</FormLabel>
+                                <FormControl>
+                                  <Input placeholder={fieldDef.placeholder ?? 'Kisumu, Kenya'} className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'license_number' && (
+                          <FormField
+                            control={form.control}
+                            name="license_number"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>License Number (DL)</FormLabel>
+                                <FormControl>
+                                  <Input placeholder={fieldDef.placeholder ?? 'DL-123456'} className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'license_expiry' && (
+                          <FormField
+                            control={form.control}
+                            name="license_expiry"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>License Expiry</FormLabel>
+                                <FormControl>
+                                  <Input type="date" className="text-base min-h-[48px]" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'sacco_id' && (
+                          <FormField
+                            control={form.control}
+                            name="sacco_id"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Sacco/Welfare Membership *</FormLabel>
+                                <Select
+                                  onValueChange={(value) => {
+                                    field.onChange(value);
+                                    setSaccoId(value);
+                                  }}
+                                  value={field.value || saccoId || ''}
+                                  disabled={saccosLoading}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="min-h-[48px] text-base">
+                                      <SelectValue placeholder="Select Sacco" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {saccos.map((sacco) => (
+                                      <SelectItem key={sacco.id} value={sacco.id}>
+                                        {sacco.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                {fieldDef.description && <FormDescription>{fieldDef.description}</FormDescription>}
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'stage_id' && (
+                          <FormField
+                            control={form.control}
+                            name="stage_id"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Stage</FormLabel>
+                                <Select
+                                  onValueChange={(v) => field.onChange(v === '__none__' ? '' : v)}
+                                  value={field.value || '__none__'}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="min-h-[48px] text-base">
+                                      <SelectValue placeholder="Select Stage (Optional)" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">None</SelectItem>
+                                    {stages
+                                      .filter((s) => s.sacco_id === (form.watch('sacco_id') || saccoId))
+                                      .map((stage) => (
+                                        <SelectItem key={stage.id} value={stage.id}>
+                                          {stage.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {fieldDef.name === 'status' && (
+                          <FormField
+                            control={form.control}
+                            name="status"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Initial Status</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger className="min-h-[48px] text-base">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="pending">Pending Review</SelectItem>
+                                    <SelectItem value="approved">Approve Immediately</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                {fieldDef.description && <FormDescription>{fieldDef.description}</FormDescription>}
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        form.reset();
-                        setDuplicateCheck(null);
-                      }}
-                      className="flex-1 w-full sm:w-auto min-h-[44px] touch-manipulation"
-                    >
-                      Clear
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={registrationMutation.isPending || hasDuplicate || isCheckingDuplicate}
-                      className="flex-1 w-full sm:w-auto min-h-[44px] touch-manipulation"
-                    >
-                      {registrationMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Registering...
-                        </>
+                  {/* Wizard navigation */}
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+                    <div className="flex gap-2 flex-1">
+                      {wizardStep > 0 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setWizardStep((s) => s - 1)}
+                          className="min-h-[44px] touch-manipulation"
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Back
+                        </Button>
                       ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Register Rider
-                        </>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            form.reset();
+                            setDuplicateCheck(null);
+                            setWizardStep(0);
+                          }}
+                          className="min-h-[44px] touch-manipulation"
+                        >
+                          Clear
+                        </Button>
                       )}
-                    </Button>
+                    </div>
+                    {wizardStep < REGISTRATION_WIZARD_STEP_GROUPS.length - 1 ? (
+                      <Button
+                        type="button"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const fieldNames = REGISTRATION_WIZARD_STEP_GROUPS[wizardStep].fields.map((f) => f.name);
+                          const valid = await form.trigger(fieldNames);
+                          if (valid) setWizardStep((s) => s + 1);
+                        }}
+                        className="min-h-[44px] touch-manipulation"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={registrationMutation.isPending || hasDuplicate || isCheckingDuplicate}
+                        onClick={() => form.handleSubmit(onSubmit)()}
+                        className="min-h-[44px] touch-manipulation"
+                      >
+                        {registrationMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Registering...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Register Rider
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </form>
               </Form>

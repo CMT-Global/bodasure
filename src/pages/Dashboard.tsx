@@ -1,25 +1,73 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { ComplianceOverview } from '@/components/dashboard/ComplianceOverview';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
-import { Users, FileCheck, AlertTriangle, CreditCard, XCircle, CheckCircle2 } from 'lucide-react';
-import { useDashboardStats, useRecentActivity, useMonthlyRevenue, useComplianceOverview } from '@/hooks/useData';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users, FileCheck, AlertTriangle, CreditCard, XCircle, CheckCircle2, Download } from 'lucide-react';
+import { useDashboardStats, useRecentActivity, useMonthlyRevenue, useComplianceOverview, useAllCounties } from '@/hooks/useData';
+import { useRevenueByDateRange } from '@/hooks/useRevenue';
 import { useAuth } from '@/hooks/useAuth';
+import { format } from 'date-fns';
+
+const COUNTY_PROFILE = '_profile';
+
+function exportDashboardCSV(rows: Record<string, string | number>[], filename: string) {
+  if (!rows?.length) return;
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => String(r[h] ?? '')).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 export default function Dashboard() {
-  const { profile, roles } = useAuth();
-  
-  // Get county_id from profile or first role
+  const { profile, roles, hasRole } = useAuth();
+  const isPlatformAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
+  const { data: allCounties = [] } = useAllCounties();
+
+  const [countyFilter, setCountyFilter] = useState(COUNTY_PROFILE);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return format(d, 'yyyy-MM-dd');
+  });
+  const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+
+  const profileCountyId = useMemo(
+    () => profile?.county_id || roles.find((r) => r.county_id)?.county_id || undefined,
+    [profile, roles]
+  );
+
   const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
+    if (!isPlatformAdmin || countyFilter === COUNTY_PROFILE) return profileCountyId;
+    return countyFilter;
+  }, [isPlatformAdmin, countyFilter, profileCountyId]);
 
   const { data: stats, isLoading } = useDashboardStats(countyId);
   const { data: recentActivities = [], isLoading: isLoadingActivities } = useRecentActivity(countyId, 5);
   const { data: monthlyRevenue = [], isLoading: isLoadingRevenue } = useMonthlyRevenue(countyId, 6);
   const { data: complianceOverview = [], isLoading: isLoadingCompliance } = useComplianceOverview(countyId, 4);
+  const { data: revenueByDateRange = [] } = useRevenueByDateRange(countyId || undefined, startDate, endDate);
+
+  const chartData = useMemo(() => {
+    if (revenueByDateRange.length > 0) {
+      return revenueByDateRange.map((r) => ({ date: r.date, amount: r.totalRevenue }));
+    }
+    return monthlyRevenue.map((r) => ({ date: r.date, amount: r.amount }));
+  }, [revenueByDateRange, monthlyRevenue]);
+  const revenueInRange = useMemo(
+    () => revenueByDateRange.reduce((s, r) => s + r.totalRevenue, 0),
+    [revenueByDateRange]
+  );
 
   // Format revenue for display
   const formatRevenue = (amount: number) => {
@@ -38,14 +86,67 @@ export default function Dashboard() {
     return 'green';
   };
 
+  const handleExport = () => {
+    const summary: Record<string, string | number>[] = [
+      { Metric: 'Total Riders', Value: stats?.totalRiders ?? 0 },
+      { Metric: 'Active Permits', Value: stats?.activePermits ?? 0 },
+      { Metric: 'Expired Permits', Value: stats?.expiredPermits ?? 0 },
+      { Metric: 'Non-Compliant Riders', Value: stats?.nonCompliantRiders ?? 0 },
+      { Metric: 'Total Revenue (all time)', Value: stats?.totalRevenue ?? 0 },
+      { Metric: 'Revenue in selected period', Value: revenueInRange },
+      { Metric: 'Date range', Value: `${startDate} to ${endDate}` },
+    ];
+    exportDashboardCSV(summary, 'county_dashboard_summary');
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
-        {/* Page header */}
-        <div>
-          <h1 className="text-2xl font-bold lg:text-3xl">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's what's happening in your county.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold lg:text-3xl">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back! Here's what's happening in your county.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" /> Export
+          </Button>
         </div>
+
+        {/* Date & county filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Filters</CardTitle>
+            <CardDescription>Apply date range and county to revenue and export.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-4">
+            <div className="flex flex-col gap-2">
+              <Label>Date range</Label>
+              <div className="flex items-center gap-2">
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <span className="text-muted-foreground">to</span>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+            </div>
+            {isPlatformAdmin && allCounties.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <Label>County</Label>
+                <Select value={countyFilter} onValueChange={setCountyFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="My county" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={COUNTY_PROFILE}>My county</SelectItem>
+                    {allCounties.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Stats grid - Mobile-first responsive layout */}
         {isLoading ? (
@@ -138,13 +239,13 @@ export default function Dashboard() {
 
         {/* Charts and activity */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {isLoadingRevenue ? (
+          {isLoadingRevenue && revenueByDateRange.length === 0 ? (
             <div className="rounded-xl border border-border bg-card p-6 animate-pulse">
               <div className="h-4 bg-muted rounded w-1/4 mb-4"></div>
               <div className="h-[300px] bg-muted rounded"></div>
             </div>
-          ) : monthlyRevenue.length > 0 ? (
-            <RevenueChart data={monthlyRevenue} />
+          ) : chartData.length > 0 ? (
+            <RevenueChart data={chartData} description={revenueByDateRange.length > 0 ? `Revenue ${startDate} – ${endDate}` : 'Last 6 months'} />
           ) : (
             <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">
               No revenue data available

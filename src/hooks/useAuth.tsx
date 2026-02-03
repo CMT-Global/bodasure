@@ -86,9 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         if (newSession?.user) {
-          // Defer fetching to avoid blocking auth state change
+          // Defer fetching to avoid blocking auth state change; record sign-in for audit when user actually logs in
+          const isSignIn = event === 'SIGNED_IN';
           setTimeout(() => {
-            fetchUserData(newSession.user.id);
+            fetchUserData(newSession.user.id, { recordSignIn: isSignIn });
           }, 0);
 
           // Set up session timeout
@@ -151,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const fetchUserData = async (userId: string) => {
+  const fetchUserData = async (userId: string, options?: { recordSignIn?: boolean }) => {
     const isRefetch = rolesLoadedForUserRef.current === userId;
     if (!isRefetch) {
       setIsLoadingRoles(true);
@@ -182,6 +183,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             window.location.href = '/login?suspended=1';
           }
           return;
+        }
+        // Record sign-in in audit_logs for super-admin login history (only on actual sign-in, not token refresh)
+        if (options?.recordSignIn && p.is_active) {
+          await supabase.from('audit_logs').insert({
+            user_id: userId,
+            county_id: p.county_id ?? null,
+            action: 'sign_in',
+            entity_type: 'auth',
+          });
         }
       }
 

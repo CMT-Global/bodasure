@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -20,11 +20,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSaccos, useStages, useOwners, Rider, useCounties } from '@/hooks/useData';
 
@@ -49,6 +50,50 @@ const createRiderFormSchema = (needsCountySelection: boolean) => z.object({
 
 type RiderFormValues = z.infer<ReturnType<typeof createRiderFormSchema>>;
 
+type WizardStepGroup = {
+  label: string;
+  fields: { name: keyof RiderFormValues; label: string; placeholder?: string; description?: string }[];
+};
+
+function getRiderWizardStepGroups(needsCountySelection: boolean): WizardStepGroup[] {
+  const base: WizardStepGroup[] = [
+    {
+      label: 'Personal & Contact',
+      fields: [
+        { name: 'full_name', label: 'Full Name', placeholder: 'John Doe' },
+        { name: 'phone', label: 'Phone Number', placeholder: '+254700000000' },
+        { name: 'email', label: 'Email', placeholder: 'email@example.com' },
+        { name: 'date_of_birth', label: 'Date of Birth' },
+      ],
+    },
+    {
+      label: 'Driver Licence & Additional',
+      fields: [
+        { name: 'id_number', label: 'ID Number', placeholder: '12345678' },
+        { name: 'license_number', label: 'License Number (DL)', placeholder: 'DL-123456' },
+        { name: 'license_expiry', label: 'License Expiry' },
+        { name: 'address', label: 'Address', placeholder: 'Kisumu, Kenya' },
+      ],
+    },
+    {
+      label: 'Sacco & Stage',
+      fields: [
+        { name: 'sacco_id', label: 'Sacco', description: "Select the rider's Sacco" },
+        { name: 'stage_id', label: 'Stage', description: "Select the rider's stage" },
+        { name: 'owner_id', label: 'Bike Owner', description: 'Select bike owner or Self-owned' },
+        { name: 'status', label: 'Initial Status', description: 'Set initial status' },
+      ],
+    },
+  ];
+  if (needsCountySelection) {
+    return [
+      { label: 'County', fields: [{ name: 'county_id', label: 'County', description: 'Select the county for this rider' }] },
+      ...base,
+    ];
+  }
+  return base;
+}
+
 interface RiderFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -60,9 +105,12 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
   const queryClient = useQueryClient();
   const isEditing = !!rider;
   const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
-  
+  const [wizardStep, setWizardStep] = useState(0);
+  const stepFieldsRef = useRef<HTMLDivElement>(null);
+
   // For superadmins, allow county selection
   const needsCountySelection = !countyId;
+  const stepGroups = useMemo(() => getRiderWizardStepGroups(needsCountySelection), [needsCountySelection]);
   const { data: counties = [] } = useCounties();
   
   // Use selected county or provided countyId
@@ -72,12 +120,26 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
   const { data: stages = [] } = useStages(effectiveCountyId);
   const { data: owners = [] } = useOwners(effectiveCountyId);
 
-  // Reset selected county when dialog opens or countyId changes
+  // Reset selected county and wizard step when dialog opens or countyId changes
   useEffect(() => {
     if (open) {
       setSelectedCountyId(countyId);
+      setWizardStep(0);
     }
   }, [open, countyId]);
+
+  // Focus first field when step changes
+  useEffect(() => {
+    const el = stepFieldsRef.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>(
+      'input:not([type=hidden]), select, [role="combobox"]'
+    );
+    if (first && 'focus' in first) {
+      const t = setTimeout(() => (first as HTMLElement).focus({ preventScroll: true }), 0);
+      return () => clearTimeout(t);
+    }
+  }, [wizardStep]);
 
   const form = useForm<RiderFormValues>({
     resolver: zodResolver(createRiderFormSchema(needsCountySelection)),
@@ -142,6 +204,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
       toast.success(isEditing ? 'Rider updated successfully' : 'Rider added successfully');
       onOpenChange(false);
       form.reset();
+      setWizardStep(0);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'An error occurred');
@@ -163,25 +226,58 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* County selection for superadmins */}
-              {needsCountySelection && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (wizardStep === stepGroups.length - 1) {
+                form.handleSubmit(onSubmit)();
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              const target = e.target as HTMLElement;
+              if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+                e.preventDefault();
+              }
+            }}
+            className="space-y-6"
+          >
+            {/* Progress */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-muted-foreground">
+                  Step {wizardStep + 1} of {stepGroups.length}
+                </span>
+                <span className="text-muted-foreground">{stepGroups[wizardStep].label}</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${((wizardStep + 1) / stepGroups.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Current step fields (grouped) */}
+            <div ref={stepFieldsRef} className="min-h-[120px] space-y-4">
+              {stepGroups[wizardStep].fields.map((fieldDef) => (
+                <div key={fieldDef.name}>
+                  {fieldDef.name === 'county_id' && (
                 <FormField
                   control={form.control}
                   name="county_id"
                   render={({ field }) => (
-                    <FormItem className="md:col-span-2">
+                    <FormItem>
                       <FormLabel>County *</FormLabel>
-                      <Select 
+                      <Select
                         onValueChange={(value) => {
                           field.onChange(value);
                           setSelectedCountyId(value);
-                        }} 
+                        }}
                         value={field.value || ''}
                       >
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="min-h-[48px] text-base">
                             <SelectValue placeholder="Select a County" />
                           </SelectTrigger>
                         </FormControl>
@@ -193,235 +289,301 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                           ))}
                         </SelectContent>
                       </Select>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                  )}
+                  {fieldDef.name === 'full_name' && (
+                <FormField
+                  control={form.control}
+                  name="full_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" className="text-base min-h-[48px]" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               )}
-
-              <FormField
-                control={form.control}
-                name="full_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="id_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>ID Number *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="12345678" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="+254700000000" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="email@example.com" type="email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="date_of_birth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Birth</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Kisumu, Kenya" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="license_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>License Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="DL-123456" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="license_expiry"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>License Expiry</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="sacco_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sacco</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                  {fieldDef.name === 'id_number' && (
+                <FormField
+                  control={form.control}
+                  name="id_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ID Number *</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a Sacco" />
-                        </SelectTrigger>
+                        <Input placeholder="12345678" className="text-base min-h-[48px]" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {saccos.map((sacco) => (
-                          <SelectItem key={sacco.id} value={sacco.id}>
-                            {sacco.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="stage_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stage</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'phone' && (
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number *</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a Stage" />
-                        </SelectTrigger>
+                        <Input placeholder="+254700000000" className="text-base min-h-[48px]" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {stages.map((stage) => (
-                          <SelectItem key={stage.id} value={stage.id}>
-                            {stage.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="owner_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bike Owner</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'email' && (
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an Owner" />
-                        </SelectTrigger>
+                        <Input placeholder="email@example.com" type="email" className="text-base min-h-[48px]" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">Self-owned</SelectItem>
-                        {owners.map((owner) => (
-                          <SelectItem key={owner.id} value={owner.id}>
-                            {owner.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'date_of_birth' && (
+                <FormField
+                  control={form.control}
+                  name="date_of_birth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date of Birth</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                        <Input type="date" className="text-base min-h-[48px]" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                        <SelectItem value="suspended">Suspended</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'address' && (
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Kisumu, Kenya" className="text-base min-h-[48px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'license_number' && (
+                <FormField
+                  control={form.control}
+                  name="license_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>License Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="DL-123456" className="text-base min-h-[48px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'license_expiry' && (
+                <FormField
+                  control={form.control}
+                  name="license_expiry"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>License Expiry</FormLabel>
+                      <FormControl>
+                        <Input type="date" className="text-base min-h-[48px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                  {fieldDef.name === 'sacco_id' && (
+                <FormField
+                  control={form.control}
+                  name="sacco_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sacco</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[48px] text-base">
+                            <SelectValue placeholder="Select a Sacco" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {saccos.map((sacco) => (
+                            <SelectItem key={sacco.id} value={sacco.id}>
+                              {sacco.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                  )}
+                  {fieldDef.name === 'stage_id' && (
+                <FormField
+                  control={form.control}
+                  name="stage_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stage</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[48px] text-base">
+                            <SelectValue placeholder="Select a Stage" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                  )}
+                  {fieldDef.name === 'owner_id' && (
+                <FormField
+                  control={form.control}
+                  name="owner_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bike Owner</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[48px] text-base">
+                            <SelectValue placeholder="Select an Owner" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Self-owned</SelectItem>
+                          {owners.map((owner) => (
+                            <SelectItem key={owner.id} value={owner.id}>
+                              {owner.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                  )}
+                  {fieldDef.name === 'status' && (
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[48px] text-base">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                          <SelectItem value="suspended">Suspended</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                  )}
+                </div>
+              ))}
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? 'Update Rider' : 'Add Rider'}
-              </Button>
+            {/* Wizard navigation */}
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+              <div className="flex gap-2 flex-1">
+                {wizardStep > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setWizardStep((s) => s - 1)}
+                    className="min-h-[44px]"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Back
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px]">
+                    Cancel
+                  </Button>
+                )}
+              </div>
+              {wizardStep < stepGroups.length - 1 ? (
+                <Button
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const fieldNames = stepGroups[wizardStep].fields.map((f) => f.name);
+                    const valid = await form.trigger(fieldNames);
+                    if (valid) setWizardStep((s) => s + 1);
+                  }}
+                  className="min-h-[44px]"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  disabled={mutation.isPending}
+                  onClick={() => form.handleSubmit(onSubmit)()}
+                  className="min-h-[44px]"
+                >
+                  {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isEditing ? 'Update Rider' : 'Add Rider'}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </Form>

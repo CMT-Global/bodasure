@@ -18,6 +18,7 @@ import {
   Users,
   Bike,
   Building2,
+  Heart,
   MapPin,
   FileCheck,
   CreditCard,
@@ -37,6 +38,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COUNTY_PORTAL_ACCESS_ROLES } from '@/config/portalRoles';
+import { useUserNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
+import { format } from 'date-fns';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -57,6 +60,7 @@ const navItems: NavItem[] = [
   { title: 'Motorbikes', href: '/dashboard/motorbikes', icon: Bike, roles: ['county_super_admin', 'county_registration_agent', 'county_analyst'] },
   { title: 'Owners', href: '/dashboard/owners', icon: Users, roles: ['county_super_admin', 'county_registration_agent', 'county_analyst'] },
   { title: 'Saccos', href: '/dashboard/saccos', icon: Building2, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
+  { title: 'Welfare Groups', href: '/dashboard/welfare-groups', icon: Heart, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
   { title: 'Stages', href: '/dashboard/stages', icon: MapPin, roles: ['county_super_admin', 'county_enforcement_officer', 'county_registration_agent', 'county_analyst'] },
   { title: 'Permits', href: '/dashboard/permits', icon: FileCheck, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
   { title: 'Payments', href: '/dashboard/payments', icon: CreditCard, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
@@ -74,6 +78,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, roles, hasRole } = useAuth();
+  const { data: notifications = [] } = useUserNotifications(15, !!user);
+  const unreadCount = notifications.filter((n) => !n.read_at).length;
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
   // Platform & County Super Admins see all county nav items; others see items allowed for their role
   const canSeeAllCountyPages = hasRole('platform_super_admin') || hasRole('county_super_admin');
@@ -246,12 +254,65 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Right side - fixed on the right */}
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
-                3
-              </span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 sm:w-96">
+                <div className="flex items-center justify-between px-2 py-2">
+                  <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => markAllRead.mutate()}
+                      disabled={markAllRead.isPending}
+                    >
+                      Mark all read
+                    </Button>
+                  )}
+                </div>
+                <DropdownMenuSeparator />
+                {notifications.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    No notifications
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[280px]">
+                    <div className="space-y-0">
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={cn(
+                            'px-3 py-2.5 cursor-pointer hover:bg-accent transition-colors border-b border-border/50 last:border-0',
+                            !n.read_at && 'bg-primary/5'
+                          )}
+                          onClick={() => {
+                            if (!n.read_at) markRead.mutate(n.id);
+                          }}
+                        >
+                          <p className="font-medium text-sm truncate">{n.title}</p>
+                          {n.body && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(new Date(n.created_at), 'PPp')}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Separator orientation="vertical" className="h-6 hidden sm:block" />
 

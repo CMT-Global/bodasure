@@ -20,6 +20,7 @@ import RegistrationManagementPage from "./pages/dashboard/RegistrationManagement
 import MotorbikesPage from "./pages/dashboard/MotorbikesPage";
 import OwnersPage from "./pages/dashboard/OwnersPage";
 import SaccosPage from "./pages/dashboard/SaccosPage";
+import WelfareGroupsPage from "./pages/dashboard/WelfareGroupsPage";
 import StagesPage from "./pages/dashboard/StagesPage";
 import PermitsPage from "./pages/dashboard/PermitsPage";
 import PaymentsPage from "./pages/dashboard/PaymentsPage";
@@ -44,6 +45,8 @@ import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
 import CountyManagementPage from "./pages/super-admin/CountyManagementPage";
 import CountyConfigurationPage from "./pages/super-admin/CountyConfigurationPage";
 import RevenueCommercialConfigPage from "./pages/super-admin/RevenueCommercialConfigPage";
+import CountyMonetizationSettingsPage from "./pages/super-admin/CountyMonetizationSettingsPage";
+import SuperAdminFinanceViewPage from "./pages/super-admin/SuperAdminFinanceViewPage";
 import RolePermissionGovernancePage from "./pages/super-admin/RolePermissionGovernancePage";
 import UserAccessGovernancePage from "./pages/super-admin/UserAccessGovernancePage";
 import SaccoWelfareOversightPage from "./pages/super-admin/SaccoWelfareOversightPage";
@@ -81,13 +84,16 @@ const countyRiders = ["platform_super_admin", "county_super_admin", "county_enfo
 const countyPaymentsPermitsReports = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_analyst"];
 const countyPenalties = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_enforcement_officer", "county_analyst"];
 const countySaccos = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_analyst"];
+const countyWelfareGroups = ["platform_super_admin", "county_super_admin", "county_finance_officer", "county_analyst"];
 const countyStages = ["platform_super_admin", "county_super_admin", "county_enforcement_officer", "county_registration_agent", "county_analyst"];
 const countyMotorbikesOwners = ["platform_super_admin", "county_super_admin", "county_registration_agent", "county_analyst"];
 const countySupportTickets = ["platform_super_admin", "county_super_admin"];
 
 /** Sacco Portal: sacco_admin, sacco_officer, stage_chairman, stage_secretary, stage_treasurer; platform_super_admin for oversight. */
 const saccoPortalAccess = ["platform_super_admin", ...SACCO_PORTAL_ACCESS_ROLES] as string[];
-/** Sacco Profile & Settings and Audit Logs: Sacco/Welfare Admin only (and platform super admin). */
+/** Sacco Profile & Settings: officials with profile permission (Admin, Chairman, Vice Chairman, Secretary, Vice Secretary) and platform super admin. */
+const saccoProfileAccess = ["platform_super_admin", "sacco_admin", "welfare_admin", "chairman", "vice_chairman", "secretary", "vice_secretary"];
+/** Sacco Audit Logs: Sacco/Welfare Admin only (and platform super admin). */
 const saccoAdminOnly = ["platform_super_admin", "sacco_admin", "welfare_admin"];
 
 const App = () => (
@@ -136,6 +142,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
                   <RevenueCommercialConfigPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/monetization-settings"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <CountyMonetizationSettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/super-admin/finance-view"
+              element={
+                <ProtectedRoute requiredRoles={superAdminRequiredRoles}>
+                  <SuperAdminFinanceViewPage />
                 </ProtectedRoute>
               }
             />
@@ -242,6 +264,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={countySaccos}>
                   <SaccosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/welfare-groups"
+              element={
+                <ProtectedRoute requiredRoles={countyWelfareGroups}>
+                  <WelfareGroupsPage />
                 </ProtectedRoute>
               }
             />
@@ -386,7 +416,7 @@ const App = () => (
             <Route
               path="/sacco/settings"
               element={
-                <ProtectedRoute requiredRoles={saccoAdminOnly}>
+                <ProtectedRoute requiredRoles={saccoProfileAccess}>
                   <SaccoProfileSettingsPage />
                 </ProtectedRoute>
               }
