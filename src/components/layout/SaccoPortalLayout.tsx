@@ -464,7 +464,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
+                <DropdownMenuItem onClick={() => navigate('/sacco/settings')} className="min-h-[44px]">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>

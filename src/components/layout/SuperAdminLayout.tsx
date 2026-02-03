@@ -382,7 +382,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
+                <DropdownMenuItem onClick={() => navigate('/super-admin/system-settings')} className="min-h-[44px]">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>

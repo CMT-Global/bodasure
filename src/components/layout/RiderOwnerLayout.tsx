@@ -434,7 +434,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {(hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin')) && (
-                  <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="min-h-[44px]">
+                  <DropdownMenuItem onClick={() => navigate('/rider-owner/profile')} className="min-h-[44px]">
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </DropdownMenuItem>
