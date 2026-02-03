@@ -138,17 +138,17 @@ export default function RolePermissionGovernancePage() {
   return (
     <SuperAdminLayout>
       <Dialog open={!!managingCategory} onOpenChange={open => !open && setManagingCategory(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border-border/80 shadow-xl">
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-xl border-border/80 p-4 shadow-xl sm:p-6">
           <DialogHeader className="space-y-1.5 pb-2">
-            <DialogTitle className="flex items-center gap-2.5 text-lg">
+            <DialogTitle className="flex flex-wrap items-center gap-2 text-base sm:gap-2.5 sm:text-lg">
               {managingCategoryInfo?.icon && (
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-9 sm:w-9">
                   <managingCategoryInfo.icon className="h-4 w-4" />
                 </span>
               )}
-              Manage roles — {managingCategoryInfo?.label ?? managingCategory}
+              <span>Manage roles — {managingCategoryInfo?.label ?? managingCategory}</span>
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription className="text-xs text-muted-foreground sm:text-sm">
               Add, edit, or delete roles in this category. Locked roles cannot be modified.
             </DialogDescription>
           </DialogHeader>
@@ -162,7 +162,7 @@ export default function RolePermissionGovernancePage() {
                 rolesInCategory.map(role => (
                   <div
                     key={role.id}
-                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                    className={`flex flex-col gap-2 rounded-xl border px-3 py-3 transition-colors sm:flex-row sm:items-center sm:gap-3 sm:px-4 ${
                       role.locked
                         ? 'border-l-4 border-l-amber-500/80 bg-amber-500/5 dark:bg-amber-950/25 dark:border-l-amber-500/60'
                         : 'border-l-4 border-l-transparent bg-muted/20 dark:bg-muted/10 hover:bg-muted/30 dark:hover:bg-muted/20'
@@ -174,7 +174,7 @@ export default function RolePermissionGovernancePage() {
                           value={newRoleName}
                           onChange={(e) => setNewRoleName(e.target.value)}
                           placeholder="Role name"
-                          className="flex-1 rounded-lg"
+                          className="min-w-0 flex-1 rounded-lg"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleSaveEdit();
                             if (e.key === 'Escape') {
@@ -184,14 +184,14 @@ export default function RolePermissionGovernancePage() {
                           }}
                           autoFocus
                         />
-                        <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" className="h-9 w-9" onClick={handleSaveEdit} disabled={!newRoleName.trim() || isUpdating} title="Save">
+                        <div className="flex items-center justify-end gap-1 sm:justify-start">
+                          <Button size="icon" variant="ghost" className="h-9 min-h-9 min-w-9 w-9" onClick={handleSaveEdit} disabled={!newRoleName.trim() || isUpdating} title="Save">
                             <Save className="h-4 w-4" />
                           </Button>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-9 w-9"
+                            className="h-9 min-h-9 min-w-9 w-9"
                             onClick={() => {
                               setEditingRole(null);
                               setNewRoleName('');
@@ -204,7 +204,7 @@ export default function RolePermissionGovernancePage() {
                       </>
                     ) : (
                       <>
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                           <span className="truncate font-medium text-foreground">{role.name}</span>
                           {role.locked && (
                             <Badge variant="outline" className="shrink-0 gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 dark:bg-amber-500/15">
@@ -213,11 +213,11 @@ export default function RolePermissionGovernancePage() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-background/50 p-0.5">
+                        <div className="flex shrink-0 items-center justify-end gap-0.5 rounded-lg bg-background/50 p-0.5 sm:justify-start">
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:shrink-0"
+                            className="h-9 min-h-9 min-w-9 w-9 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:shrink-0"
                             onClick={() => handleToggleLock(role)}
                             title={role.locked ? 'Unlock role' : 'Lock role'}
                           >
@@ -230,7 +230,7 @@ export default function RolePermissionGovernancePage() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                            className="h-9 min-h-9 min-w-9 w-9 text-muted-foreground hover:text-foreground disabled:opacity-50"
                             onClick={() => handleEditRole(role)}
                             disabled={role.locked}
                             title="Edit role"
@@ -240,7 +240,7 @@ export default function RolePermissionGovernancePage() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                            className="h-9 min-h-9 min-w-9 w-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                             onClick={() => handleDeleteRole(role)}
                             disabled={role.locked}
                             title="Delete role"
@@ -253,7 +253,7 @@ export default function RolePermissionGovernancePage() {
                   </div>
                 ))
               ) : (
-                <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-muted/10 py-8 text-center">
+                <div className="rounded-xl border border-dashed border-muted-foreground/25 bg-muted/10 py-6 text-center sm:py-8">
                   <p className="text-sm text-muted-foreground">No roles in this category yet.</p>
                   <p className="mt-1 text-xs text-muted-foreground/80">Click &quot;Add new role&quot; below to create one.</p>
                 </div>
@@ -262,12 +262,12 @@ export default function RolePermissionGovernancePage() {
 
             {/* Add New Role Form */}
             {isAddingRole && (
-              <div className="flex items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-4 py-3 dark:bg-primary/10">
+              <div className="flex flex-col gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-3 py-3 dark:bg-primary/10 sm:flex-row sm:items-center sm:gap-2 sm:px-4">
                 <Input
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   placeholder="Enter role name"
-                  className="flex-1 rounded-lg border-primary/20"
+                  className="min-w-0 flex-1 rounded-lg border-primary/20"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAddRole();
                     if (e.key === 'Escape') {
@@ -277,14 +277,14 @@ export default function RolePermissionGovernancePage() {
                   }}
                   autoFocus
                 />
-                <div className="flex items-center gap-1">
-                  <Button size="icon" className="h-9 w-9" onClick={handleAddRole} disabled={!newRoleName.trim() || isAdding} title="Add role">
+                <div className="flex items-center justify-end gap-1 sm:justify-start">
+                  <Button size="icon" className="h-9 min-h-9 min-w-9 w-9" onClick={handleAddRole} disabled={!newRoleName.trim() || isAdding} title="Add role">
                     <Save className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-9 w-9"
+                    className="h-9 min-h-9 min-w-9 w-9"
                     onClick={() => {
                       setIsAddingRole(false);
                       setNewRoleName('');
@@ -301,17 +301,17 @@ export default function RolePermissionGovernancePage() {
             {!isAddingRole && !editingRole && (
               <Button
                 variant="outline"
-                className="w-full gap-2 rounded-xl border-dashed py-6 text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+                className="w-full gap-2 rounded-xl border-dashed py-5 text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground sm:py-6"
                 onClick={() => setIsAddingRole(true)}
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 shrink-0" />
                 Add new role
               </Button>
             )}
           </div>
 
-          <DialogFooter className="border-t border-border/50 pt-4">
-            <Button variant="outline" className="rounded-lg" onClick={() => setManagingCategory(null)}>
+          <DialogFooter className="flex flex-col gap-2 border-t border-border/50 pt-4 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="w-full rounded-lg sm:w-auto" onClick={() => setManagingCategory(null)}>
               Close
             </Button>
           </DialogFooter>
@@ -335,18 +335,18 @@ export default function RolePermissionGovernancePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 overflow-x-hidden p-4 md:p-6">
         <div>
-          <h1 className="text-2xl font-bold">Role & Permission Governance (System-Wide)</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Role & Permission Governance (System-Wide)</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
             Define system roles (templates), permissions per role, override county-level roles, enable/disable roles per county, and lock sensitive permissions so they cannot be changed by county.
           </p>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">County context (optional)</CardTitle>
-            <CardDescription>
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="text-sm font-medium sm:text-base">County context (optional)</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
               Select a county to override roles or enable/disable roles for that county. Leave unselected to manage system-wide templates only.
             </CardDescription>
           </CardHeader>
@@ -356,7 +356,7 @@ export default function RolePermissionGovernancePage() {
               onValueChange={v => setSelectedCountyId(v === '_all' ? null : v)}
               disabled={countiesLoading}
             >
-              <SelectTrigger className="max-w-sm">
+              <SelectTrigger className="w-full max-w-sm">
                 <SelectValue placeholder="All counties (system-wide)" />
               </SelectTrigger>
               <SelectContent>
@@ -372,49 +372,49 @@ export default function RolePermissionGovernancePage() {
         </Card>
 
         <Tabs defaultValue="roles" className="space-y-4">
-          <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
-            <TabsTrigger value="roles" className="flex items-center gap-2">
-              <Users className="h-4 w-4" /> System roles
+          <TabsList className="flex h-auto flex-wrap gap-1 bg-muted/50 p-1.5 sm:p-1">
+            <TabsTrigger value="roles" className="flex items-center gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" /> System roles
             </TabsTrigger>
-            <TabsTrigger value="permissions" className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" /> Permissions per role
+            <TabsTrigger value="permissions" className="flex items-center gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" /> Permissions
             </TabsTrigger>
-            <TabsTrigger value="override" className="flex items-center gap-2">
-              <Unlock className="h-4 w-4" /> County overrides
+            <TabsTrigger value="override" className="flex items-center gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <Unlock className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" /> Overrides
             </TabsTrigger>
-            <TabsTrigger value="enable-disable" className="flex items-center gap-2">
-              Enable/disable per county
+            <TabsTrigger value="enable-disable" className="flex items-center gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              Enable/disable
             </TabsTrigger>
-            <TabsTrigger value="locked" className="flex items-center gap-2">
-              <Lock className="h-4 w-4" /> Locked permissions
+            <TabsTrigger value="locked" className="flex items-center gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <Lock className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" /> Locked
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="roles" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Define system roles (templates)</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Define system roles (templates)</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   System-wide role templates. County-level roles can be enabled/disabled or overridden per county.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <CardContent className="space-y-4 sm:space-y-6">
+                <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {ROLE_CATEGORIES.map(({ id, label, icon: Icon, description }) => (
-                    <Card key={id} className="border-muted">
-                      <CardHeader className="pb-2">
+                    <Card key={id} className="min-w-0 border-muted">
+                      <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
                         <div className="flex items-center gap-2">
-                          <Icon className="h-5 w-5 text-muted-foreground" />
-                          <CardTitle className="text-base">{label}</CardTitle>
+                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground sm:h-5 sm:w-5" />
+                          <CardTitle className="text-sm sm:text-base">{label}</CardTitle>
                         </div>
-                        <CardDescription className="text-sm">{description}</CardDescription>
+                        <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
                       </CardHeader>
-                      <CardContent className="pt-0">
-                        <ul className="text-sm text-muted-foreground space-y-1">
+                      <CardContent className="pt-0 px-4 pb-4 sm:px-6 sm:pb-6">
+                        <ul className="space-y-1 text-xs text-muted-foreground sm:text-sm">
                           {systemRoles.filter(r => r.category === id).map(role => (
                             <li key={role.id} className="flex items-center gap-2">
-                              {role.name}
-                              {role.locked && <Lock className="h-3 w-3 text-amber-600 shrink-0" />}
+                              <span className="truncate">{role.name}</span>
+                              {role.locked && <Lock className="h-3 w-3 shrink-0 text-amber-600" />}
                             </li>
                           ))}
                           {systemRoles.filter(r => r.category === id).length === 0 && (
@@ -424,7 +424,7 @@ export default function RolePermissionGovernancePage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="mt-3 w-full"
+                          className="mt-3 w-full min-h-9"
                           onClick={() => handleManageRoles(id)}
                         >
                           Manage roles
@@ -439,38 +439,38 @@ export default function RolePermissionGovernancePage() {
 
           <TabsContent value="permissions" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Define permissions per role</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Define permissions per role</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Assign permissions to each system role. Locked permissions cannot be changed by county admins.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <table className="w-full text-sm">
+              <CardContent className="overflow-x-auto">
+                <div className="min-w-[480px] rounded-md border sm:min-w-0">
+                  <table className="w-full text-xs sm:text-sm">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="text-left p-3 font-medium">Permission</th>
-                        <th className="text-left p-3 font-medium">Category</th>
-                        <th className="text-left p-3 font-medium">Locked</th>
-                        <th className="text-left p-3 font-medium">Roles with access</th>
+                        <th className="p-2 text-left font-medium sm:p-3">Permission</th>
+                        <th className="p-2 text-left font-medium sm:p-3">Category</th>
+                        <th className="p-2 text-left font-medium sm:p-3">Locked</th>
+                        <th className="p-2 text-left font-medium sm:p-3">Roles with access</th>
                       </tr>
                     </thead>
                     <tbody>
                       {SAMPLE_PERMISSIONS.map(perm => (
                         <tr key={perm.id} className="border-b last:border-0">
-                          <td className="p-3">{perm.label}</td>
-                          <td className="p-3">
-                            <Badge variant="secondary">{perm.category}</Badge>
+                          <td className="p-2 sm:p-3">{perm.label}</td>
+                          <td className="p-2 sm:p-3">
+                            <Badge variant="secondary" className="text-xs">{perm.category}</Badge>
                           </td>
-                          <td className="p-3">
+                          <td className="p-2 sm:p-3">
                             {perm.locked ? (
-                              <Lock className="h-4 w-4 text-amber-600" />
+                              <Lock className="h-3.5 w-3.5 text-amber-600 sm:h-4 sm:w-4" />
                             ) : (
-                              <Unlock className="h-4 w-4 text-muted-foreground" />
+                              <Unlock className="h-3.5 w-3.5 text-muted-foreground sm:h-4 sm:w-4" />
                             )}
                           </td>
-                          <td className="p-3 text-muted-foreground">— Map in backend</td>
+                          <td className="p-2 text-muted-foreground sm:p-3">— Map in backend</td>
                         </tr>
                       ))}
                     </tbody>
@@ -478,7 +478,8 @@ export default function RolePermissionGovernancePage() {
                 </div>
                 <Button 
                   variant="outline" 
-                  className="mt-4"
+                  size="sm"
+                  className="mt-4 w-full min-h-9 sm:w-auto"
                   onClick={() => {
                     console.log('Editing permission matrix');
                     // TODO: Open permission matrix editor
@@ -492,29 +493,32 @@ export default function RolePermissionGovernancePage() {
 
           <TabsContent value="override" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Override county-level roles</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Override county-level roles</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   When a county is selected, you can override which roles are available or what permissions they have in that county. System templates remain the default.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {!selectedCountyId ? (
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground sm:text-base">
                     Select a county above to configure overrides for that county.
                   </p>
                 ) : (
                   <>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground sm:text-sm">
                       Overriding roles for selected county. Locked permissions and platform roles cannot be overridden.
                     </p>
-                    <div className="flex items-center gap-2">
-                      <Switch id="override-enabled" />
-                      <Label htmlFor="override-enabled">Enable county-level overrides for this county</Label>
+                    <div className="flex items-start gap-2 sm:items-center">
+                      <Switch id="override-enabled" className="shrink-0" />
+                      <Label htmlFor="override-enabled" className="text-xs leading-tight sm:text-sm">
+                        Enable county-level overrides for this county
+                      </Label>
                     </div>
                     <Button 
                       variant="outline" 
                       size="sm"
+                      className="w-full min-h-9 sm:w-auto"
                       onClick={() => {
                         console.log('Configuring overrides for county:', selectedCountyId);
                         // TODO: Open county override configuration
@@ -530,27 +534,27 @@ export default function RolePermissionGovernancePage() {
 
           <TabsContent value="enable-disable" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Enable/disable roles per county</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Enable/disable roles per county</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   For each county, choose which system roles are available. Disabled roles cannot be assigned in that county.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {!selectedCountyId ? (
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground sm:text-base">
                     Select a county above to enable or disable roles for that county.
                   </p>
                 ) : (
                   <div className="space-y-3">
                     {systemRoles.filter(r => !r.locked).map(role => (
-                      <div key={role.id} className="flex items-center justify-between rounded-lg border p-3">
-                        <span className="font-medium">{role.name}</span>
-                        <Switch defaultChecked />
+                      <div key={role.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border p-3">
+                        <span className="min-w-0 truncate text-sm font-medium sm:text-base">{role.name}</span>
+                        <Switch defaultChecked className="shrink-0" />
                       </div>
                     ))}
-                    <Button className="gap-2">
-                      <Save className="h-4 w-4" /> Save changes
+                    <Button className="w-full gap-2 min-h-9 sm:w-auto">
+                      <Save className="h-4 w-4 shrink-0" /> Save changes
                     </Button>
                   </div>
                 )}
@@ -560,9 +564,9 @@ export default function RolePermissionGovernancePage() {
 
           <TabsContent value="locked" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Locked permissions (sensitive)</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Locked permissions (sensitive)</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Permissions marked as locked cannot be changed or overridden by county admins. Only Super Admin can modify these.
                 </CardDescription>
               </CardHeader>
@@ -571,25 +575,25 @@ export default function RolePermissionGovernancePage() {
                   {SAMPLE_PERMISSIONS.filter(p => p.locked).map(perm => (
                     <li
                       key={perm.id}
-                      className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20 p-3"
+                      className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20 sm:gap-3"
                     >
-                      <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-                      <span className="font-medium">{perm.label}</span>
-                      <Badge variant="secondary">{perm.category}</Badge>
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600 sm:h-4 sm:w-4" />
+                      <span className="min-w-0 truncate text-sm font-medium sm:text-base">{perm.label}</span>
+                      <Badge variant="secondary" className="text-xs">{perm.category}</Badge>
                     </li>
                   ))}
                   {systemRoles.filter(r => r.locked).map(role => (
                     <li
                       key={role.id}
-                      className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20 p-3"
+                      className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20 sm:gap-3"
                     >
-                      <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-                      <span className="font-medium">Role: {role.name}</span>
-                      <Badge variant="secondary">system role</Badge>
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600 sm:h-4 sm:w-4" />
+                      <span className="min-w-0 truncate text-sm font-medium sm:text-base">Role: {role.name}</span>
+                      <Badge variant="secondary" className="text-xs">system role</Badge>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-4 text-sm text-muted-foreground">
+                <p className="mt-4 text-xs text-muted-foreground sm:text-sm">
                   Add or remove locked permissions in the Permissions per role tab. Locked roles (e.g. Platform Super Admin) are always enforced system-wide.
                 </p>
               </CardContent>

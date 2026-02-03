@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { SuperAdminLayout } from '@/components/layout/SuperAdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,13 @@ import {
   AlertTriangle,
   Loader2,
 } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+} from '@/components/ui/pagination';
 import { toast } from 'sonner';
 
 function exportAuditLogsToCsv(logs: UserActivityLog[]) {
@@ -51,10 +58,22 @@ function exportAuditLogsToCsv(logs: UserActivityLog[]) {
   URL.revokeObjectURL(url);
 }
 
+const PAGE_SIZE = 15;
+
 export default function SecurityAuditCompliancePage() {
   const { data: auditLogs = [], isLoading: logsLoading } = useAllAuditLogs();
+  const [currentPage, setCurrentPage] = useState(0);
 
-  const recentLogs = useMemo(() => auditLogs.slice(0, 50), [auditLogs]);
+  const totalPages = Math.max(1, Math.ceil(auditLogs.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages - 1);
+  const paginatedLogs = useMemo(
+    () =>
+      auditLogs.slice(
+        safePage * PAGE_SIZE,
+        (safePage + 1) * PAGE_SIZE
+      ),
+    [auditLogs, safePage]
+  );
 
   const handleExportForRegulators = () => {
     exportAuditLogsToCsv(auditLogs);
@@ -242,9 +261,10 @@ export default function SecurityAuditCompliancePage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading audit logs…
                 </div>
-              ) : recentLogs.length === 0 ? (
+              ) : paginatedLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4">No audit logs found.</p>
               ) : (
+                <>
                 <div className="rounded-md border overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -257,7 +277,7 @@ export default function SecurityAuditCompliancePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentLogs.map((log) => (
+                      {paginatedLogs.map((log) => (
                         <tr key={log.id} className="border-b last:border-0">
                           <td className="p-3 text-muted-foreground">
                             {new Date(log.created_at).toLocaleString()}
@@ -280,6 +300,46 @@ export default function SecurityAuditCompliancePage() {
                     </tbody>
                   </table>
                 </div>
+                {totalPages > 1 && (
+                  <Pagination className="mt-4 justify-end">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage((p) => Math.max(0, p - 1));
+                          }}
+                          className={
+                            currentPage === 0
+                              ? 'pointer-events-none opacity-50'
+                              : 'cursor-pointer'
+                          }
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <span className="px-4 py-2 text-sm text-muted-foreground">
+                          Page {safePage + 1} of {totalPages}
+                        </span>
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage((p) => Math.min(totalPages - 1, p + 1));
+                          }}
+                          className={
+                            currentPage >= totalPages - 1
+                              ? 'pointer-events-none opacity-50'
+                              : 'cursor-pointer'
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+                </>
               )}
             </div>
           </CardContent>

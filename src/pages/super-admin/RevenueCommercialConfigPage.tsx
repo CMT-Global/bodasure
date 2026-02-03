@@ -179,15 +179,15 @@ export default function RevenueCommercialConfigPage() {
           <p className="text-muted-foreground">Select a county to configure revenue and commercial settings.</p>
         ) : (
           <Tabs defaultValue="county-revenue" className="space-y-4">
-            <TabsList className="grid w-full max-w-2xl grid-cols-3">
-              <TabsTrigger value="county-revenue" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" /> County Revenue
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 p-1 h-auto gap-1 sm:gap-0 rounded-lg [&>button]:min-h-[44px] [&>button]:min-w-0">
+              <TabsTrigger value="county-revenue" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <DollarSign className="h-4 w-4 shrink-0" /> <span className="truncate">County Revenue</span>
               </TabsTrigger>
-              <TabsTrigger value="platform-fee" className="flex items-center gap-2">
-                <Percent className="h-4 w-4" /> Platform Fee
+              <TabsTrigger value="platform-fee" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <Percent className="h-4 w-4 shrink-0" /> <span className="truncate">Platform Fee</span>
               </TabsTrigger>
-              <TabsTrigger value="sacco-welfare" className="flex items-center gap-2">
-                <Users className="h-4 w-4" /> Sacco & Welfare
+              <TabsTrigger value="sacco-welfare" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <Users className="h-4 w-4 shrink-0" /> <span className="truncate">Sacco & Welfare</span>
               </TabsTrigger>
             </TabsList>
 

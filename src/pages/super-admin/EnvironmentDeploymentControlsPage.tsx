@@ -86,33 +86,33 @@ export default function EnvironmentDeploymentControlsPage() {
 
   return (
     <SuperAdminLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 overflow-x-hidden p-4 md:p-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-            <Server className="h-6 w-6 sm:h-7 sm:w-7" />
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+            <Server className="h-6 w-6 shrink-0 sm:h-7 sm:w-7" />
             Environment & Deployment Controls
           </h1>
-          <p className="text-muted-foreground text-sm sm:text-base mt-1">
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
             Switch features per environment, control test vs live payments, manage API keys (visibility only), and view deployment status.
           </p>
         </div>
 
         {/* Feature flags per environment */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5" />
+          <CardHeader className="pb-2 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Layers className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
               Features per environment
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               Enable or disable features for each environment. Changes apply only to the selected environment.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Environment</Label>
+              <Label className="text-sm">Environment</Label>
               <Select value={selectedEnv} onValueChange={(v) => setSelectedEnv(v as Environment)}>
-                <SelectTrigger className="w-full max-w-xs">
+                <SelectTrigger className="w-full max-w-xs min-h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -124,20 +124,21 @@ export default function EnvironmentDeploymentControlsPage() {
             </div>
             <div className="space-y-3">
               {features.map((f) => (
-                <div key={f.id} className="flex items-center justify-between gap-4 rounded-lg border p-4">
-                  <div>
-                    <Label className="text-base font-medium">{f.label}</Label>
-                    <p className="text-sm text-muted-foreground mt-0.5">{f.description}</p>
+                <div key={f.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium sm:text-base">{f.label}</Label>
+                    <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{f.description}</p>
                   </div>
                   <Switch
                     checked={f[selectedEnv]}
                     onCheckedChange={(v) => setFeatureForEnv(f.id, selectedEnv, v)}
+                    className="shrink-0"
                   />
                 </div>
               ))}
             </div>
-            <Button onClick={handleSaveFeatures} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            <Button onClick={handleSaveFeatures} disabled={saving} className="w-full min-h-9 sm:w-auto">
+              {saving ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <Save className="mr-2 h-4 w-4 shrink-0" />}
               Save feature flags
             </Button>
           </CardContent>
@@ -145,36 +146,38 @@ export default function EnvironmentDeploymentControlsPage() {
 
         {/* Test vs live payment mode */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
+          <CardHeader className="pb-2 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CreditCard className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
               Payment mode
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               Control whether payments use test or live gateways. Use test in non-production environments.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Label className="text-base font-medium">Current mode</Label>
-              <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'test' | 'live')}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="test">Test (sandbox)</SelectItem>
-                  <SelectItem value="live">Live (real charges)</SelectItem>
-                </SelectContent>
-              </Select>
-              <Badge variant={paymentMode === 'live' ? 'destructive' : 'secondary'}>
-                {paymentMode === 'live' ? 'Live' : 'Test'}
-              </Badge>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <Label className="text-sm font-medium sm:text-base">Current mode</Label>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as 'test' | 'live')}>
+                  <SelectTrigger className="min-h-9 w-full sm:w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="test">Test (sandbox)</SelectItem>
+                    <SelectItem value="live">Live (real charges)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Badge variant={paymentMode === 'live' ? 'destructive' : 'secondary'} className="shrink-0">
+                  {paymentMode === 'live' ? 'Live' : 'Test'}
+                </Badge>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:text-sm">
               API keys are managed separately; this only toggles which mode the application uses. Keys are never exposed in the UI.
             </p>
-            <Button onClick={handleSavePaymentMode} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            <Button onClick={handleSavePaymentMode} disabled={saving} className="w-full min-h-9 sm:w-auto">
+              {saving ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <Save className="mr-2 h-4 w-4 shrink-0" />}
               Save payment mode
             </Button>
           </CardContent>
@@ -182,43 +185,43 @@ export default function EnvironmentDeploymentControlsPage() {
 
         {/* API keys — visibility only, no exposure */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
+          <CardHeader className="pb-2 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Key className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
               API keys (visibility only)
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               View which keys exist and their status. Values are never shown; rotate or create keys in your secure secret store.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
+          <CardContent className="overflow-x-auto">
+            <div className="min-w-[520px] overflow-hidden rounded-lg border sm:min-w-0">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">Name</th>
-                    <th className="text-left p-3 font-medium">Environment</th>
-                    <th className="text-left p-3 font-medium">Value (masked)</th>
-                    <th className="text-left p-3 font-medium">Last rotated</th>
-                    <th className="text-left p-3 font-medium">Status</th>
+                    <th className="p-2 text-left font-medium sm:p-3">Name</th>
+                    <th className="p-2 text-left font-medium sm:p-3">Environment</th>
+                    <th className="p-2 text-left font-medium sm:p-3">Value (masked)</th>
+                    <th className="p-2 text-left font-medium sm:p-3">Last rotated</th>
+                    <th className="p-2 text-left font-medium sm:p-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {apiKeys.map((row) => (
                     <tr key={row.id} className="border-b last:border-0">
-                      <td className="p-3">{row.name}</td>
-                      <td className="p-3">
-                        <Badge variant="outline">{ENV_LABELS[row.env]}</Badge>
+                      <td className="p-2 sm:p-3">{row.name}</td>
+                      <td className="p-2 sm:p-3">
+                        <Badge variant="outline" className="text-xs">{ENV_LABELS[row.env]}</Badge>
                       </td>
-                      <td className="p-3 font-mono text-muted-foreground flex items-center gap-1">
-                        {row.maskedValue}
-                        <span className="text-muted-foreground" title="Values are never exposed">
-                          <EyeOff className="h-4 w-4 inline" />
+                      <td className="flex min-w-0 items-center gap-1 p-2 font-mono text-muted-foreground sm:p-3">
+                        <span className="truncate">{row.maskedValue}</span>
+                        <span className="shrink-0 text-muted-foreground" title="Values are never exposed">
+                          <EyeOff className="inline h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </span>
                       </td>
-                      <td className="p-3 text-muted-foreground">{row.lastRotated}</td>
-                      <td className="p-3">
-                        <Badge variant={row.status === 'active' ? 'default' : 'secondary'}>
+                      <td className="whitespace-nowrap p-2 text-muted-foreground sm:p-3">{row.lastRotated}</td>
+                      <td className="p-2 sm:p-3">
+                        <Badge variant={row.status === 'active' ? 'default' : 'secondary'} className="text-xs">
                           {row.status}
                         </Badge>
                       </td>
@@ -227,8 +230,8 @@ export default function EnvironmentDeploymentControlsPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
-              <Eye className="h-3.5 w-3.5" />
+            <p className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+              <Eye className="h-3.5 w-3.5 shrink-0" />
               Full key values are never displayed. Rotate or add keys via your secure vault or CI/CD.
             </p>
           </CardContent>
@@ -236,34 +239,34 @@ export default function EnvironmentDeploymentControlsPage() {
 
         {/* Deployment status (basic) */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
+          <CardHeader className="pb-2 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Activity className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
               Deployment status
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               Basic view of current deployment and health. Detailed logs and rollback are handled in your deployment pipeline.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-muted-foreground">Environment</p>
-                <p className="text-lg font-semibold mt-1">Production</p>
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+              <div className="min-w-0 rounded-lg border p-3 sm:p-4">
+                <p className="text-xs text-muted-foreground sm:text-sm">Environment</p>
+                <p className="mt-1 text-base font-semibold sm:text-lg">Production</p>
               </div>
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-muted-foreground">Version</p>
-                <p className="text-lg font-semibold mt-1 font-mono">1.2.0</p>
+              <div className="min-w-0 rounded-lg border p-3 sm:p-4">
+                <p className="text-xs text-muted-foreground sm:text-sm">Version</p>
+                <p className="mt-1 font-mono text-base font-semibold sm:text-lg">1.2.0</p>
               </div>
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-muted-foreground">Last deployed</p>
-                <p className="text-lg font-semibold mt-1">2025-01-28 14:32 UTC</p>
+              <div className="min-w-0 rounded-lg border p-3 sm:p-4">
+                <p className="text-xs text-muted-foreground sm:text-sm">Last deployed</p>
+                <p className="mt-1 break-words text-base font-semibold sm:text-lg">2025-01-28 14:32 UTC</p>
               </div>
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-muted-foreground">Status</p>
+              <div className="min-w-0 rounded-lg border p-3 sm:p-4">
+                <p className="text-xs text-muted-foreground sm:text-sm">Status</p>
                 <div className="mt-1 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  <span className="text-lg font-semibold">Healthy</span>
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                  <span className="text-base font-semibold sm:text-lg">Healthy</span>
                 </div>
               </div>
             </div>

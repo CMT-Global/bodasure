@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -48,7 +48,7 @@ import {
   CountyUser,
   UserActivityLog,
 } from '@/hooks/useUserManagement';
-import { Plus, MoreHorizontal, Edit, Ban, Key, Eye, Loader2, UserPlus, Shield, Activity } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit, Ban, Key, Eye, Loader2, UserPlus, Shield, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -107,6 +107,22 @@ export default function UsersPage() {
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+
+  // Activity logs pagination: 12 rows per page
+  const ACTIVITY_PAGE_SIZE = 12;
+  const [activityPage, setActivityPage] = useState(0);
+  const activityTotalPages = Math.max(1, Math.ceil(activityLogs.length / ACTIVITY_PAGE_SIZE));
+  const currentActivityPage = activityPage >= activityTotalPages ? 0 : activityPage;
+  const paginatedActivityLogs = useMemo(() => {
+    const start = currentActivityPage * ACTIVITY_PAGE_SIZE;
+    return activityLogs.slice(start, start + ACTIVITY_PAGE_SIZE);
+  }, [activityLogs, currentActivityPage]);
+
+  useEffect(() => {
+    if (activityPage >= activityTotalPages && activityTotalPages > 0) {
+      setActivityPage(0);
+    }
+  }, [activityPage, activityTotalPages]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
@@ -356,7 +372,7 @@ export default function UsersPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0 overflow-x-hidden">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -400,13 +416,13 @@ export default function UsersPage() {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="users">
-              <Shield className="mr-2 h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-2 p-1 h-auto gap-1 rounded-lg [&>button]:min-h-[44px] [&>button]:min-w-0">
+            <TabsTrigger value="users" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <Shield className="h-4 w-4 shrink-0" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="activity">
-              <Activity className="mr-2 h-4 w-4" />
+            <TabsTrigger value="activity" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <Activity className="h-4 w-4 shrink-0" />
               Activity Logs
             </TabsTrigger>
           </TabsList>
@@ -421,46 +437,85 @@ export default function UsersPage() {
           </TabsContent>
 
           <TabsContent value="activity">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Activity Logs</CardTitle>
-                <CardDescription>View recent user activities and actions in your county</CardDescription>
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">User Activity Logs</CardTitle>
+                <CardDescription className="text-sm">View recent user activities and actions in your county. 12 entries per page.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0 min-w-0 overflow-x-hidden">
                 <div className="space-y-4">
                   {activityLogs.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">No activity logs found</p>
                   ) : (
-                    <div className="space-y-2">
-                      {activityLogs.slice(0, 100).map((log) => (
-                        <div key={log.id} className="p-4 border rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline">{log.action}</Badge>
-                                <span className="text-sm text-muted-foreground">{log.entity_type}</span>
+                    <>
+                      <div className="space-y-3">
+                        {paginatedActivityLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className="p-4 border rounded-lg bg-card min-w-0 overflow-hidden space-y-2"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap">
+                              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                <Badge variant="outline" className="text-xs shrink-0">{log.action}</Badge>
+                                <span className="text-xs sm:text-sm text-muted-foreground shrink-0">{log.entity_type}</span>
                                 {log.entity_id && (
-                                  <span className="text-xs text-muted-foreground">ID: {log.entity_id.slice(0, 8)}...</span>
+                                  <span className="text-xs text-muted-foreground font-mono truncate break-all">
+                                    ID: {log.entity_id.slice(0, 12)}{log.entity_id.length > 12 ? '…' : ''}
+                                  </span>
                                 )}
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                {log.user?.full_name || log.user?.email || 'System'} • {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}
-                              </p>
-                              {(log.old_values || log.new_values) && (
-                                <div className="mt-2 text-xs space-y-1">
-                                  {log.old_values && Object.keys(log.old_values).length > 0 && (
-                                    <p className="text-red-600">Old: {JSON.stringify(log.old_values)}</p>
-                                  )}
-                                  {log.new_values && Object.keys(log.new_values).length > 0 && (
-                                    <p className="text-green-600">New: {JSON.stringify(log.new_values)}</p>
-                                  )}
-                                </div>
-                              )}
+                              <span className="text-xs sm:text-sm text-muted-foreground shrink-0">
+                                {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}
+                              </span>
                             </div>
+                            <p className="text-sm text-muted-foreground truncate break-all">
+                              {log.user?.full_name || log.user?.email || 'System'}
+                              {log.user?.email && log.user?.full_name ? ` (${log.user.email})` : ''}
+                            </p>
+                            {(log.old_values || log.new_values) && (
+                              <div className="mt-2 text-xs space-y-1 min-w-0 overflow-x-auto">
+                                {log.old_values && Object.keys(log.old_values).length > 0 && (
+                                  <p className="text-red-600 dark:text-red-400 break-all">Old: {JSON.stringify(log.old_values)}</p>
+                                )}
+                                {log.new_values && Object.keys(log.new_values).length > 0 && (
+                                  <p className="text-green-600 dark:text-green-400 break-all">New: {JSON.stringify(log.new_values)}</p>
+                                )}
+                              </div>
+                            )}
                           </div>
+                        ))}
+                      </div>
+                      {/* Pagination: 12 per page */}
+                      <div className="flex flex-col gap-3 pt-2 border-t">
+                        <p className="text-xs text-muted-foreground text-center">
+                          {activityLogs.length === 0
+                            ? 'No results'
+                            : `Showing ${currentActivityPage * ACTIVITY_PAGE_SIZE + 1}–${Math.min((currentActivityPage + 1) * ACTIVITY_PAGE_SIZE, activityLogs.length)} of ${activityLogs.length} results`}
+                        </p>
+                        <div className="flex items-center gap-2 w-full">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setActivityPage((p) => Math.max(0, p - 1))}
+                            disabled={currentActivityPage <= 0}
+                            className="flex-1 min-h-[44px] touch-manipulation"
+                          >
+                            <ChevronLeft className="h-4 w-4 shrink-0" />
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setActivityPage((p) => Math.min(activityTotalPages - 1, p + 1))}
+                            disabled={currentActivityPage >= activityTotalPages - 1}
+                            className="flex-1 min-h-[44px] touch-manipulation"
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4 shrink-0" />
+                          </Button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </CardContent>

@@ -86,26 +86,26 @@ export default function VerificationPage() {
     setSelectedRider(null);
   };
 
-  const handleSearch = () => {
-    setSelectedRider(null);
-    setScannedQR('');
-  };
-
   const handleClear = () => {
     setSearchQuery('');
     setScannedQR('');
     setSelectedRider(null);
   };
 
+  const handleSearchInputChange = (value: string) => {
+    setSearchQuery(value);
+    setSelectedRider(null);
+  };
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 min-w-0 overflow-x-hidden">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Verification & Enforcement</h1>
-            <p className="text-muted-foreground">
-              Verify riders using QR code scanning or search
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Verification & Enforcement</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Verify riders using QR code scanning or search by name or plate
             </p>
           </div>
         </div>
@@ -113,41 +113,44 @@ export default function VerificationPage() {
         {/* Search and QR Scanner Section */}
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {/* QR Scanner Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <QrCode className="h-5 w-5" />
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <QrCode className="h-5 w-5 shrink-0" />
                 QR Code Scanner
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
               <Button
                 onClick={() => setIsScannerOpen(true)}
-                className="w-full min-h-[44px]"
+                className="w-full min-h-[44px] touch-manipulation"
                 size="lg"
               >
-                <Camera className="mr-2 h-5 w-5" />
+                <Camera className="mr-2 h-5 w-5 shrink-0" />
                 Open Camera Scanner
               </Button>
               {scannedQR && (
-                <div className="p-3 rounded-lg bg-muted">
+                <div className="p-3 rounded-lg bg-muted min-w-0">
                   <p className="text-xs text-muted-foreground mb-1">Scanned QR Code:</p>
-                  <p className="font-mono text-sm">{scannedQR}</p>
+                  <p className="font-mono text-sm break-all">{scannedQR}</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Search Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
+          {/* Search Card - By Name or By Plate */}
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Search className="h-5 w-5 shrink-0" />
                 Search Rider
               </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Search by rider name or bike plate number
+              </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button
                   variant={searchType === 'name' ? 'default' : 'outline'}
                   onClick={() => {
@@ -155,9 +158,9 @@ export default function VerificationPage() {
                     setSearchQuery('');
                     setSelectedRider(null);
                   }}
-                  className="flex-1 min-h-[44px]"
+                  className="flex-1 min-h-[44px] touch-manipulation"
                 >
-                  <User className="h-4 w-4 mr-2" />
+                  <User className="h-4 w-4 mr-2 shrink-0" />
                   By Name
                 </Button>
                 <Button
@@ -167,14 +170,14 @@ export default function VerificationPage() {
                     setSearchQuery('');
                     setSelectedRider(null);
                   }}
-                  className="flex-1 min-h-[44px]"
+                  className="flex-1 min-h-[44px] touch-manipulation"
                 >
-                  <Bike className="h-4 w-4 mr-2" />
+                  <Bike className="h-4 w-4 mr-2 shrink-0" />
                   By Plate
                 </Button>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   placeholder={
                     searchType === 'name'
@@ -182,19 +185,14 @@ export default function VerificationPage() {
                       : 'Enter bike plate number...'
                   }
                   value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    handleSearch();
-                  }}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSearch();
-                    }
+                    if (e.key === 'Enter') e.preventDefault();
                   }}
-                  className="flex-1 min-h-[44px] text-base sm:text-sm"
+                  className="flex-1 min-h-[44px] min-w-0 text-base sm:text-sm"
                 />
                 {currentRider && (
-                  <Button variant="outline" onClick={handleClear} className="min-h-[44px] min-w-[80px]">
+                  <Button variant="outline" onClick={handleClear} className="min-h-[44px] min-w-0 sm:min-w-[80px] touch-manipulation">
                     Clear
                   </Button>
                 )}
@@ -205,20 +203,20 @@ export default function VerificationPage() {
 
         {/* Loading State */}
         {isLoading && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-              <p className="text-muted-foreground">Searching...</p>
+          <Card className="min-w-0 overflow-hidden">
+            <CardContent className="p-6 sm:p-12 text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary shrink-0" />
+              <p className="text-muted-foreground text-sm sm:text-base">Searching...</p>
             </CardContent>
           </Card>
         )}
 
         {/* Error State */}
         {hasError && !isLoading && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive opacity-50" />
-              <p className="text-destructive font-medium mb-2">Error searching rider</p>
+          <Card className="min-w-0 overflow-hidden">
+            <CardContent className="p-6 sm:p-8 text-center">
+              <AlertCircle className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-4 text-destructive opacity-50 shrink-0" />
+              <p className="text-destructive font-medium mb-2 text-sm sm:text-base">Error searching rider</p>
               <p className="text-sm text-muted-foreground">
                 Please try again or check your search query
               </p>
@@ -230,34 +228,36 @@ export default function VerificationPage() {
         {!isLoading &&
           !hasError &&
           !currentRider &&
-          (searchQuery || scannedQR) && (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <User className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
-                <p className="text-muted-foreground">No rider found</p>
+          (searchQuery.trim() || scannedQR) && (
+            <Card className="min-w-0 overflow-hidden">
+              <CardContent className="p-6 sm:p-8 text-center">
+                <User className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-4 opacity-50 text-muted-foreground shrink-0" />
+                <p className="text-muted-foreground text-sm sm:text-base">No rider found</p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Try a different search term or scan the QR code again
+                  Try a different {searchType === 'plate' ? 'plate number' : 'name'} or scan the QR code again
                 </p>
               </CardContent>
             </Card>
           )}
 
-        {/* Verification View */}
+        {/* Verification View - rider result (scrolls with page on mobile) */}
         {currentRider && !isLoading && (
-          <EnforcementVerificationView rider={currentRider} countyId={countyId} />
+          <section className="w-full min-w-0 overflow-x-hidden" aria-label="Rider verification details">
+            <EnforcementVerificationView rider={currentRider} countyId={countyId} />
+          </section>
         )}
 
         {/* Initial State */}
         {!isLoading &&
           !hasError &&
           !currentRider &&
-          !searchQuery &&
+          !searchQuery.trim() &&
           !scannedQR && (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <QrCode className="h-16 w-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
-                <p className="text-muted-foreground mb-2">
-                  Start verification by scanning a QR code or searching for a rider
+            <Card className="min-w-0 overflow-hidden">
+              <CardContent className="p-6 sm:p-12 text-center">
+                <QrCode className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 opacity-50 text-muted-foreground shrink-0" />
+                <p className="text-muted-foreground mb-2 text-sm sm:text-base">
+                  Start verification by scanning a QR code or searching by name or plate
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Use the camera scanner for instant mobile verification

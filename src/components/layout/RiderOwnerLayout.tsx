@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2, MessageSquare, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, UserCircle, CreditCard, Receipt, Settings, LogOut, ChevronDown, ChevronLeft, ChevronRight, Bell, Menu, Shield, QrCode, Building2, MessageSquare, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
 import { format } from 'date-fns';
@@ -250,50 +250,96 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
             <Menu className="h-6 w-6" />
           </Button>
 
-          {/* Portal Tabs — Rider & Owner cannot see County or Sacco; Platform super admin can see all */}
-          <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-4 flex-shrink min-w-0 overflow-x-auto overflow-y-hidden py-1">
-            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+          {/* Portal switcher — mobile: dropdown (like Super Admin); desktop: buttons */}
+          <div className="flex min-w-0 items-center gap-2 ml-1 sm:ml-4">
+            {/* Mobile: single dropdown to save space */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="md:hidden min-h-[40px] gap-1.5 font-medium shrink-0"
+                >
+                  <span className="truncate">
+                    {location.pathname.startsWith('/super-admin') && 'Super Admin'}
+                    {location.pathname.startsWith('/dashboard') && 'County'}
+                    {location.pathname.startsWith('/sacco') && 'Sacco'}
+                    {location.pathname.startsWith('/rider-owner') && 'Rider & Owner'}
+                    {!location.pathname.startsWith('/super-admin') && !location.pathname.startsWith('/dashboard') && !location.pathname.startsWith('/sacco') && !location.pathname.startsWith('/rider-owner') && 'Portals'}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+                  <DropdownMenuItem onClick={() => navigate('/super-admin')} className="min-h-[44px]">
+                    <span className="sm:hidden">Super Admin</span>
+                    <span className="hidden sm:inline">Super Admin Portal</span>
+                  </DropdownMenuItem>
+                )}
+                {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+                  <DropdownMenuItem onClick={() => navigate('/dashboard')} className="min-h-[44px]">
+                    <span className="sm:hidden">County</span>
+                    <span className="hidden sm:inline">County Portal</span>
+                  </DropdownMenuItem>
+                )}
+                {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+                  <DropdownMenuItem onClick={() => navigate('/sacco')} className="min-h-[44px]">
+                    <span className="sm:hidden">Sacco</span>
+                    <span className="hidden sm:inline">Sacco Portal</span>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => navigate('/rider-owner')} className="min-h-[44px]">
+                  <span className="sm:hidden">Rider & Owner</span>
+                  <span className="hidden sm:inline">Rider & Owner Portal</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* Desktop: portal buttons */}
+            <div className="hidden md:flex flex-shrink min-w-0 flex-wrap items-center gap-1 sm:gap-2 overflow-x-auto overflow-y-hidden py-1">
+              {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+                <Button
+                  variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => navigate('/super-admin')}
+                  className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation font-semibold"
+                >
+                  <span className="hidden sm:inline">Super Admin Portal</span>
+                  <span className="sm:hidden">Super Admin</span>
+                </Button>
+              )}
+              {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+                <Button
+                  variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => navigate('/dashboard')}
+                  className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
+                >
+                  <span className="hidden sm:inline">County Portal</span>
+                  <span className="sm:hidden">County</span>
+                </Button>
+              )}
+              {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
+                <Button
+                  variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => navigate('/sacco')}
+                  className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
+                >
+                  <span className="hidden sm:inline">Sacco Portal</span>
+                  <span className="sm:hidden">Sacco</span>
+                </Button>
+              )}
               <Button
-                variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
+                variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => navigate('/super-admin')}
-                className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0 font-semibold"
+                onClick={() => navigate('/rider-owner')}
+                className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
               >
-                <span className="hidden sm:inline">Super Admin Portal</span>
-                <span className="sm:hidden">Super</span>
+                <span className="hidden sm:inline">Rider & Owner Portal</span>
+                <span className="sm:hidden">Rider & Owner</span>
               </Button>
-            )}
-            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
-              <Button
-                variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => navigate('/dashboard')}
-                className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
-              >
-                <span className="hidden sm:inline">County Portal</span>
-                <span className="sm:hidden">County Portal</span>
-              </Button>
-            )}
-            {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
-              <Button
-                variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => navigate('/sacco')}
-                className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
-              >
-                <span className="hidden sm:inline">Sacco Portal</span>
-                <span className="sm:hidden">Sacco Portal</span>
-              </Button>
-            )}
-            <Button
-              variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/rider-owner')}
-              className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
-            >
-              <span className="hidden sm:inline">Rider & Owner Portal</span>
-              <span className="sm:hidden">Rider & Owner Portal</span>
-            </Button>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">

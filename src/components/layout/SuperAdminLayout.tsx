@@ -292,10 +292,10 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
                   className="md:hidden min-h-[40px] gap-1.5 font-medium shrink-0"
                 >
                   <span className="truncate">
-                    {location.pathname.startsWith('/super-admin') && 'Super Admin Portal'}
-                    {location.pathname.startsWith('/dashboard') && 'County Portal'}
-                    {location.pathname.startsWith('/sacco') && 'Sacco Portal'}
-                    {location.pathname.startsWith('/rider-owner') && 'Rider & Owner Portal'}
+                    {location.pathname.startsWith('/super-admin') && 'Super Admin'}
+                    {location.pathname.startsWith('/dashboard') && 'County'}
+                    {location.pathname.startsWith('/sacco') && 'Sacco'}
+                    {location.pathname.startsWith('/rider-owner') && 'Rider & Owner'}
                     {!location.pathname.startsWith('/super-admin') && !location.pathname.startsWith('/dashboard') && !location.pathname.startsWith('/sacco') && !location.pathname.startsWith('/rider-owner') && 'Portals'}
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0" />
@@ -303,16 +303,20 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuItem onClick={() => navigate('/super-admin')} className="min-h-[44px]">
-                  Super Admin Portal
+                  <span className="sm:hidden">Super Admin</span>
+                  <span className="hidden sm:inline">Super Admin Portal</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('/dashboard')} className="min-h-[44px]">
-                  County Portal
+                  <span className="sm:hidden">County</span>
+                  <span className="hidden sm:inline">County Portal</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('/sacco')} className="min-h-[44px]">
-                  Sacco Portal
+                  <span className="sm:hidden">Sacco</span>
+                  <span className="hidden sm:inline">Sacco Portal</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('/rider-owner')} className="min-h-[44px]">
-                  Rider & Owner Portal
+                  <span className="sm:hidden">Rider & Owner</span>
+                  <span className="hidden sm:inline">Rider & Owner Portal</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

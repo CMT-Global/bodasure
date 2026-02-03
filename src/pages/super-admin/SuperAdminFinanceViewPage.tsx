@@ -111,58 +111,64 @@ export default function SuperAdminFinanceViewPage() {
 
   return (
     <SuperAdminLayout>
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="min-w-0 space-y-6 overflow-x-hidden p-4 md:p-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Finance View</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Finance View</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
             Monetization summary per county: gross collected, deductions by category, and net due/remitted.
           </p>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Calendar className="h-4 w-5 shrink-0 sm:h-5" />
               Date range
             </CardTitle>
-            <CardDescription>Select the period for gross, deductions, and net amounts.</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
+              Select the period for gross, deductions, and net amounts.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap items-end gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start">From</Label>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="min-w-0 flex-1 space-y-2 sm:flex-initial">
+              <Label htmlFor="start" className="text-sm">From</Label>
               <Input
                 id="start"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                className="w-full sm:w-auto"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="end">To</Label>
+            <div className="min-w-0 flex-1 space-y-2 sm:flex-initial">
+              <Label htmlFor="end" className="text-sm">To</Label>
               <Input
                 id="end"
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                className="w-full sm:w-auto"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-initial">
               <Button
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => exportMonetizationCSV(summaryByCounty, startDate, endDate)}
                 disabled={!summaryByCounty.length}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-2 h-4 w-4 shrink-0" />
                 Export CSV
               </Button>
               <Button
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => exportMonetizationExcel(summaryByCounty, startDate, endDate)}
                 disabled={!summaryByCounty.length}
               >
-                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                <FileSpreadsheet className="mr-2 h-4 w-4 shrink-0" />
                 Export Excel
               </Button>
             </div>
@@ -176,45 +182,45 @@ export default function SuperAdminFinanceViewPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
             {summaryByCounty.map((county) => (
-              <Card key={county.countyId}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">{county.countyName}</CardTitle>
-                  <CardDescription>
+              <Card key={county.countyId} className="min-w-0 overflow-hidden">
+                <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
+                  <CardTitle className="text-base sm:text-lg">{county.countyName}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
                     {county.countyCode} · {startDate} to {endDate}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="rounded-lg border bg-muted/30 p-4 font-mono text-sm space-y-2">
-                    <div className="flex justify-between">
+                <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
+                  <div className="rounded-lg border bg-muted/30 p-3 font-mono text-xs sm:p-4 sm:text-sm">
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2">
                       <span className="text-muted-foreground">Total gross collected</span>
-                      <span className="font-medium">{formatKES(county.totalGross)}</span>
+                      <span className="font-medium sm:text-right">{formatKES(county.totalGross)}</span>
                     </div>
-                    <div className="border-t pt-2 mt-2">
+                    <div className="mt-2 border-t pt-2">
                       <span className="text-muted-foreground text-xs uppercase tracking-wide">Deductions by category</span>
                     </div>
-                    <div className="flex justify-between pl-2">
+                    <div className="flex flex-col gap-0.5 pl-0 pt-1 sm:flex-row sm:justify-between sm:gap-2 sm:pl-2">
                       <span className="text-muted-foreground">Platform fees</span>
-                      <span>{formatKES(county.platformFees)}</span>
+                      <span className="sm:text-right">{formatKES(county.platformFees)}</span>
                     </div>
-                    <div className="flex justify-between pl-2">
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2 sm:pl-2">
                       <span className="text-muted-foreground">Processing fees</span>
-                      <span>{formatKES(county.processingFees)}</span>
+                      <span className="sm:text-right">{formatKES(county.processingFees)}</span>
                     </div>
-                    <div className="flex justify-between pl-2">
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2 sm:pl-2">
                       <span className="text-muted-foreground">Penalty commission</span>
-                      <span>{formatKES(county.penaltyCommission)}</span>
+                      <span className="sm:text-right">{formatKES(county.penaltyCommission)}</span>
                     </div>
-                    <div className="flex justify-between pl-2">
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2 sm:pl-2">
                       <span className="text-muted-foreground">SMS charges</span>
-                      <span>{formatKES(county.smsCharges)}</span>
+                      <span className="sm:text-right">{formatKES(county.smsCharges)}</span>
                     </div>
-                    <div className="flex justify-between border-t pt-2 font-medium">
+                    <div className="flex flex-col gap-0.5 border-t pt-2 font-medium sm:flex-row sm:justify-between sm:gap-2">
                       <span>Total deductions</span>
-                      <span>{formatKES(county.totalDeductions)}</span>
+                      <span className="sm:text-right">{formatKES(county.totalDeductions)}</span>
                     </div>
-                    <div className="flex justify-between font-semibold text-base">
-                      <span>Net amount due/remitted to county</span>
-                      <span>{formatKES(county.netToCounty)}</span>
+                    <div className="flex flex-col gap-0.5 font-semibold text-base sm:flex-row sm:justify-between sm:gap-2">
+                      <span className="text-sm sm:text-base">Net amount due/remitted to county</span>
+                      <span className="sm:text-right">{formatKES(county.netToCounty)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -225,7 +231,7 @@ export default function SuperAdminFinanceViewPage() {
 
         {!isLoading && summaryByCounty.length === 0 && (
           <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">
+            <CardContent className="py-8 text-center text-sm text-muted-foreground sm:py-10 sm:text-base">
               No payment data for the selected date range.
             </CardContent>
           </Card>

@@ -34,32 +34,32 @@ const typeIcons = {
 
 export function RecentActivity({ activities }: RecentActivityProps) {
   return (
-    <Card className="border-border bg-card">
-      <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
-        <CardDescription>Latest actions across the platform</CardDescription>
+    <Card className="border-border bg-card min-w-0 overflow-hidden">
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="text-base sm:text-lg">Recent Activity</CardTitle>
+        <CardDescription className="text-sm">Latest actions across the platform</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 sm:p-6 pt-0">
         <div className="space-y-4">
           {activities.map((activity) => (
-            <div key={activity.id} className="flex items-start gap-4">
-              <Avatar className={cn('h-9 w-9', typeColors[activity.type])}>
+            <div key={activity.id} className="flex items-start gap-3 sm:gap-4 min-w-0">
+              <Avatar className={cn('h-9 w-9 shrink-0', typeColors[activity.type])}>
                 <AvatarFallback className="bg-transparent text-xs font-semibold">
                   {typeIcons[activity.type]}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{activity.title}</p>
-                  <span className="text-xs text-muted-foreground">{activity.time}</span>
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                  <p className="text-sm font-medium break-words">{activity.title}</p>
+                  <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">{activity.description}</p>
+                <p className="text-xs text-muted-foreground break-words">{activity.description}</p>
               </div>
               {activity.status && (
                 <Badge
                   variant="outline"
                   className={cn(
-                    'text-xs',
+                    'text-xs shrink-0',
                     activity.status === 'success' && 'border-success/50 text-success',
                     activity.status === 'pending' && 'border-warning/50 text-warning',
                     activity.status === 'warning' && 'border-warning/50 text-warning',

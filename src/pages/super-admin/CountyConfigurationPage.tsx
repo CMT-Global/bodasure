@@ -216,18 +216,18 @@ export default function CountyConfigurationPage() {
           <p className="text-muted-foreground">Select a county to edit its configuration.</p>
         ) : (
           <Tabs defaultValue="permit" className="space-y-4">
-            <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-4 sm:overflow-visible sm:justify-center justify-start p-1 h-auto gap-1 sm:gap-0 rounded-lg [&>button]:flex-shrink-0 [&>button]:min-h-[44px]">
-              <TabsTrigger value="permit" className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
-                <FileCheck className="h-4 w-4 shrink-0" /> Permit
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 p-1 h-auto gap-1 sm:gap-0 rounded-lg [&>button]:min-h-[44px] [&>button]:min-w-0">
+              <TabsTrigger value="permit" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <FileCheck className="h-4 w-4 shrink-0" /> <span className="truncate">Permit</span>
               </TabsTrigger>
-              <TabsTrigger value="penalty" className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
-                <Scale className="h-4 w-4 shrink-0" /> Penalty
+              <TabsTrigger value="penalty" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <Scale className="h-4 w-4 shrink-0" /> <span className="truncate">Penalty</span>
               </TabsTrigger>
-              <TabsTrigger value="compliance" className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
-                <ShieldCheck className="h-4 w-4 shrink-0" /> Compliance
+              <TabsTrigger value="compliance" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <ShieldCheck className="h-4 w-4 shrink-0" /> <span className="truncate">Compliance</span>
               </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
-                <History className="h-4 w-4 shrink-0" /> History
+              <TabsTrigger value="history" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm truncate">
+                <History className="h-4 w-4 shrink-0" /> <span className="truncate">History</span>
               </TabsTrigger>
             </TabsList>
 

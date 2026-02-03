@@ -18,7 +18,6 @@ import {
   Loader2,
   QrCode,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useState } from 'react';
@@ -41,10 +40,10 @@ export function EnforcementVerificationView({
 
   if (!rider) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center text-muted-foreground">
-          <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>No rider selected. Search or scan a QR code to verify.</p>
+      <Card className="min-w-0 overflow-hidden">
+        <CardContent className="p-4 sm:p-8 text-center text-muted-foreground text-sm sm:text-base">
+          <User className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-4 opacity-50 shrink-0" />
+          <p>No rider selected. Search by name or plate or scan a QR code to verify.</p>
         </CardContent>
       </Card>
     );
@@ -61,11 +60,10 @@ export function EnforcementVerificationView({
   const totalUnpaid = unpaidPenalties.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <ScrollArea className="h-full w-full overflow-x-hidden">
-      <div className="space-y-4 p-3 sm:p-4 w-full max-w-full overflow-x-hidden">
+    <div className="space-y-4 w-full max-w-full min-w-0 overflow-x-hidden pb-6">
         {/* Rider Header Card */}
-        <Card>
-          <CardContent className="p-3 sm:p-4">
+        <Card className="min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-start gap-3 sm:gap-4">
               <Avatar className="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0">
                 <AvatarImage src={rider.photo_url || undefined} />
@@ -87,21 +85,21 @@ export function EnforcementVerificationView({
         </Card>
 
         {/* QR Code & Hex ID Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <QrCode className="h-5 w-5" />
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <QrCode className="h-5 w-5 shrink-0" />
               QR Code & Verification ID
             </CardTitle>
             <p className="text-sm text-muted-foreground">
               Scan QR or use hex code for verification
             </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             {rider.qr_code ? (
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-4">
                 <div
-                  className="cursor-pointer [perspective:320px] w-[136px] h-[136px] flex-shrink-0 rounded-lg"
+                  className="cursor-pointer [perspective:320px] w-[136px] h-[136px] flex-shrink-0 rounded-lg touch-manipulation"
                   onClick={() => setQrFlipped((f) => !f)}
                   role="button"
                   tabIndex={0}
@@ -134,11 +132,11 @@ export function EnforcementVerificationView({
                     </div>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1 space-y-2">
+                <div className="min-w-0 w-full sm:w-auto sm:flex-1 space-y-2">
                   <p className="text-xs text-muted-foreground">Click QR to flip and show hex code</p>
                   <p className="text-xs text-muted-foreground">Verification ID (hex)</p>
                   <p className="font-mono font-medium text-foreground break-all">{rider.qr_code}</p>
-                  <p className="text-xs text-muted-foreground">Verify at: /verify/{rider.qr_code}</p>
+                  <p className="text-xs text-muted-foreground break-all">Verify at: /verify/{rider.qr_code}</p>
                 </div>
               </div>
             ) : (
@@ -152,14 +150,14 @@ export function EnforcementVerificationView({
         </Card>
 
         {/* Permit Status Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Shield className="h-5 w-5" />
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Shield className="h-5 w-5 shrink-0" />
               Permit Status
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             {rider.permit ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -201,14 +199,14 @@ export function EnforcementVerificationView({
         </Card>
 
         {/* Compliance Status Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <AlertTriangle className="h-5 w-5" />
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
               Compliance Status
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Status</span>
@@ -236,39 +234,39 @@ export function EnforcementVerificationView({
         </Card>
 
         {/* Sacco & Stage Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Building2 className="h-5 w-5" />
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Building2 className="h-5 w-5 shrink-0" />
               Organization
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                <span className="text-sm text-muted-foreground flex items-center gap-2 shrink-0">
+                  <Building2 className="h-4 w-4 shrink-0" />
                   Sacco
                 </span>
-                <span className="font-medium">{rider.sacco?.name || 'Not assigned'}</span>
+                <span className="font-medium truncate">{rider.sacco?.name || 'Not assigned'}</span>
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                <span className="text-sm text-muted-foreground flex items-center gap-2 shrink-0">
+                  <MapPin className="h-4 w-4 shrink-0" />
                   Stage
                 </span>
-                <span className="font-medium">{rider.stage?.name || 'Not assigned'}</span>
+                <span className="font-medium truncate">{rider.stage?.name || 'Not assigned'}</span>
               </div>
               {rider.motorbike && (
                 <>
                   <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Bike className="h-4 w-4" />
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2 shrink-0">
+                      <Bike className="h-4 w-4 shrink-0" />
                       Bike Plate
                     </span>
-                    <span className="font-mono font-medium">
+                    <span className="font-mono font-medium truncate">
                       {rider.motorbike.registration_number}
                     </span>
                   </div>
@@ -279,14 +277,14 @@ export function EnforcementVerificationView({
         </Card>
 
         {/* Penalty History Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="h-5 w-5" />
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <FileText className="h-5 w-5 shrink-0" />
               Penalty History
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             {penaltiesLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -300,11 +298,11 @@ export function EnforcementVerificationView({
                 {penalties.slice(0, 5).map((penalty) => (
                   <div
                     key={penalty.id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-border"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border border-border min-w-0"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <Badge variant="outline" className="text-xs shrink-0">
                           {penalty.penalty_type}
                         </Badge>
                         <StatusBadge status={penalty.is_paid ? 'paid' : 'unpaid'} />
@@ -313,8 +311,8 @@ export function EnforcementVerificationView({
                         {format(new Date(penalty.created_at), 'MMM d, yyyy')}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">
+                    <div className="text-left sm:text-right shrink-0">
+                      <p className="font-semibold text-sm sm:text-base">
                         {new Intl.NumberFormat('en-KE', {
                           style: 'currency',
                           currency: 'KES',
@@ -334,14 +332,14 @@ export function EnforcementVerificationView({
         </Card>
 
         {/* Contact Info Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Phone className="h-5 w-5" />
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Phone className="h-5 w-5 shrink-0" />
               Contact Information
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <Phone className="h-4 w-4 text-muted-foreground" />
@@ -356,7 +354,6 @@ export function EnforcementVerificationView({
             </div>
           </CardContent>
         </Card>
-      </div>
-    </ScrollArea>
+    </div>
   );
 }

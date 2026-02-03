@@ -267,18 +267,18 @@ export default function UserAccessGovernancePage() {
 
   return (
     <SuperAdminLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 overflow-x-hidden p-4 md:p-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold">User & Access Governance</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">User & Access Governance</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
             View all users across all counties. Filter by county, role, and status. Suspend or deactivate users, force password reset, view login history, and enforce global security actions.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Select value={countyFilter} onValueChange={setCountyFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full min-h-9 sm:w-[180px]">
               <SelectValue placeholder="County" />
             </SelectTrigger>
             <SelectContent>
@@ -291,7 +291,7 @@ export default function UserAccessGovernancePage() {
             </SelectContent>
           </Select>
           <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-full sm:w-[200px] min-h-[44px]">
+            <SelectTrigger className="w-full min-h-9 sm:w-[200px]">
               <SelectValue placeholder="Role" />
             </SelectTrigger>
             <SelectContent>
@@ -304,7 +304,7 @@ export default function UserAccessGovernancePage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[140px] min-h-[44px]">
+            <SelectTrigger className="w-full min-h-9 sm:w-[140px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -313,36 +313,36 @@ export default function UserAccessGovernancePage() {
               <SelectItem value="suspended">Suspended</SelectItem>
             </SelectContent>
           </Select>
-          <span className="text-sm text-muted-foreground ml-2">
+          <span className="ml-0 w-full text-sm text-muted-foreground sm:ml-2 sm:w-auto">
             {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
           </span>
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="users" className="gap-2">
-              <UsersRound className="h-4 w-4" />
+          <TabsList className="flex h-auto flex-wrap gap-1 p-1.5 sm:p-1">
+            <TabsTrigger value="users" className="gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <UsersRound className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
               All users
             </TabsTrigger>
-            <TabsTrigger value="suspicious" className="gap-2">
-              <ShieldAlert className="h-4 w-4" />
-              Suspicious activity
+            <TabsTrigger value="suspicious" className="gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+              Suspicious
             </TabsTrigger>
-            <TabsTrigger value="global" className="gap-2">
-              <LogOut className="h-4 w-4" />
-              Global security actions
+            <TabsTrigger value="global" className="gap-1.5 text-xs sm:gap-2 sm:text-sm">
+              <LogOut className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+              Global actions
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Users across all counties</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Users across all counties</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Suspend or deactivate any user, force password reset, or view login history from the row actions.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-x-auto">
                 <DataTable
                   columns={columns}
                   data={filteredUsers}
@@ -426,39 +426,41 @@ export default function UserAccessGovernancePage() {
 
           <TabsContent value="suspicious" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Identify suspicious activity</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Identify suspicious activity</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Recent security-related audit events: failed actions, suspensions, user/profile changes.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {suspiciousActivity.length === 0 ? (
-                  <p className="text-muted-foreground py-4">No suspicious activity recorded.</p>
+                  <p className="py-4 text-sm text-muted-foreground sm:text-base">No suspicious activity recorded.</p>
                 ) : (
-                  <div className="rounded-md border overflow-auto max-h-[400px]">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 sticky top-0">
-                        <tr>
-                          <th className="text-left p-3 font-medium">Time</th>
-                          <th className="text-left p-3 font-medium">User</th>
-                          <th className="text-left p-3 font-medium">Action</th>
-                          <th className="text-left p-3 font-medium">Entity</th>
-                          <th className="text-left p-3 font-medium">IP</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {suspiciousActivity.map(log => (
-                          <tr key={log.id} className="border-b last:border-0">
-                            <td className="p-3 whitespace-nowrap">{format(new Date(log.created_at), 'MMM dd, HH:mm')}</td>
-                            <td className="p-3">{log.user ? `${log.user.full_name || log.user.email}` : log.user_id?.slice(0, 8) || '—'}</td>
-                            <td className="p-3">{log.action}</td>
-                            <td className="p-3">{log.entity_type}</td>
-                            <td className="p-3 text-muted-foreground">{log.ip_address || '—'}</td>
+                  <div className="max-h-[400px] overflow-auto rounded-md border">
+                    <div className="min-w-[520px] overflow-x-auto sm:min-w-0">
+                      <table className="w-full text-xs sm:text-sm">
+                        <thead className="sticky top-0 bg-muted/50">
+                          <tr>
+                            <th className="p-2 text-left font-medium sm:p-3">Time</th>
+                            <th className="p-2 text-left font-medium sm:p-3">User</th>
+                            <th className="p-2 text-left font-medium sm:p-3">Action</th>
+                            <th className="p-2 text-left font-medium sm:p-3">Entity</th>
+                            <th className="p-2 text-left font-medium sm:p-3">IP</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {suspiciousActivity.map(log => (
+                            <tr key={log.id} className="border-b last:border-0">
+                              <td className="whitespace-nowrap p-2 sm:p-3">{format(new Date(log.created_at), 'MMM dd, HH:mm')}</td>
+                              <td className="max-w-[120px] truncate p-2 sm:max-w-none sm:p-3">{log.user ? `${log.user.full_name || log.user.email}` : log.user_id?.slice(0, 8) || '—'}</td>
+                              <td className="max-w-[100px] truncate p-2 sm:max-w-none sm:p-3">{log.action}</td>
+                              <td className="p-2 sm:p-3">{log.entity_type}</td>
+                              <td className="p-2 text-muted-foreground sm:p-3">{log.ip_address || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -467,22 +469,22 @@ export default function UserAccessGovernancePage() {
 
           <TabsContent value="global" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Enforce global security actions</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Enforce global security actions</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Platform-wide security controls. Use with caution.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Card className="border-amber-200 dark:border-amber-900/50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Force logout all users in a county</CardTitle>
-                      <CardDescription>Revoke all sessions for users in the selected county. They will need to sign in again.</CardDescription>
+                <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <Card className="min-w-0 border-amber-200 dark:border-amber-900/50">
+                    <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
+                      <CardTitle className="text-sm sm:text-base">Force logout all users in a county</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Revoke all sessions for users in the selected county. They will need to sign in again.</CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
+                    <CardContent className="pt-0 px-4 pb-4 sm:px-6 sm:pb-6">
                       <Select disabled>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select county (backend required)" />
                         </SelectTrigger>
                         <SelectContent>
@@ -491,19 +493,19 @@ export default function UserAccessGovernancePage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button variant="outline" size="sm" className="mt-2" disabled>
+                      <Button variant="outline" size="sm" className="mt-2 min-h-9 w-full min-w-0 whitespace-normal break-words text-center sm:w-auto" disabled>
                         Force logout (requires backend)
                       </Button>
                     </CardContent>
                   </Card>
-                  <Card className="border-amber-200 dark:border-amber-900/50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Lock county access</CardTitle>
-                      <CardDescription>Temporarily disable all non–super-admin access to a county until unlocked.</CardDescription>
+                  <Card className="min-w-0 border-amber-200 dark:border-amber-900/50">
+                    <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
+                      <CardTitle className="text-sm sm:text-base">Lock county access</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Temporarily disable all non–super-admin access to a county until unlocked.</CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
+                    <CardContent className="pt-0 px-4 pb-4 sm:px-6 sm:pb-6">
                       <Select disabled>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select county (backend required)" />
                         </SelectTrigger>
                         <SelectContent>
@@ -512,13 +514,13 @@ export default function UserAccessGovernancePage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button variant="outline" size="sm" className="mt-2" disabled>
+                      <Button variant="outline" size="sm" className="mt-2 min-h-9 w-full min-w-0 whitespace-normal break-words text-center sm:w-auto" disabled>
                         Lock county (requires backend)
                       </Button>
                     </CardContent>
                   </Card>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground sm:text-sm">
                   Global actions such as force logout and lock county require server-side implementation (e.g. Supabase Auth admin or custom API).
                 </p>
               </CardContent>
@@ -529,41 +531,41 @@ export default function UserAccessGovernancePage() {
 
       {/* Password reset dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-lg p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Force password reset</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Force password reset</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Set a new password for {selectedUser?.email}. They will need to use this password on next login.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label htmlFor="newPassword">New password</Label>
+              <Label htmlFor="newPassword" className="text-sm">New password</Label>
               <Input
                 id="newPassword"
                 type="password"
                 value={passwordForm.newPassword}
                 onChange={e => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
                 placeholder="Min 6 characters"
-                className="mt-1"
+                className="mt-1 min-h-9 w-full"
               />
             </div>
             <div>
-              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <Label htmlFor="confirmPassword" className="text-sm">Confirm password</Label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={passwordForm.confirmPassword}
                 onChange={e => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
                 placeholder="Confirm"
-                className="mt-1"
+                className="mt-1 min-h-9 w-full"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleResetPassword} disabled={resetPassword.isPending}>
-              {resetPassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsPasswordDialogOpen(false)}>Cancel</Button>
+            <Button className="w-full min-h-9 sm:w-auto" onClick={handleResetPassword} disabled={resetPassword.isPending}>
+              {resetPassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin shrink-0" />}
               Reset password
             </Button>
           </DialogFooter>
@@ -608,53 +610,55 @@ export default function UserAccessGovernancePage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">
               Login & activity history
               {loginHistoryUser && (
-                <span className="font-normal text-muted-foreground text-base block mt-1">
+                <span className="mt-1 block text-sm font-normal text-muted-foreground sm:text-base">
                   {loginHistoryUser.full_name || loginHistoryUser.email}
                 </span>
               )}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Recent sign-ins and audit events for this user. Empty if no events have been recorded yet.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto rounded-md border min-h-[120px]">
+          <div className="min-h-[120px] flex-1 overflow-auto rounded-md border">
             {loginHistoryForUser.length === 0 ? (
-              <div className="p-6 text-center text-muted-foreground space-y-2">
-                <p className="font-medium">No login or activity events recorded</p>
-                <p className="text-sm">
+              <div className="space-y-2 p-4 text-center text-muted-foreground sm:p-6">
+                <p className="text-sm font-medium sm:text-base">No login or activity events recorded</p>
+                <p className="text-xs sm:text-sm">
                   Sign-in and other actions will appear here once they are logged. New logins are recorded automatically.
                 </p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 sticky top-0">
-                  <tr>
-                    <th className="text-left p-3 font-medium">Time</th>
-                    <th className="text-left p-3 font-medium">Action</th>
-                    <th className="text-left p-3 font-medium">Entity</th>
-                    <th className="text-left p-3 font-medium">IP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loginHistoryForUser.map((log: UserActivityLog) => (
-                    <tr key={log.id} className="border-b last:border-0">
-                      <td className="p-3 whitespace-nowrap">{format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}</td>
-                      <td className="p-3">{log.action}</td>
-                      <td className="p-3">{log.entity_type}</td>
-                      <td className="p-3 text-muted-foreground">{log.ip_address || '—'}</td>
+              <div className="min-w-[380px] overflow-x-auto sm:min-w-0">
+                <table className="w-full text-xs sm:text-sm">
+                  <thead className="sticky top-0 bg-muted/50">
+                    <tr>
+                      <th className="p-2 text-left font-medium sm:p-3">Time</th>
+                      <th className="p-2 text-left font-medium sm:p-3">Action</th>
+                      <th className="p-2 text-left font-medium sm:p-3">Entity</th>
+                      <th className="p-2 text-left font-medium sm:p-3">IP</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {loginHistoryForUser.map((log: UserActivityLog) => (
+                      <tr key={log.id} className="border-b last:border-0">
+                        <td className="whitespace-nowrap p-2 sm:p-3">{format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}</td>
+                        <td className="max-w-[100px] truncate p-2 sm:max-w-none sm:p-3">{log.action}</td>
+                        <td className="p-2 sm:p-3">{log.entity_type}</td>
+                        <td className="p-2 text-muted-foreground sm:p-3">{log.ip_address || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsLoginHistoryOpen(false)}>Close</Button>
+          <DialogFooter className="shrink-0 border-t pt-4 sm:justify-end">
+            <Button variant="outline" className="w-full min-h-9 sm:w-auto" onClick={() => setIsLoginHistoryOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

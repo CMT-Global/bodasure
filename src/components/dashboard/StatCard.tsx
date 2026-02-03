@@ -43,8 +43,8 @@ export function StatCard({ title, value, description, icon, trend, statusColor =
   const colors = statusColorClasses[statusColor];
 
   return (
-    <div className={cn('rounded-xl border bg-card p-4 sm:p-6 card-hover transition-all', colors.border, className)}>
-      <div className="flex items-start justify-between gap-4">
+    <div className={cn('rounded-xl border bg-card p-4 sm:p-6 card-hover transition-all min-w-0 overflow-hidden', colors.border, className)}>
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div className="space-y-1 flex-1 min-w-0">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <p className="text-2xl sm:text-3xl font-bold truncate">{value}</p>
