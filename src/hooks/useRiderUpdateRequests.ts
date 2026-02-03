@@ -121,6 +121,38 @@ export function useRiderUpdateRequestsByCounty(
   });
 }
 
+/** Sacco portal: fetch rider update requests for riders in the user's sacco (RLS filters). With rider/owner and requester names. */
+export function useRiderUpdateRequestsForSacco(
+  statusFilter?: 'pending' | 'approved' | 'rejected'
+) {
+  return useQuery({
+    queryKey: ['rider-update-requests-for-sacco', statusFilter],
+    queryFn: async (): Promise<RiderUpdateRequestWithNames[]> => {
+      let q = fromRiderUpdateRequests()
+        .select('*, riders(full_name), owners(full_name)')
+        .order('created_at', { ascending: false });
+      if (statusFilter) q = q.eq('status', statusFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      const requests = (data ?? []) as RiderUpdateRequestWithNames[];
+      const requestedByIds = [...new Set(requests.map((r) => r.requested_by).filter(Boolean))];
+      if (requestedByIds.length === 0) return requests;
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', requestedByIds);
+      const nameByUserId = new Map(
+        (profiles ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? null])
+      );
+      return requests.map((r) => ({
+        ...r,
+        requested_by_name: nameByUserId.get(r.requested_by) ?? null,
+      }));
+    },
+    enabled: true,
+  });
+}
+
 export interface ReviewRiderUpdateRequestInput {
   requestId: string;
   action: 'approve' | 'reject';
@@ -205,6 +237,7 @@ export function useReviewRiderUpdateRequest() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rider-update-requests-by-county'] });
+      qc.invalidateQueries({ queryKey: ['rider-update-requests-for-sacco'] });
       qc.invalidateQueries({ queryKey: ['rider-update-requests'] });
       qc.invalidateQueries({ queryKey: ['rider-owner-profile'] });
       qc.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });

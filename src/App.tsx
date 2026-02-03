@@ -41,6 +41,7 @@ import SaccoProfileSettingsPage from "./pages/sacco/SaccoProfileSettingsPage";
 import SaccoAuditLogsPage from "./pages/sacco/SaccoAuditLogsPage";
 import CommunicationToolsPage from "./pages/sacco/CommunicationToolsPage";
 import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
+import SaccoUpdateRequestsPage from "./pages/sacco/UpdateRequestsPage";
 import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
 import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
 import CountyManagementPage from "./pages/super-admin/CountyManagementPage";
@@ -419,6 +420,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <SaccoReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/update-requests"
+              element={
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
+                  <SaccoUpdateRequestsPage />
                 </ProtectedRoute>
               }
             />
