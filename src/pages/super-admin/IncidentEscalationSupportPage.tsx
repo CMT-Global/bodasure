@@ -125,10 +125,10 @@ export default function IncidentEscalationSupportPage() {
                     placeholder="Search subject or description…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="max-w-xs min-h-[44px]"
+                    className="w-full sm:max-w-xs min-h-[44px]"
                   />
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px] min-h-[44px]">
+                    <SelectTrigger className="w-full sm:w-[160px] min-h-[44px]">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -141,7 +141,7 @@ export default function IncidentEscalationSupportPage() {
                     </SelectContent>
                   </Select>
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-[180px] min-h-[44px]">
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
                     <SelectContent>

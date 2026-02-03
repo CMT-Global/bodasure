@@ -271,7 +271,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
               >
                 <span className="hidden sm:inline">County Portal</span>
-                <span className="sm:hidden">County</span>
+                <span className="sm:hidden">County Portal</span>
               </Button>
             )}
             {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -282,7 +282,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
               >
                 <span className="hidden sm:inline">Sacco Portal</span>
-                <span className="sm:hidden">Sacco</span>
+                <span className="sm:hidden">Sacco Portal</span>
               </Button>
             )}
             <Button
@@ -292,7 +292,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               className="min-h-[44px] min-w-[44px] sm:min-w-0 px-3 touch-manipulation shrink-0"
             >
               <span className="hidden sm:inline">Rider & Owner Portal</span>
-              <span className="sm:hidden">Rider</span>
+              <span className="sm:hidden">Rider & Owner Portal</span>
             </Button>
           </div>
 

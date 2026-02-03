@@ -326,7 +326,7 @@ export default function SaccoWelfareOversightPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Select value={countyFilter} onValueChange={setCountyFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
                       <SelectValue placeholder="County" />
                     </SelectTrigger>
                     <SelectContent>
@@ -339,7 +339,7 @@ export default function SaccoWelfareOversightPage() {
                     </SelectContent>
                   </Select>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-full sm:w-[140px] min-h-[44px]">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -351,7 +351,7 @@ export default function SaccoWelfareOversightPage() {
                     </SelectContent>
                   </Select>
                   <Select value={flaggedFilter} onValueChange={setFlaggedFilter}>
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-full sm:w-[140px] min-h-[44px]">
                       <SelectValue placeholder="Flagged" />
                     </SelectTrigger>
                     <SelectContent>
@@ -382,6 +382,95 @@ export default function SaccoWelfareOversightPage() {
                     data={filteredSaccos}
                     searchPlaceholder="Search organizations..."
                     searchKey="name"
+                    mobileCardRender={(sacco) => {
+                      const isFlagged = !!(sacco.settings as Record<string, unknown>)?.flagged;
+                      const county = countyMap.get(sacco.county_id);
+                      const rate = sacco.compliance_rate ?? 100;
+                      const isHigh = rate >= 80;
+                      const isLow = rate < 50;
+                      return (
+                        <Card className="overflow-hidden">
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium truncate">{sacco.name}</p>
+                                  {isFlagged && (
+                                    <Badge variant="destructive" className="text-xs gap-0.5">
+                                      <Flag className="h-3 w-3" /> Flagged
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">{sacco.registration_number || 'No reg. number'}</p>
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {county?.name ?? sacco.county_id}
+                                </p>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Platform controls</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      toggleFlaggedMutation.mutate({
+                                        saccoId: sacco.id,
+                                        flagged: !isFlagged,
+                                      })
+                                    }
+                                  >
+                                    <Flag className="mr-2 h-4 w-4" />
+                                    {isFlagged ? 'Remove flag' : 'Flag as problematic'}
+                                  </DropdownMenuItem>
+                                  {sacco.status !== 'approved' && (
+                                    <DropdownMenuItem
+                                      onClick={() => setReinstateSacco(sacco)}
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Reinstate
+                                    </DropdownMenuItem>
+                                  )}
+                                  {sacco.status !== 'suspended' && (
+                                    <DropdownMenuItem
+                                      onClick={() => setSuspendSacco(sacco)}
+                                      className="text-destructive"
+                                    >
+                                      <Ban className="mr-2 h-4 w-4" />
+                                      Suspend
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Members</span>
+                                <p className="font-medium">{sacco.member_count ?? 0}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Stages</span>
+                                <p className="font-medium">{sacco.stages_count ?? 0}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Compliance</span>
+                                <p className={`font-medium ${isLow ? 'text-destructive' : isHigh ? 'text-green-600' : 'text-amber-600'}`}>
+                                  {rate}%
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Status</span>
+                                <div className="font-medium mt-0.5"><StatusBadge status={sacco.status} /></div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    }}
                   />
                 )}
               </CardContent>

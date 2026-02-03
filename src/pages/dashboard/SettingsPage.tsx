@@ -151,10 +151,15 @@ export default function SettingsPage() {
   // Save Permit Settings
   const handleSavePermitSettings = async () => {
     if (!countyId) return;
-    
+
     await updateSettings.mutateAsync({
       countyId,
-      settings: { permitSettings: permitSettings },
+      settings: {
+        permitSettings: {
+          ...permitSettings,
+          gracePeriodDays: permitSettings.gracePeriodDays ?? 0,
+        },
+      },
     });
   };
 
@@ -558,11 +563,15 @@ export default function SettingsPage() {
                   <Label>Grace Period (Days)</Label>
                   <Input
                     type="number"
-                    value={permitSettings.gracePeriodDays}
+                    value={permitSettings.gracePeriodDays ?? ''}
                     onChange={(e) =>
-                      setPermitSettings({ ...permitSettings, gracePeriodDays: parseInt(e.target.value) || 0 })
+                      setPermitSettings({
+                        ...permitSettings,
+                        gracePeriodDays: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
+                      })
                     }
                     min="0"
+                    placeholder="0"
                     className="min-h-[44px]"
                   />
                   <p className="text-xs text-muted-foreground">Number of days after permit expiry before penalties apply</p>

@@ -269,7 +269,7 @@ export default function UserAccessGovernancePage() {
     <SuperAdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">User & Access Governance</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">User & Access Governance</h1>
           <p className="text-muted-foreground">
             View all users across all counties. Filter by county, role, and status. Suspend or deactivate users, force password reset, view login history, and enforce global security actions.
           </p>
@@ -291,7 +291,7 @@ export default function UserAccessGovernancePage() {
             </SelectContent>
           </Select>
           <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px] min-h-[44px]">
               <SelectValue placeholder="Role" />
             </SelectTrigger>
             <SelectContent>
@@ -304,7 +304,7 @@ export default function UserAccessGovernancePage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-full sm:w-[140px] min-h-[44px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -348,6 +348,77 @@ export default function UserAccessGovernancePage() {
                   data={filteredUsers}
                   searchPlaceholder="Search users by name or email..."
                   isLoading={isLoading}
+                  mobileCardRender={(user) => {
+                    const county = user.county_id ? countyMap.get(user.county_id) : null;
+                    return (
+                      <Card className="overflow-hidden">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate">{user.full_name || 'No name'}</p>
+                              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {county ? `${county.name} (${county.code})` : user.county_id ? user.county_id.slice(0, 8) + '…' : '—'}
+                              </p>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => openLoginHistory(user)}>
+                                  <Activity className="mr-2 h-4 w-4" />
+                                  View login history
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setPasswordForm({ newPassword: '', confirmPassword: '' });
+                                    setIsPasswordDialogOpen(true);
+                                  }}
+                                >
+                                  <Key className="mr-2 h-4 w-4" />
+                                  Force password reset
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setIsSuspendDialogOpen(true);
+                                  }}
+                                  className={user.is_active ? 'text-amber-600' : 'text-green-600'}
+                                >
+                                  <Ban className="mr-2 h-4 w-4" />
+                                  {user.is_active ? 'Suspend / Deactivate' : 'Activate'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {user.roles.length === 0 ? (
+                              <Badge variant="outline">No roles</Badge>
+                            ) : (
+                              user.roles.map(role => (
+                                <Badge key={role.id} variant="secondary" className="text-xs">
+                                  {ALL_ROLES.find(r => r.value === role.role)?.label || role.role}
+                                </Badge>
+                              ))
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t text-sm">
+                            <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                              {user.is_active ? 'Active' : 'Suspended'}
+                            </Badge>
+                            <span className="text-muted-foreground text-xs">{format(new Date(user.created_at), 'MMM dd, yyyy')}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>

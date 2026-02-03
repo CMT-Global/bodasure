@@ -35,7 +35,9 @@ export interface PaymentCalculationMonetization {
     percentageFee?: number;
   };
   penaltyCommission: {
-    percentageFee: number;
+    feeType: 'fixed' | 'percentage';
+    fixedFeeCents?: number;
+    percentageFee?: number;
   };
 }
 
@@ -106,6 +108,9 @@ function penaltyCommissionFee(
   grossKES: number,
   config: PaymentCalculationMonetization['penaltyCommission']
 ): number {
+  if (config.feeType === 'fixed' && config.fixedFeeCents != null) {
+    return ROUND(config.fixedFeeCents / 100);
+  }
   const pct = config.percentageFee ?? 0;
   return ROUND((grossKES * pct) / 100);
 }

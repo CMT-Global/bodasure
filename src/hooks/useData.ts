@@ -1529,8 +1529,9 @@ export interface PaymentConvenienceFeeConfig {
 }
 
 export interface PenaltyCommissionConfig {
-  feeType: 'percentage';
-  percentageFee: number;
+  feeType: 'fixed' | 'percentage';
+  fixedFeeCents?: number;
+  percentageFee?: number;
   applyScope: 'penalty_payments_only';
   chargedOnSuccessOnly: boolean;
 }
@@ -1659,6 +1660,7 @@ const DEFAULT_PAYMENT_CONVENIENCE_FEE: PaymentConvenienceFeeConfig = {
 
 const DEFAULT_PENALTY_COMMISSION: PenaltyCommissionConfig = {
   feeType: 'percentage',
+  fixedFeeCents: 0,
   percentageFee: 0,
   applyScope: 'penalty_payments_only',
   chargedOnSuccessOnly: true,
@@ -1814,7 +1816,8 @@ export function getCountyConfigFromSettings(settings: Record<string, unknown> | 
         purposeLabel: monetization?.paymentConvenienceFee?.purposeLabel ?? defMon.paymentConvenienceFee.purposeLabel,
       },
       penaltyCommission: {
-        feeType: 'percentage',
+        feeType: monetization?.penaltyCommission?.feeType ?? defMon.penaltyCommission.feeType,
+        fixedFeeCents: monetization?.penaltyCommission?.fixedFeeCents ?? defMon.penaltyCommission.fixedFeeCents,
         percentageFee: monetization?.penaltyCommission?.percentageFee ?? defMon.penaltyCommission.percentageFee,
         applyScope: 'penalty_payments_only',
         chargedOnSuccessOnly: monetization?.penaltyCommission?.chargedOnSuccessOnly ?? defMon.penaltyCommission.chargedOnSuccessOnly,

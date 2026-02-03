@@ -207,8 +207,13 @@ function validatePaymentConvenienceFee(c: PaymentConvenienceFeeConfig): string |
 }
 
 function validatePenaltyCommission(c: PenaltyCommissionConfig): string | null {
-  const v = c.percentageFee ?? 0;
-  if (v < 0 || v > 100) return 'Penalty commission must be between 0 and 100%.';
+  if (c.feeType === 'fixed') {
+    const v = c.fixedFeeCents ?? 0;
+    if (v < 0) return 'Penalty commission (KES) must be ≥ 0.';
+  } else {
+    const v = c.percentageFee ?? 0;
+    if (v < 0 || v > 100) return 'Penalty commission must be between 0 and 100%.';
+  }
   return null;
 }
 
@@ -241,7 +246,9 @@ function hasHighImpactChanges(
       if ((pa.percentageFee ?? 0) !== (pb.percentageFee ?? 0)) return true;
     }
   }
-  if ((current.penaltyCommission.percentageFee ?? 0) !== (next.penaltyCommission.percentageFee ?? 0)) return true;
+  if (current.penaltyCommission.feeType === 'percentage' || next.penaltyCommission.feeType === 'percentage') {
+    if ((current.penaltyCommission.percentageFee ?? 0) !== (next.penaltyCommission.percentageFee ?? 0)) return true;
+  }
   if ((current.bulkSmsCostRecovery.markupPercent ?? 0) !== (next.bulkSmsCostRecovery.markupPercent ?? 0)) return true;
   return false;
 }
@@ -292,6 +299,7 @@ export default function CountyMonetizationSettingsPage() {
     },
     penaltyCommission: {
       feeType: 'percentage' as const,
+      fixedFeeCents: 0,
       percentageFee: 0,
       applyScope: 'penalty_payments_only' as const,
       chargedOnSuccessOnly: true,
@@ -343,10 +351,26 @@ export default function CountyMonetizationSettingsPage() {
   const updateMutation = useUpdateCountyConfig();
 
   const buildMonetizationConfig = (): CountyMonetizationSettings => ({
-    platformServiceFee: { ...platformServiceFee },
-    paymentConvenienceFee: { ...paymentConvenienceFee },
-    penaltyCommission: { ...penaltyCommission },
-    bulkSmsCostRecovery: { ...bulkSms, messageCategories: { ...bulkSms.messageCategories } },
+    platformServiceFee: {
+      ...platformServiceFee,
+      fixedFeeCents: platformServiceFee.fixedFeeCents ?? 0,
+      percentageFee: platformServiceFee.percentageFee ?? 0,
+    },
+    paymentConvenienceFee: {
+      ...paymentConvenienceFee,
+      fixedFeeCents: paymentConvenienceFee.fixedFeeCents ?? 0,
+      percentageFee: paymentConvenienceFee.percentageFee ?? 0,
+    },
+    penaltyCommission: {
+      ...penaltyCommission,
+      fixedFeeCents: penaltyCommission.fixedFeeCents ?? 0,
+      percentageFee: penaltyCommission.percentageFee ?? 0,
+    },
+    bulkSmsCostRecovery: {
+      ...bulkSms,
+      messageCategories: { ...bulkSms.messageCategories },
+      costPerSmsCents: bulkSms.costPerSmsCents ?? 0,
+    },
     subscriptionPeriodControls: {
       enabledDurations: { ...subscriptionPeriodControls.enabledDurations },
       basePermitPriceCentsPerPeriod: { ...subscriptionPeriodControls.basePermitPriceCentsPerPeriod },
@@ -420,7 +444,7 @@ export default function CountyMonetizationSettingsPage() {
     <SuperAdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">County Monetization Settings</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">County Monetization Settings</h1>
           <p className="text-muted-foreground">
             Active settings per county. Per-county configuration: platform service fee, payment/convenience fee, penalty commission, bulk SMS cost recovery, and subscription period controls. Monetization deductions must align with enabled periods only. Version history and optional effective dates are in the &quot;Version history&quot; tab.
           </p>
@@ -543,10 +567,11 @@ export default function CountyMonetizationSettingsPage() {
                           type="number"
                           min={0}
                           step={1}
-                          value={(platformServiceFee.fixedFeeCents ?? 0) / 100}
-                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, fixedFeeCents: Math.round(Number(e.target.value) * 100) }))}
+                          value={platformServiceFee.fixedFeeCents != null ? platformServiceFee.fixedFeeCents / 100 : ''}
+                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                           disabled={!canEditMonetization}
                           readOnly={!canEditMonetization}
+                          placeholder="0"
                         />
                       </div>
                     )}
@@ -558,10 +583,11 @@ export default function CountyMonetizationSettingsPage() {
                           min={0}
                           max={100}
                           step={0.01}
-                          value={platformServiceFee.percentageFee ?? 0}
-                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, percentageFee: Number(e.target.value) }))}
+                          value={platformServiceFee.percentageFee ?? ''}
+                          onChange={e => setPlatformServiceFee(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
                           disabled={!canEditMonetization}
                           readOnly={!canEditMonetization}
+                          placeholder="0"
                         />
                       </div>
                     )}
@@ -706,10 +732,11 @@ export default function CountyMonetizationSettingsPage() {
                               type="number"
                               min={0}
                               step={1}
-                              value={(paymentConvenienceFee.fixedFeeCents ?? 0) / 100}
-                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, fixedFeeCents: Math.round(Number(e.target.value) * 100) }))}
+                              value={paymentConvenienceFee.fixedFeeCents != null ? paymentConvenienceFee.fixedFeeCents / 100 : ''}
+                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                               disabled={!canEditMonetization}
                               readOnly={!canEditMonetization}
+                              placeholder="0"
                             />
                           </div>
                         )}
@@ -721,10 +748,11 @@ export default function CountyMonetizationSettingsPage() {
                               min={0}
                               max={100}
                               step={0.01}
-                              value={paymentConvenienceFee.percentageFee ?? 0}
-                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, percentageFee: Number(e.target.value) }))}
+                              value={paymentConvenienceFee.percentageFee ?? ''}
+                              onChange={e => setPaymentConvenienceFee(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
                               disabled={!canEditMonetization}
                               readOnly={!canEditMonetization}
+                              placeholder="0"
                             />
                           </div>
                         )}
@@ -751,23 +779,57 @@ export default function CountyMonetizationSettingsPage() {
                   <CardHeader>
                     <CardTitle>Penalty Commission</CardTitle>
                     <CardDescription>
-                      Fee type: Percentage (%) only. Apply scope: Penalty payments only. Charged only when penalty payment succeeds. Validation: 0–100%.
+                      Fee type: Fixed (KES) or Percentage (%). Apply scope: Penalty payments only. Charged only when penalty payment succeeds. Validation: KES ≥ 0 or 0–100%.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid gap-2">
-                      <Label>Percentage (%) — 0–100</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.01}
-                        value={penaltyCommission.percentageFee}
-                        onChange={e => setPenaltyCommission(prev => ({ ...prev, percentageFee: Number(e.target.value) }))}
+                      <Label>Fee type</Label>
+                      <Select
+                        value={penaltyCommission.feeType}
+                        onValueChange={v => setPenaltyCommission(prev => ({ ...prev, feeType: v as 'fixed' | 'percentage' }))}
                         disabled={!canEditMonetization}
-                        readOnly={!canEditMonetization}
-                      />
+                      >
+                        <SelectTrigger className="max-w-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixed (KES)</SelectItem>
+                          <SelectItem value="percentage">Percentage (%)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    {penaltyCommission.feeType === 'fixed' && (
+                      <div className="grid gap-2">
+                        <Label>Fixed fee (KES) — must be ≥ 0</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={penaltyCommission.fixedFeeCents != null ? penaltyCommission.fixedFeeCents / 100 : ''}
+                          onChange={e => setPenaltyCommission(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
+                          disabled={!canEditMonetization}
+                          readOnly={!canEditMonetization}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                    {penaltyCommission.feeType === 'percentage' && (
+                      <div className="grid gap-2">
+                        <Label>Percentage (%) — 0–100</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={penaltyCommission.percentageFee ?? ''}
+                          onChange={e => setPenaltyCommission(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                          disabled={!canEditMonetization}
+                          readOnly={!canEditMonetization}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={penaltyCommission.chargedOnSuccessOnly}
@@ -796,10 +858,11 @@ export default function CountyMonetizationSettingsPage() {
                         type="number"
                         min={0}
                         step={0.01}
-                        value={(bulkSms.costPerSmsCents ?? 0) / 100}
-                        onChange={e => setBulkSms(prev => ({ ...prev, costPerSmsCents: Math.round(Number(e.target.value) * 100) }))}
+                        value={bulkSms.costPerSmsCents != null ? bulkSms.costPerSmsCents / 100 : ''}
+                        onChange={e => setBulkSms(prev => ({ ...prev, costPerSmsCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                         disabled={!canEditMonetization}
                         readOnly={!canEditMonetization}
+                        placeholder="0"
                       />
                     </div>
                     <div className="grid gap-2">

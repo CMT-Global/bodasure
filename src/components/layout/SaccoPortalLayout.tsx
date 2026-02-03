@@ -305,7 +305,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
                 className="min-h-[44px] min-w-0 px-3 touch-manipulation"
               >
                 <span className="hidden sm:inline">County Portal</span>
-                <span className="sm:hidden">County</span>
+                <span className="sm:hidden">County Portal</span>
               </Button>
             )}
             <Button
@@ -315,7 +315,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
               className="min-h-[44px] min-w-0 px-3 touch-manipulation"
             >
               <span className="hidden sm:inline">Sacco Portal</span>
-              <span className="sm:hidden">Sacco</span>
+              <span className="sm:hidden">Sacco Portal</span>
             </Button>
             {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
               <Button
@@ -325,7 +325,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
                 className="min-h-[44px] min-w-0 px-3 touch-manipulation"
               >
                 <span className="hidden sm:inline">Rider & Owner Portal</span>
-                <span className="sm:hidden">Rider</span>
+                <span className="sm:hidden">Rider & Owner Portal</span>
               </Button>
             )}
           </div>
