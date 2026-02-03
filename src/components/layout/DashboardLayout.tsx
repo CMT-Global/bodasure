@@ -36,6 +36,7 @@ import {
   ClipboardList,
   UserCog,
   HelpCircle,
+  FileEdit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COUNTY_PORTAL_ACCESS_ROLES } from '@/config/portalRoles';
@@ -70,6 +71,7 @@ const navItems: NavItem[] = [
   { title: 'Reports', href: '/dashboard/reports', icon: BarChart3, roles: ['county_super_admin', 'county_finance_officer', 'county_analyst'] },
   { title: 'User Management', href: '/dashboard/users', icon: UserCog, roles: ['county_super_admin'] },
   { title: 'Support Tickets', href: '/dashboard/support-tickets', icon: HelpCircle, roles: ['county_super_admin'] },
+  { title: 'Update requests', href: '/dashboard/update-requests', icon: FileEdit, roles: ['county_super_admin'] },
   { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin'] },
 ];
 

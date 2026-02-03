@@ -30,6 +30,7 @@ import ReportsPage from "./pages/dashboard/ReportsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import UsersPage from "./pages/dashboard/UsersPage";
 import SupportTicketsPage from "./pages/dashboard/SupportTicketsPage";
+import UpdateRequestsPage from "./pages/dashboard/UpdateRequestsPage";
 import SaccoPortal from "./pages/sacco/SaccoPortal";
 import MemberManagementPage from "./pages/sacco/MemberManagementPage";
 import RegistrationSupportPage from "./pages/sacco/RegistrationSupportPage";
@@ -344,6 +345,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={countySupportTickets}>
                   <SupportTicketsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/update-requests"
+              element={
+                <ProtectedRoute requiredRoles={countySupportTickets}>
+                  <UpdateRequestsPage />
                 </ProtectedRoute>
               }
             />

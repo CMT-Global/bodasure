@@ -681,6 +681,76 @@ export type Database = {
           },
         ]
       }
+      rider_update_requests: {
+        Row: {
+          id: string
+          county_id: string
+          rider_id: string | null
+          owner_id: string | null
+          requested_by: string
+          request_type: string
+          payload: Json
+          status: string
+          reviewed_by: string | null
+          reviewed_at: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          county_id: string
+          rider_id?: string | null
+          owner_id?: string | null
+          requested_by: string
+          request_type: string
+          payload?: Json
+          status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          county_id?: string
+          rider_id?: string | null
+          owner_id?: string | null
+          requested_by?: string
+          request_type?: string
+          payload?: Json
+          status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_update_requests_county_id_fkey"
+            columns: ["county_id"]
+            isOneToOne: false
+            referencedRelation: "counties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_update_requests_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_update_requests_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       welfare_groups: {
         Row: {
           address: string | null
