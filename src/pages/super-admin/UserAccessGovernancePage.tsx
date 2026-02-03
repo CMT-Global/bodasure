@@ -38,6 +38,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+} from '@/components/ui/pagination';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -102,6 +109,9 @@ export default function UserAccessGovernancePage() {
   const [isLoginHistoryOpen, setIsLoginHistoryOpen] = useState(false);
   const [loginHistoryUserId, setLoginHistoryUserId] = useState<string | null>(null);
   const [loginHistoryUser, setLoginHistoryUser] = useState<CountyUser | null>(null);
+  const [loginHistoryPage, setLoginHistoryPage] = useState(1);
+
+  const LOGIN_HISTORY_ROWS_PER_PAGE = 15;
 
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
 
@@ -122,6 +132,12 @@ export default function UserAccessGovernancePage() {
       .filter(log => log.user_id === loginHistoryUserId)
       .slice(0, 100);
   }, [allAuditLogs, loginHistoryUserId]);
+
+  const loginHistoryTotalPages = Math.max(1, Math.ceil(loginHistoryForUser.length / LOGIN_HISTORY_ROWS_PER_PAGE));
+  const loginHistoryPaginated = useMemo(() => {
+    const start = (loginHistoryPage - 1) * LOGIN_HISTORY_ROWS_PER_PAGE;
+    return loginHistoryForUser.slice(start, start + LOGIN_HISTORY_ROWS_PER_PAGE);
+  }, [loginHistoryForUser, loginHistoryPage, LOGIN_HISTORY_ROWS_PER_PAGE]);
 
   const suspiciousActivity = useMemo(() => {
     return allAuditLogs
@@ -165,6 +181,7 @@ export default function UserAccessGovernancePage() {
   const openLoginHistory = (user: CountyUser) => {
     setLoginHistoryUserId(user.id);
     setLoginHistoryUser(user);
+    setLoginHistoryPage(1);
     setIsLoginHistoryOpen(true);
   };
 
@@ -607,6 +624,7 @@ export default function UserAccessGovernancePage() {
           if (!open) {
             setLoginHistoryUserId(null);
             setLoginHistoryUser(null);
+            setLoginHistoryPage(1);
           }
         }}
       >
@@ -633,28 +651,69 @@ export default function UserAccessGovernancePage() {
                 </p>
               </div>
             ) : (
-              <div className="min-w-[380px] overflow-x-auto sm:min-w-0">
-                <table className="w-full text-xs sm:text-sm">
-                  <thead className="sticky top-0 bg-muted/50">
-                    <tr>
-                      <th className="p-2 text-left font-medium sm:p-3">Time</th>
-                      <th className="p-2 text-left font-medium sm:p-3">Action</th>
-                      <th className="p-2 text-left font-medium sm:p-3">Entity</th>
-                      <th className="p-2 text-left font-medium sm:p-3">IP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loginHistoryForUser.map((log: UserActivityLog) => (
-                      <tr key={log.id} className="border-b last:border-0">
-                        <td className="whitespace-nowrap p-2 sm:p-3">{format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}</td>
-                        <td className="max-w-[100px] truncate p-2 sm:max-w-none sm:p-3">{log.action}</td>
-                        <td className="p-2 sm:p-3">{log.entity_type}</td>
-                        <td className="p-2 text-muted-foreground sm:p-3">{log.ip_address || '—'}</td>
+              <>
+                <div className="min-w-[380px] overflow-x-auto sm:min-w-0">
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead className="sticky top-0 bg-muted/50">
+                      <tr>
+                        <th className="p-2 text-left font-medium sm:p-3">Time</th>
+                        <th className="p-2 text-left font-medium sm:p-3">Action</th>
+                        <th className="p-2 text-left font-medium sm:p-3">Entity</th>
+                        <th className="p-2 text-left font-medium sm:p-3">IP</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {loginHistoryPaginated.map((log: UserActivityLog) => (
+                        <tr key={log.id} className="border-b last:border-0">
+                          <td className="whitespace-nowrap p-2 sm:p-3">{format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}</td>
+                          <td className="max-w-[100px] truncate p-2 sm:max-w-none sm:p-3">{log.action}</td>
+                          <td className="p-2 sm:p-3">{log.entity_type}</td>
+                          <td className="p-2 text-muted-foreground sm:p-3">{log.ip_address || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {loginHistoryTotalPages > 1 && (
+                  <Pagination className="mt-3 shrink-0 justify-end border-t pt-3">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setLoginHistoryPage((p) => Math.max(1, p - 1));
+                          }}
+                          className={
+                            loginHistoryPage === 1
+                              ? 'pointer-events-none opacity-50'
+                              : 'cursor-pointer'
+                          }
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <span className="px-4 py-2 text-sm text-muted-foreground">
+                          Page {loginHistoryPage} of {loginHistoryTotalPages}
+                        </span>
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setLoginHistoryPage((p) => Math.min(loginHistoryTotalPages, p + 1));
+                          }}
+                          className={
+                            loginHistoryPage >= loginHistoryTotalPages
+                              ? 'pointer-events-none opacity-50'
+                              : 'cursor-pointer'
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+              </>
             )}
           </div>
           <DialogFooter className="shrink-0 border-t pt-4 sm:justify-end">
