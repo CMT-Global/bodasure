@@ -43,16 +43,25 @@ import {
 } from 'lucide-react';
 import { RegistrationTable } from '@/components/registration/RegistrationTable';
 import { RiderDetailDialog } from '@/components/registration/RiderDetailDialog';
+import {
+  riderNameSchema,
+  riderPhoneSchema,
+  riderDateOfBirthSchema,
+  riderLicenseExpirySchema,
+  riderLicenseNumberSchema,
+  riderIdNumberSchema,
+  riderAddressSchema,
+} from '@/lib/riderValidation';
 
 const createRegistrationSchema = (hasSaccos: boolean) => z.object({
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
-  id_number: z.string().min(6, 'ID number must be at least 6 characters'),
-  phone: z.string().min(10, 'Phone number must be at least 10 characters'),
+  full_name: riderNameSchema,
+  id_number: riderIdNumberSchema,
+  phone: riderPhoneSchema,
   email: z.string().email('Invalid email').optional().or(z.literal('')),
-  date_of_birth: z.string().optional(),
-  address: z.string().optional(),
-  license_number: z.string().optional(),
-  license_expiry: z.string().optional(),
+  date_of_birth: riderDateOfBirthSchema,
+  address: riderAddressSchema,
+  license_number: riderLicenseNumberSchema,
+  license_expiry: riderLicenseExpirySchema,
   sacco_id: hasSaccos ? z.string().min(1, 'Sacco is required') : z.string().optional(),
   stage_id: z.string().optional(),
   status: z.enum(['pending', 'approved']),
@@ -236,7 +245,7 @@ export default function RegistrationSupportPage() {
         return;
       }
 
-      if (idNumber.length < 6 && phone.length < 10) {
+      if (idNumber.length < 2 && !/^\+?\d{5,15}$/.test(phone)) {
         setDuplicateCheck(null);
         return;
       }
@@ -245,9 +254,9 @@ export default function RegistrationSupportPage() {
       try {
         let query = supabase.from('riders').select('*').eq('county_id', countyId);
 
-        if (idNumber.length >= 6) {
+        if (idNumber.length >= 2) {
           query = query.eq('id_number', idNumber);
-        } else if (phone.length >= 10) {
+        } else if (/^\+?\d{5,15}$/.test(phone)) {
           query = query.eq('phone', phone);
         }
 
@@ -525,7 +534,7 @@ export default function RegistrationSupportPage() {
                   )}
 
                   {/* Validation Status */}
-                  {!isCheckingDuplicate && !hasDuplicate && idNumber.length >= 6 && phone.length >= 10 && (
+                  {!isCheckingDuplicate && !hasDuplicate && idNumber.length >= 2 && /^\+?\d{5,15}$/.test(phone) && (
                     <Alert variant="default" className="border-green-500 bg-green-50 dark:bg-green-950">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       <AlertDescription className="text-green-800 dark:text-green-200">
@@ -546,7 +555,7 @@ export default function RegistrationSupportPage() {
                               <FormItem>
                                 <FormLabel>Full Name *</FormLabel>
                                 <FormControl>
-                                  <Input placeholder={fieldDef.placeholder ?? 'John Doe'} className="text-base min-h-[48px]" {...field} />
+                                  <Input placeholder={fieldDef.placeholder ?? 'John Doe'} className="text-base min-h-[48px]" maxLength={40} {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -582,7 +591,7 @@ export default function RegistrationSupportPage() {
                               <FormItem>
                                 <FormLabel>Phone Number *</FormLabel>
                                 <FormControl>
-                                  <Input placeholder={fieldDef.placeholder ?? '+254700000000'} className="text-base min-h-[48px]" {...field} />
+                                  <Input placeholder={fieldDef.placeholder ?? '+254700000000'} className="text-base min-h-[48px]" inputMode="tel" minLength={5} maxLength={16} {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -612,7 +621,7 @@ export default function RegistrationSupportPage() {
                               <FormItem>
                                 <FormLabel>Date of Birth</FormLabel>
                                 <FormControl>
-                                  <Input type="date" className="text-base min-h-[48px]" {...field} />
+                                  <Input type="date" className="date-input-visible text-base min-h-[48px]" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -657,7 +666,7 @@ export default function RegistrationSupportPage() {
                               <FormItem>
                                 <FormLabel>License Expiry</FormLabel>
                                 <FormControl>
-                                  <Input type="date" className="text-base min-h-[48px]" {...field} />
+                                  <Input type="date" className="date-input-visible text-base min-h-[48px]" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>

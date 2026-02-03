@@ -28,17 +28,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSaccos, useStages, useOwners, Rider, useCounties } from '@/hooks/useData';
+import {
+  riderNameSchema,
+  riderPhoneSchema,
+  riderDateOfBirthSchema,
+  riderLicenseExpirySchema,
+  riderLicenseNumberSchema,
+  riderIdNumberSchema,
+  riderAddressSchema,
+} from '@/lib/riderValidation';
 
 // Base schema - county_id will be conditionally required
 const createRiderFormSchema = (needsCountySelection: boolean) => z.object({
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
-  id_number: z.string().min(6, 'ID number must be at least 6 characters'),
-  phone: z.string().min(10, 'Phone number must be at least 10 characters'),
+  full_name: riderNameSchema,
+  id_number: riderIdNumberSchema,
+  phone: riderPhoneSchema,
   email: z.string().email('Invalid email').optional().or(z.literal('')),
-  date_of_birth: z.string().optional(),
-  address: z.string().optional(),
-  license_number: z.string().optional(),
-  license_expiry: z.string().optional(),
+  date_of_birth: riderDateOfBirthSchema,
+  address: riderAddressSchema,
+  license_number: riderLicenseNumberSchema,
+  license_expiry: riderLicenseExpirySchema,
   sacco_id: z.string().optional(),
   stage_id: z.string().optional(),
   owner_id: z.string().optional(),
@@ -144,21 +153,42 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
   const form = useForm<RiderFormValues>({
     resolver: zodResolver(createRiderFormSchema(needsCountySelection)),
     defaultValues: {
-      full_name: rider?.full_name || '',
-      id_number: rider?.id_number || '',
-      phone: rider?.phone || '',
-      email: rider?.email || '',
-      date_of_birth: rider?.date_of_birth || '',
-      address: rider?.address || '',
-      license_number: rider?.license_number || '',
-      license_expiry: rider?.license_expiry || '',
-      sacco_id: rider?.sacco_id || '',
-      stage_id: rider?.stage_id || '',
-      owner_id: rider?.owner_id || '',
-      status: rider?.status || 'pending',
-      county_id: countyId || rider?.county_id || '',
+      full_name: '',
+      id_number: '',
+      phone: '',
+      email: '',
+      date_of_birth: '',
+      address: '',
+      license_number: '',
+      license_expiry: '',
+      sacco_id: '',
+      stage_id: '',
+      owner_id: '',
+      status: 'pending',
+      county_id: '',
     },
   });
+
+  // When dialog opens (add or edit), reset form with current rider so edit uses same validation
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        full_name: rider?.full_name || '',
+        id_number: rider?.id_number || '',
+        phone: rider?.phone || '',
+        email: rider?.email || '',
+        date_of_birth: rider?.date_of_birth || '',
+        address: rider?.address || '',
+        license_number: rider?.license_number || '',
+        license_expiry: rider?.license_expiry || '',
+        sacco_id: rider?.sacco_id || '',
+        stage_id: rider?.stage_id || '',
+        owner_id: rider?.owner_id || '',
+        status: rider?.status || 'pending',
+        county_id: countyId || rider?.county_id || '',
+      });
+    }
+  }, [open, rider, countyId]);
 
   const mutation = useMutation({
     mutationFn: async (values: RiderFormValues) => {
@@ -305,7 +335,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                     <FormItem>
                       <FormLabel>Full Name *</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Doe" className="text-base min-h-[48px]" {...field} />
+                        <Input placeholder="John Doe" className="text-base min-h-[48px]" maxLength={40} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -335,7 +365,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                     <FormItem>
                       <FormLabel>Phone Number *</FormLabel>
                       <FormControl>
-                        <Input placeholder="+254700000000" className="text-base min-h-[48px]" {...field} />
+                        <Input placeholder="+254700000000" className="text-base min-h-[48px]" inputMode="tel" minLength={5} maxLength={16} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -365,7 +395,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                     <FormItem>
                       <FormLabel>Date of Birth</FormLabel>
                       <FormControl>
-                        <Input type="date" className="text-base min-h-[48px]" {...field} />
+                        <Input type="date" className="date-input-visible text-base min-h-[48px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -410,7 +440,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
                     <FormItem>
                       <FormLabel>License Expiry</FormLabel>
                       <FormControl>
-                        <Input type="date" className="text-base min-h-[48px]" {...field} />
+                        <Input type="date" className="date-input-visible text-base min-h-[48px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

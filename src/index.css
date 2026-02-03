@@ -153,6 +153,24 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground;
   }
+
+  /* Date input calendar icon - visible on dark background (DOB, License expiry, etc.) */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.85;
+    cursor: pointer;
+  }
+
+  input[type="date"]::-webkit-datetime-edit {
+    color: hsl(var(--foreground));
+  }
+
+  /* Ensure License expiry and other form date inputs have visible icon */
+  input[type="date"].date-input-visible::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 1;
+    cursor: pointer;
+  }
 }
 
 @layer utilities {
