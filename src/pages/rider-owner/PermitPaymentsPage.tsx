@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RiderOwnerLayout } from '@/components/layout/RiderOwnerLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { useRiderOwnerDashboard } from '@/hooks/useData';
+import { useRiderOwnerDashboard, useRiderOwnerProfile } from '@/hooks/useData';
 import {
   usePermitTypes,
   useRiderPaymentHistory,
@@ -63,9 +63,17 @@ function PermitPaymentsContent() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: dashboardData, isLoading: dashboardLoading, error } = useRiderOwnerDashboard(user?.id);
+  const { data: profileData } = useRiderOwnerProfile(user?.id);
   const rider = dashboardData?.rider ?? null;
   const countyId = rider?.county_id ?? undefined;
-  const motorbikes = dashboardData?.motorbikes ?? [];
+  // Include both rider-assigned bikes and owner's bikes (user may be rider and owner)
+  const motorbikes = useMemo(() => {
+    const byId = new Map<string, { id: string; registration_number: string }>();
+    for (const m of dashboardData?.motorbikes ?? []) byId.set(m.id, m);
+    for (const m of profileData?.motorbikes ?? []) byId.set(m.id, { id: m.id, registration_number: m.registration_number });
+    for (const m of profileData?.ownedBikes ?? []) byId.set(m.id, { id: m.id, registration_number: m.registration_number });
+    return Array.from(byId.values());
+  }, [dashboardData?.motorbikes, profileData?.motorbikes, profileData?.ownedBikes]);
 
   const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId);
   const { data: payments = [], isLoading: paymentsLoading } = useRiderPaymentHistory(

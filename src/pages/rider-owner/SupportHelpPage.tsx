@@ -38,15 +38,24 @@ function SupportHelpContent() {
   const { data: tickets = [], isLoading: ticketsLoading, error: ticketsError } = useMySupportTickets(!!user);
   const createTicket = useCreateSupportTicket();
 
+  const DESCRIPTION_MAX_WORDS = 300;
+
   const [category, setCategory] = useState<SupportTicketCategory | ''>('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [penaltyId, setPenaltyId] = useState<string | null>(null);
 
+  const descriptionWordCount = description.trim() ? description.trim().split(/\s+/).filter(Boolean).length : 0;
+  const descriptionOverLimit = descriptionWordCount > DESCRIPTION_MAX_WORDS;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!category || !subject.trim() || !description.trim()) {
       toast.error('Please select a category, enter a subject, and describe the issue.');
+      return;
+    }
+    if (descriptionOverLimit) {
+      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
       return;
     }
     createTicket.mutate(
@@ -161,18 +170,21 @@ function SupportHelpContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Description (max {DESCRIPTION_MAX_WORDS} words)</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Provide details so we can help you quickly."
                 rows={4}
-                className="resize-y min-h-[100px]"
+                className={cn('resize-y min-h-[100px]', descriptionOverLimit && 'border-destructive focus-visible:ring-destructive')}
               />
+              <p className={cn('text-xs', descriptionOverLimit ? 'text-destructive' : 'text-muted-foreground')}>
+                {descriptionWordCount} / {DESCRIPTION_MAX_WORDS} words
+              </p>
             </div>
 
-            <Button type="submit" disabled={createTicket.isPending} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
+            <Button type="submit" disabled={createTicket.isPending || descriptionOverLimit} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
               {createTicket.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               ) : (
@@ -225,7 +237,10 @@ function SupportHelpContent() {
   );
 }
 
+const DESCRIPTION_PREVIEW_CHARS = 150;
+
 function TicketRow({ ticket }: { ticket: SupportTicket }) {
+  const [expanded, setExpanded] = useState(false);
   const cat = SUPPORT_CATEGORIES.find((c) => c.value === ticket.category)?.label ?? ticket.category;
   const statusColors: Record<string, string> = {
     open: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
@@ -234,6 +249,10 @@ function TicketRow({ ticket }: { ticket: SupportTicket }) {
     closed: 'bg-muted text-muted-foreground',
   };
   const sc = statusColors[ticket.status] ?? 'bg-muted text-muted-foreground';
+  const showExpand = ticket.description.length > DESCRIPTION_PREVIEW_CHARS;
+  const displayDescription = showExpand && !expanded
+    ? `${ticket.description.slice(0, DESCRIPTION_PREVIEW_CHARS).trim()}…`
+    : ticket.description;
 
   return (
     <div className="rounded-lg border p-4 space-y-2">
@@ -244,7 +263,16 @@ function TicketRow({ ticket }: { ticket: SupportTicket }) {
         </span>
         <span className="text-xs text-muted-foreground">{cat}</span>
       </div>
-      <p className="text-sm text-muted-foreground line-clamp-2">{ticket.description}</p>
+      <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{displayDescription}</p>
+      {showExpand && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
       {ticket.admin_notes && (
         <div className="rounded bg-muted/60 p-2 text-sm">
           <span className="font-medium text-muted-foreground">Support note:</span>{' '}

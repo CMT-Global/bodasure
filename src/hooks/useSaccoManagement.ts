@@ -274,6 +274,7 @@ export function useSaccoRevenueShares(saccoId?: string, countyId?: string) {
 
 // Upload document for sacco
 export function useUploadSaccoDocument() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       file,
@@ -332,11 +333,64 @@ export function useUploadSaccoDocument() {
 
       return publicUrl;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sacco', variables.saccoId] });
       toast.success('Document uploaded successfully');
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to upload document');
+    },
+  });
+}
+
+// Delete sacco document (removes from settings and optionally from storage)
+export function useDeleteSaccoDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      saccoId,
+      documentIndex,
+      path,
+    }: {
+      saccoId: string;
+      documentIndex: number;
+      path?: string;
+    }) => {
+      const { data: sacco, error: fetchError } = await supabase
+        .from('saccos')
+        .select('settings')
+        .eq('id', saccoId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const settings = (sacco?.settings as Record<string, any>) || {};
+      const documents = [...(settings.documents || [])];
+      if (documentIndex < 0 || documentIndex >= documents.length) {
+        throw new Error('Document not found');
+      }
+      documents.splice(documentIndex, 1);
+
+      const { error: updateError } = await supabase
+        .from('saccos')
+        .update({
+          settings: { ...settings, documents },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', saccoId);
+
+      if (updateError) throw updateError;
+
+      if (path) {
+        await supabase.storage.from('documents').remove([path]);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sacco', variables.saccoId] });
+      toast.success('Document removed');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to remove document');
     },
   });
 }

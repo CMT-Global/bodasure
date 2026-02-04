@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ export function LoginForm() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showSuspendedMessage, setShowSuspendedMessage] = useState(() => searchParams.get('suspended') === '1');
   const { signIn } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (searchParams.get('suspended') === '1') {
@@ -34,9 +33,8 @@ export function LoginForm() {
       const { error } = await signIn(email, password);
       if (error) {
         setError(error.message);
-      } else {
-        navigate('/dashboard');
       }
+      // When successful, stay on this page; RedirectIfAuthenticated will redirect to the user's portal when roles load.
     } catch (err) {
       setError('An unexpected error occurred');
     } finally {

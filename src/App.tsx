@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RedirectIfAuthenticated } from "@/components/auth/RedirectIfAuthenticated";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -30,6 +31,7 @@ import ReportsPage from "./pages/dashboard/ReportsPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import UsersPage from "./pages/dashboard/UsersPage";
 import SupportTicketsPage from "./pages/dashboard/SupportTicketsPage";
+import UpdateRequestsPage from "./pages/dashboard/UpdateRequestsPage";
 import SaccoPortal from "./pages/sacco/SaccoPortal";
 import MemberManagementPage from "./pages/sacco/MemberManagementPage";
 import RegistrationSupportPage from "./pages/sacco/RegistrationSupportPage";
@@ -40,6 +42,7 @@ import SaccoProfileSettingsPage from "./pages/sacco/SaccoProfileSettingsPage";
 import SaccoAuditLogsPage from "./pages/sacco/SaccoAuditLogsPage";
 import CommunicationToolsPage from "./pages/sacco/CommunicationToolsPage";
 import SaccoReportsPage from "./pages/sacco/SaccoReportsPage";
+import SaccoUpdateRequestsPage from "./pages/sacco/UpdateRequestsPage";
 import RiderOwnerPortal from "./pages/rider-owner/RiderOwnerPortal";
 import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
 import CountyManagementPage from "./pages/super-admin/CountyManagementPage";
@@ -106,8 +109,8 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<RedirectIfAuthenticated><Login /></RedirectIfAuthenticated>} />
+            <Route path="/signup" element={<RedirectIfAuthenticated><Signup /></RedirectIfAuthenticated>} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/verify" element={<PublicVerificationPage />} />
             <Route path="/verify/:qrCode" element={<PublicVerificationPage />} />
@@ -347,6 +350,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/dashboard/update-requests"
+              element={
+                <ProtectedRoute requiredRoles={countySupportTickets}>
+                  <UpdateRequestsPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Sacco Portal routes — see src/config/portalRoles.ts (SACCO_PORTAL_ACCESS_ROLES, STAGE_ROLES) */}
             <Route
@@ -410,6 +421,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={saccoPortalAccess}>
                   <SaccoReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sacco/update-requests"
+              element={
+                <ProtectedRoute requiredRoles={saccoPortalAccess}>
+                  <SaccoUpdateRequestsPage />
                 </ProtectedRoute>
               }
             />

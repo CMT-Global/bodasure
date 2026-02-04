@@ -44,13 +44,20 @@ export default function MemberManagementPage() {
       if (stageFilter !== 'all' && m.stage_id !== stageFilter) return false;
       if (complianceFilter !== 'all' && m.compliance_status !== complianceFilter) return false;
       if (statusFilter !== 'all' && m.status !== statusFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchName = m.full_name.toLowerCase().includes(q);
-        const matchPhone = m.phone.toLowerCase().includes(q);
-        const matchPlate =
-          m.motorbike?.registration_number?.toLowerCase().includes(q) ?? false;
-        if (!matchName && !matchPhone && !matchPlate) return false;
+      const trimmed = searchQuery.trim();
+      if (trimmed) {
+        const q = trimmed.toLowerCase();
+        const name = String(m.full_name ?? '').toLowerCase();
+        const idNumRaw = String(m.id_number ?? '').toLowerCase();
+        const idNumDigits = idNumRaw.replace(/\D/g, '');
+        const qDigits = q.replace(/\D/g, '');
+        const phoneStr = String(m.phone ?? '').toLowerCase();
+        const plate = String(m.motorbike?.registration_number ?? '').toLowerCase();
+        const matchName = name.includes(q);
+        const matchId = idNumRaw.includes(q) || (qDigits.length > 0 && idNumDigits.includes(qDigits));
+        const matchPhone = phoneStr.includes(q) || (qDigits.length > 0 && phoneStr.replace(/\D/g, '').includes(qDigits));
+        const matchPlate = plate.includes(q);
+        if (!matchName && !matchId && !matchPhone && !matchPlate) return false;
       }
       return true;
     });
@@ -113,7 +120,7 @@ export default function MemberManagementPage() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name, phone, or plate number…"
+              placeholder="Search by name, ID, phone, or plate…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 min-h-[44px]"

@@ -156,6 +156,7 @@ export function RegistrationTable({ riders, onView, isLoading }: RegistrationTab
     <DataTable
       columns={columns}
       data={riders}
+      searchKeys={['full_name', 'id_number', 'phone', 'motorbike.registration_number']}
       searchPlaceholder="Search by name, phone, ID, or bike plate..."
       isLoading={isLoading}
     />

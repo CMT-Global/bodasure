@@ -30,6 +30,7 @@ import {
   MessageSquare,
   FileText,
   History,
+  FileEdit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
@@ -152,6 +153,19 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
             >
               <Users className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/members' && 'text-primary')} />
               {!isCollapsed && <span className="truncate">Member Management</span>}
+            </Link>
+            <Link
+              to="/sacco/update-requests"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]',
+                location.pathname === '/sacco/update-requests'
+                  ? 'bg-sidebar-accent text-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent'
+              )}
+            >
+              <FileEdit className={cn('h-5 w-5 shrink-0', location.pathname === '/sacco/update-requests' && 'text-primary')} />
+              {!isCollapsed && <span className="truncate">Update requests</span>}
             </Link>
             <Link
               to="/sacco/stages"
