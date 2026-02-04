@@ -28,25 +28,208 @@ import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOwners, useRiders, Motorbike, useCounties } from '@/hooks/useData';
 
-// Base schema - county_id will be conditionally required
-const createMotorbikeFormSchema = (needsCountySelection: boolean) => z.object({
-  registration_number: z.string().min(1, 'Registration number is required'),
-  owner_id: z.string().min(1, 'Owner is required'),
-  rider_id: z.string().optional(),
-  make: z.string().optional(),
-  model: z.string().optional(),
-  year: z.string().optional(),
-  color: z.string().optional(),
-  chassis_number: z.string().optional(),
-  engine_number: z.string().optional(),
-  photo_url: z.string().optional(),
-  status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
-  county_id: needsCountySelection 
-    ? z.string().min(1, 'County is required')
-    : z.string().optional(),
-});
+const REGISTRATION_REGEX = /^[A-Z0-9-\/]+$/;
+const ALPHANUMERIC_REGEX = /^[A-Za-z0-9]+$/;
+const ALPHABETIC_REGEX = /^[A-Za-z\s]+$/;
+const MAKE_MODEL_REGEX = /^[A-Za-z0-9\s]+$/;
+const currentYear = new Date().getFullYear();
 
-type MotorbikeFormValues = z.infer<ReturnType<typeof createMotorbikeFormSchema>>;
+// Base schema - county_id will be conditionally required
+function createMotorbikeFormSchema(
+  needsCountySelection: boolean,
+  ctx: { motorbikeId?: string; countyId?: string }
+) {
+  return z
+    .object({
+      registration_number: z
+        .string()
+        .min(1, 'Registration number is required')
+        .transform((s) => s.trim().toUpperCase())
+        .pipe(
+          z
+            .string()
+            .min(5, 'Must be 5–20 characters')
+            .max(20, 'Must be 5–20 characters')
+            .regex(REGISTRATION_REGEX, 'Only letters, numbers, hyphens, and slashes allowed')
+        ),
+      owner_id: z.string().min(1, 'Owner is required'),
+      rider_id: z.string().optional(),
+      make: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            const s = val?.trim() ?? '';
+            return !s || (s.length >= 2 && s.length <= 50 && MAKE_MODEL_REGEX.test(s));
+          },
+          '2–50 characters, letters, numbers, spaces only'
+        ),
+      model: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            const s = val?.trim() ?? '';
+            return !s || (s.length >= 1 && s.length <= 50 && MAKE_MODEL_REGEX.test(s));
+          },
+          '1–50 characters, letters, numbers, spaces only'
+        ),
+      year: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            if (!val?.trim()) return true;
+            const n = parseInt(val, 10);
+            return !isNaN(n) && n >= 1980 && n <= currentYear;
+          },
+          `Year must be between 1980 and ${currentYear}`
+        ),
+      color: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            const s = val?.trim() ?? '';
+            return !s || (s.length >= 3 && s.length <= 30 && ALPHABETIC_REGEX.test(s));
+          },
+          '3–30 characters, alphabetic only'
+        ),
+      chassis_number: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            const s = val?.trim() ?? '';
+            return !s || (s.length >= 5 && s.length <= 30 && ALPHANUMERIC_REGEX.test(s));
+          },
+          '5–30 characters, alphanumeric only'
+        ),
+      engine_number: z
+        .string()
+        .optional()
+        .refine(
+          (val) => {
+            const s = val?.trim() ?? '';
+            return !s || (s.length >= 5 && s.length <= 30 && ALPHANUMERIC_REGEX.test(s));
+          },
+          '5–30 characters, alphanumeric only'
+        ),
+      photo_url: z.string().optional(),
+      status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
+      county_id: needsCountySelection
+        ? z.string().min(1, 'County is required')
+        : z.string().optional(),
+    })
+    .superRefine(async (data, refineCtx) => {
+      const countyId = data.county_id || ctx.countyId;
+      const motorbikeId = ctx.motorbikeId;
+
+      // 8. Either chassis_number or engine_number must be present
+      const chassis = data.chassis_number?.trim();
+      const engine = data.engine_number?.trim();
+      if (!chassis && !engine) {
+        refineCtx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Either chassis number or engine number is required',
+          path: ['chassis_number'],
+        });
+        refineCtx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Either chassis number or engine number is required',
+          path: ['engine_number'],
+        });
+      }
+
+      // 1. Registration number must be unique (global check)
+      const regTrimmed = data.registration_number?.trim().toUpperCase();
+      if (regTrimmed) {
+        let regQuery = supabase
+          .from('motorbikes')
+          .select('id')
+          .ilike('registration_number', regTrimmed)
+          .limit(1);
+        if (motorbikeId) regQuery = regQuery.neq('id', motorbikeId);
+        const { data: existingReg } = await regQuery.maybeSingle();
+        if (existingReg) {
+          refineCtx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Registration number is already in use',
+            path: ['registration_number'],
+          });
+        }
+      }
+
+      // 6. Chassis number unique if provided
+      if (chassis) {
+        let chQuery = supabase
+          .from('motorbikes')
+          .select('id')
+          .eq('chassis_number', chassis)
+          .limit(1);
+        if (motorbikeId) chQuery = chQuery.neq('id', motorbikeId);
+        const { data: existing } = await chQuery.maybeSingle();
+        if (existing) {
+          refineCtx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Chassis number is already in use',
+            path: ['chassis_number'],
+          });
+        }
+      }
+
+      // 7. Engine number unique if provided
+      if (engine) {
+        let enQuery = supabase
+          .from('motorbikes')
+          .select('id')
+          .eq('engine_number', engine)
+          .limit(1);
+        if (motorbikeId) enQuery = enQuery.neq('id', motorbikeId);
+        const { data: existing } = await enQuery.maybeSingle();
+        if (existing) {
+          refineCtx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Engine number is already in use',
+            path: ['engine_number'],
+          });
+        }
+      }
+
+      // 9. Prevent assigning same rider to multiple active vehicles (requires county context)
+      const riderId = data.rider_id === 'none' || !data.rider_id ? null : data.rider_id;
+      if (countyId && riderId && ['approved', 'pending'].includes(data.status)) {
+        let riderQuery = supabase
+          .from('motorbikes')
+          .select('id')
+          .eq('rider_id', riderId)
+          .in('status', ['approved', 'pending'])
+          .eq('county_id', countyId)
+          .limit(2);
+        if (motorbikeId) riderQuery = riderQuery.neq('id', motorbikeId);
+        const { data: existing } = await riderQuery;
+        if (existing && existing.length > 0) {
+          refineCtx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'This rider is already assigned to another active vehicle',
+            path: ['rider_id'],
+          });
+        }
+      }
+    });
+}
+
+// Pass context through refinement - we need to inject ctx into superRefine
+// Zod superRefine doesn't receive our custom ctx; we use a closure instead.
+function createMotorbikeFormSchemaWithContext(
+  needsCountySelection: boolean,
+  motorbikeId?: string,
+  countyId?: string
+) {
+  return createMotorbikeFormSchema(needsCountySelection, { motorbikeId, countyId });
+}
+
+type MotorbikeFormValues = z.output<ReturnType<typeof createMotorbikeFormSchemaWithContext>>;
 
 type WizardStepGroup = {
   label: string;
@@ -75,8 +258,8 @@ function getMotorbikeWizardStepGroups(needsCountySelection: boolean): WizardStep
     {
       label: 'Identification & Status',
       fields: [
-        { name: 'chassis_number', label: 'Chassis Number', placeholder: 'CH123456789' },
-        { name: 'engine_number', label: 'Engine Number', placeholder: 'EN123456789' },
+        { name: 'chassis_number', label: 'Chassis Number', placeholder: 'CH123456789', description: 'At least one of Chassis or Engine number is required' },
+        { name: 'engine_number', label: 'Engine Number', placeholder: 'EN123456789', description: 'At least one of Chassis or Engine number is required' },
         { name: 'photo_url', label: 'Photo URL', placeholder: 'https://example.com/photo.jpg' },
         { name: 'status', label: 'Status', description: 'Set initial status' },
       ],
@@ -152,8 +335,13 @@ export function MotorbikeFormDialog({ open, onOpenChange, motorbike, countyId }:
     county_id: countyId || bike?.county_id || '',
   });
 
+  const schema = useMemo(
+    () => createMotorbikeFormSchemaWithContext(needsCountySelection, motorbike?.id, effectiveCountyId),
+    [needsCountySelection, motorbike?.id, effectiveCountyId]
+  );
+
   const form = useForm<MotorbikeFormValues>({
-    resolver: zodResolver(createMotorbikeFormSchema(needsCountySelection)),
+    resolver: zodResolver(schema),
     defaultValues: getDefaultValues(motorbike),
   });
 
@@ -173,15 +361,15 @@ export function MotorbikeFormDialog({ open, onOpenChange, motorbike, countyId }:
       }
 
       const payload = {
-        registration_number: values.registration_number,
+        registration_number: values.registration_number.trim().toUpperCase(),
         owner_id: values.owner_id,
         rider_id: values.rider_id === 'none' || !values.rider_id ? null : values.rider_id,
-        make: values.make || null,
-        model: values.model || null,
+        make: values.make?.trim() || null,
+        model: values.model?.trim() || null,
         year: values.year ? parseInt(values.year, 10) : null,
-        color: values.color || null,
-        chassis_number: values.chassis_number || null,
-        engine_number: values.engine_number || null,
+        color: values.color?.trim() || null,
+        chassis_number: values.chassis_number?.trim() || null,
+        engine_number: values.engine_number?.trim() || null,
         photo_url: values.photo_url || null,
         status: values.status,
         county_id: finalCountyId,
@@ -443,6 +631,9 @@ export function MotorbikeFormDialog({ open, onOpenChange, motorbike, countyId }:
                       <FormControl>
                         <Input placeholder="CH123456789" className="text-base min-h-[48px]" {...field} />
                       </FormControl>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -458,6 +649,9 @@ export function MotorbikeFormDialog({ open, onOpenChange, motorbike, countyId }:
                       <FormControl>
                         <Input placeholder="EN123456789" className="text-base min-h-[48px]" {...field} />
                       </FormControl>
+                      {fieldDef.description && (
+                        <FormDescription>{fieldDef.description}</FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
