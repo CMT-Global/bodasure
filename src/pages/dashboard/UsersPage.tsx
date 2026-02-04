@@ -48,7 +48,7 @@ import {
   CountyUser,
   UserActivityLog,
 } from '@/hooks/useUserManagement';
-import { Plus, MoreHorizontal, Edit, Ban, Key, Eye, Loader2, UserPlus, Shield, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit, Ban, Key, Eye, Loader2, UserPlus, Shield, Activity, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -174,22 +174,32 @@ export default function UsersPage() {
     setSelectedUser(null);
   };
 
-  // Assign roles
+  // Assign/update roles (including removing roles when unchecked)
   const handleAssignRoles = async () => {
     if (!selectedUser || !countyId) return;
-    if (userForm.roles.length === 0) {
-      toast.error('Please select at least one role');
-      return;
-    }
-
     await assignRoles.mutateAsync({
       userId: selectedUser.id,
       roles: userForm.roles,
       countyId,
     });
-
     setIsRolesDialogOpen(false);
     setSelectedUser(null);
+  };
+
+  // Remove a single role from a user (county-scoped)
+  const handleRemoveRole = (user: CountyUser, roleToRemove: string) => {
+    const isCountyRole = user.roles.some(r => r.role === roleToRemove && r.county_id === countyId);
+    if (!countyId || !isCountyRole) return;
+    const newRoles = user.roles
+      .filter(r => r.county_id === countyId && r.role !== roleToRemove)
+      .map(r => r.role);
+    assignRoles.mutate(
+      { userId: user.id, roles: newRoles, countyId },
+      {
+        onSuccess: () => toast.success('Role removed'),
+        onError: () => {},
+      }
+    );
   };
 
   // Reset password
@@ -243,12 +253,13 @@ export default function UsersPage() {
 
   const openRolesDialog = (user: CountyUser) => {
     setSelectedUser(user);
+    const countyRoles = user.roles.filter(r => r.county_id === countyId).map(r => r.role);
     setUserForm({
       email: user.email,
       password: '',
       fullName: user.full_name || '',
       phone: user.phone || '',
-      roles: user.roles.map(r => r.role),
+      roles: countyRoles,
     });
     setIsRolesDialogOpen(true);
   };
@@ -279,19 +290,45 @@ export default function UsersPage() {
     {
       accessorKey: 'roles',
       header: 'Roles',
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1">
-          {row.original.roles.length === 0 ? (
-            <Badge variant="outline">No roles</Badge>
-          ) : (
-            row.original.roles.map((role) => (
-              <Badge key={role.id} variant="secondary">
-                {COUNTY_ROLES.find(r => r.value === role.role)?.label || role.role}
-              </Badge>
-            ))
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const user = row.original;
+        const countyRoleIds = user.roles.filter(r => r.county_id === countyId);
+        return (
+          <div className="flex flex-wrap gap-1">
+            {user.roles.length === 0 ? (
+              <Badge variant="outline">No roles</Badge>
+            ) : (
+              user.roles.map((role) => {
+                const canRemove = role.county_id === countyId;
+                const label = COUNTY_ROLES.find(r => r.value === role.role)?.label || role.role;
+                return (
+                  <Badge
+                    key={role.id}
+                    variant="secondary"
+                    className={canRemove ? 'pr-1 gap-0.5' : ''}
+                  >
+                    {label}
+                    {canRemove && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveRole(user, role.role);
+                        }}
+                        className="ml-0.5 rounded hover:bg-muted p-0.5 inline-flex items-center justify-center"
+                        title={`Remove ${label}`}
+                        disabled={assignRoles.isPending}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </Badge>
+                );
+              })
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'is_active',
@@ -325,7 +362,7 @@ export default function UsersPage() {
                 <Edit className="mr-2 h-4 w-4" />Edit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openRolesDialog(user)}>
-                <Shield className="mr-2 h-4 w-4" />Assign Roles
+                <Shield className="mr-2 h-4 w-4" />Manage Roles
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openPasswordDialog(user)}>
                 <Key className="mr-2 h-4 w-4" />Reset Password
@@ -640,15 +677,17 @@ export default function UsersPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Assign Roles Dialog */}
+        {/* Manage Roles Dialog — add or remove roles; uncheck to remove */}
         <Dialog open={isRolesDialogOpen} onOpenChange={setIsRolesDialogOpen}>
           <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Assign Roles</DialogTitle>
-              <DialogDescription>Assign roles to {selectedUser?.full_name || selectedUser?.email}</DialogDescription>
+              <DialogTitle>Manage Roles</DialogTitle>
+              <DialogDescription>
+                Add or remove roles for {selectedUser?.full_name || selectedUser?.email}. Check roles to add, uncheck to remove.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
-              <Label>Select Roles *</Label>
+              <Label>Roles</Label>
               <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
                 {COUNTY_ROLES.map((role) => (
                   <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">

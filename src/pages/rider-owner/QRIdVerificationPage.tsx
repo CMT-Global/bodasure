@@ -258,7 +258,13 @@ function QRIdVerificationContent() {
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Permit / Compliance</p>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                    <StatusBadge status={permitStatus === 'none' ? 'pending' : permitStatus} />
+                    {permitStatus === 'none' || permitStatus === 'pending' ? (
+                      <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        No active permit
+                      </span>
+                    ) : (
+                      <StatusBadge status={permitStatus} />
+                    )}
                     <StatusBadge status={complianceStatus} />
                     {permitExpiry && permitStatus !== 'none' && (
                       <span className="text-[11px] text-muted-foreground">Exp: {permitExpiry}</span>
@@ -310,7 +316,13 @@ function QRIdVerificationContent() {
                       <Shield className="h-3 w-3" /> Permit / Compliance
                     </p>
                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                      <StatusBadge status={permitStatus === 'none' ? 'pending' : permitStatus} />
+                      {permitStatus === 'none' || permitStatus === 'pending' ? (
+                        <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          No active permit
+                        </span>
+                      ) : (
+                        <StatusBadge status={permitStatus} />
+                      )}
                       <StatusBadge status={complianceStatus} />
                       {permitExpiry && permitStatus !== 'none' && (
                         <span className="text-[11px] text-muted-foreground">Exp {permitExpiry}</span>

@@ -39,48 +39,173 @@ export interface UserActivityLog {
   } | null;
 }
 
-// Fetch all users in a county (or all users when countyId is undefined, e.g. platform admin)
+// Fetch all users in a county (or all users when countyId is undefined, e.g. platform admin).
+// When countyId is undefined (super admin), we fetch via user_roles first so we include every user
+// who has any role (including rider/owner), and show all roles per user.
 export function useCountyUsers(countyId?: string) {
   return useQuery({
     queryKey: ['county-users', countyId],
     queryFn: async () => {
-      // Fetch profiles: filter by county when countyId provided, otherwise all
-      let query = supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
       if (countyId) {
-        query = query.eq('county_id', countyId);
+        // County portal: profiles by county, then roles for those users
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('county_id', countyId)
+          .order('created_at', { ascending: false });
+
+        if (profilesError) throw profilesError;
+        if (!profiles || profiles.length === 0) return [];
+
+        const userIds = profiles.map(p => p.id);
+        const { data: roles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('id, user_id, role, county_id, granted_at')
+          .in('user_id', userIds);
+
+        if (rolesError) throw rolesError;
+        type RoleRow = (typeof roles)[number];
+        const rolesByUser = new Map<string, RoleRow[]>();
+        (roles ?? []).forEach(role => {
+          const existing = rolesByUser.get(role.user_id) ?? [];
+          existing.push(role);
+          rolesByUser.set(role.user_id, existing);
+        });
+        return profiles.map(profile => ({
+          ...profile,
+          roles: rolesByUser.get(profile.id) ?? [],
+        })) as CountyUser[];
       }
 
-      const { data: profiles, error: profilesError } = await query;
+      // Super admin: fetch user_roles + riders + owners (with details) so role filter and display work
+      const [rolesRes, ridersRes, ownersRes] = await Promise.all([
+        supabase.from('user_roles').select('id, user_id, role, county_id, granted_at').order('granted_at', { ascending: false }),
+        supabase.from('riders').select('user_id, county_id, full_name, email, phone').not('user_id', 'is', null),
+        supabase.from('owners').select('user_id, county_id, full_name, email, phone').not('user_id', 'is', null),
+      ]);
 
-      if (profilesError) throw profilesError;
-      if (!profiles || profiles.length === 0) return [];
-
-      // Fetch roles for all users; RLS will filter (county admins see county roles, platform admins see all)
-      const userIds = profiles.map(p => p.id);
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('id, user_id, role, county_id, granted_at')
-        .in('user_id', userIds);
-
+      const { data: allRoles, error: rolesError } = rolesRes;
       if (rolesError) throw rolesError;
 
-      // Group roles by user_id
-      const rolesByUser = new Map<string, typeof roles>();
-      (roles ?? []).forEach(role => {
+      // Use data even if one of riders/owners fails (e.g. RLS not yet applied); log errors
+      const ridersList = ridersRes.data ?? [];
+      const ownersList = ownersRes.data ?? [];
+      if (ridersRes.error) console.warn('useCountyUsers: riders fetch failed', ridersRes.error);
+      if (ownersRes.error) console.warn('useCountyUsers: owners fetch failed', ownersRes.error);
+
+      type RoleRow = { id: string; user_id: string; role: string; county_id: string | null; granted_at: string };
+      const rolesByUser = new Map<string, RoleRow[]>();
+      type EntityDetails = { full_name: string | null; email: string | null; phone: string | null; county_id: string | null };
+      const riderDetailsByUser = new Map<string, EntityDetails>();
+      const ownerDetailsByUser = new Map<string, EntityDetails>();
+
+      // Add roles from user_roles
+      (allRoles ?? []).forEach(role => {
         const existing = rolesByUser.get(role.user_id) ?? [];
         existing.push(role);
         rolesByUser.set(role.user_id, existing);
       });
 
-      // Combine profiles with roles (ensure roles is always an array)
-      return profiles.map(profile => ({
-        ...profile,
-        roles: rolesByUser.get(profile.id) ?? [],
-      })) as CountyUser[];
+      // Add synthetic 'rider' role and store rider details for display
+      ridersList.forEach((r: { user_id: string; county_id: string; full_name?: string; email?: string | null; phone?: string }) => {
+        const uid = r.user_id;
+        if (!riderDetailsByUser.has(uid)) {
+          riderDetailsByUser.set(uid, {
+            full_name: r.full_name ?? null,
+            email: r.email ?? null,
+            phone: r.phone ?? null,
+            county_id: r.county_id ?? null,
+          });
+        }
+        const existing = rolesByUser.get(uid) ?? [];
+        if (!existing.some(e => e.role === 'rider')) {
+          existing.push({
+            id: `rider-${uid}`,
+            user_id: uid,
+            role: 'rider',
+            county_id: r.county_id ?? null,
+            granted_at: '',
+          });
+          rolesByUser.set(uid, existing);
+        }
+      });
+
+      // Add synthetic 'owner' role and store owner details for display
+      ownersList.forEach((o: { user_id: string; county_id: string; full_name?: string; email?: string | null; phone?: string }) => {
+        const uid = o.user_id;
+        if (!ownerDetailsByUser.has(uid)) {
+          ownerDetailsByUser.set(uid, {
+            full_name: o.full_name ?? null,
+            email: o.email ?? null,
+            phone: o.phone ?? null,
+            county_id: o.county_id ?? null,
+          });
+        }
+        const existing = rolesByUser.get(uid) ?? [];
+        if (!existing.some(e => e.role === 'owner')) {
+          existing.push({
+            id: `owner-${uid}`,
+            user_id: uid,
+            role: 'owner',
+            county_id: o.county_id ?? null,
+            granted_at: '',
+          });
+          rolesByUser.set(uid, existing);
+        }
+      });
+
+      const userIds = [...new Set(rolesByUser.keys())];
+      if (userIds.length === 0) return [];
+
+      // Fetch profiles for all users (RLS allows platform admin to see all)
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds)
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+      const profileMap = new Map((profiles ?? []).map(p => [p.id, p]));
+
+      const combined: CountyUser[] = userIds.map(uid => {
+        const profile = profileMap.get(uid);
+        const userRoles = rolesByUser.get(uid) ?? [];
+        const ownerDetails = ownerDetailsByUser.get(uid);
+        const riderDetails = riderDetailsByUser.get(uid);
+        // Prefer profile; fall back to owner then rider details for name/email/county
+        const fallback = ownerDetails ?? riderDetails;
+        if (profile) {
+          const merged = {
+            ...profile,
+            roles: userRoles,
+            full_name: profile.full_name || fallback?.full_name || null,
+            email: profile.email || fallback?.email || '',
+            phone: profile.phone || fallback?.phone || null,
+            county_id: profile.county_id || fallback?.county_id || null,
+          };
+          return merged as CountyUser;
+        }
+        return {
+          id: uid,
+          email: fallback?.email ?? '',
+          full_name: fallback?.full_name ?? null,
+          phone: fallback?.phone ?? null,
+          avatar_url: null,
+          county_id: fallback?.county_id ?? null,
+          is_active: true,
+          created_at: '',
+          updated_at: '',
+          roles: userRoles,
+        } as CountyUser;
+      });
+
+      // Sort by most recent activity (role granted_at or profile created_at)
+      combined.sort((a, b) => {
+        const aTime = a.roles[0]?.granted_at || a.created_at || '';
+        const bTime = b.roles[0]?.granted_at || b.created_at || '';
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
+      return combined;
     },
     enabled: true,
   });
