@@ -55,7 +55,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 import { cn } from '@/lib/utils';
 
 // Types for discipline and incident records (align with DB)
@@ -183,8 +183,8 @@ export default function DisciplineIncidentPage() {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (isDescriptionOverLimit(warningForm.description)) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(warningForm.description)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
     if (!saccoId || !countyId || !user?.id) {
@@ -231,8 +231,12 @@ export default function DisciplineIncidentPage() {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (isDescriptionOverLimit(disciplinaryForm.description)) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(disciplinaryForm.description)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
+    if (isOverCharLimit(disciplinaryForm.action_taken)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
     if (!saccoId || !countyId || !user?.id) {
@@ -282,8 +286,8 @@ export default function DisciplineIncidentPage() {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (isDescriptionOverLimit(incidentForm.description)) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(incidentForm.description)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
     if (!saccoId || !countyId || !user?.id) {
@@ -543,18 +547,15 @@ export default function DisciplineIncidentPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="warning-description">Description * (max {DESCRIPTION_MAX_WORDS} words)</Label>
+                      <Label htmlFor="warning-description">Description *</Label>
                       <Textarea
                         id="warning-description"
                         value={warningForm.description}
                         onChange={(e) => setWarningForm(prev => ({ ...prev, description: e.target.value }))}
                         placeholder="Describe the warning..."
                         rows={5}
-                        className={cn('min-h-[120px]', isDescriptionOverLimit(warningForm.description) && 'border-destructive')}
+                        className={cn('min-h-[120px]', isOverCharLimit(warningForm.description) && 'border-destructive')}
                       />
-                      <p className={cn('text-xs', isDescriptionOverLimit(warningForm.description) ? 'text-destructive' : 'text-muted-foreground')}>
-                        {countWords(warningForm.description)} / {DESCRIPTION_MAX_WORDS} words
-                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="warning-severity">Severity</Label>
@@ -578,7 +579,7 @@ export default function DisciplineIncidentPage() {
                     <Button variant="outline" onClick={() => setIsWarningDialogOpen(false)} className="min-h-[44px]">
                       Cancel
                     </Button>
-                    <Button onClick={handleIssueWarning} disabled={isDescriptionOverLimit(warningForm.description)} className="min-h-[44px]">
+                    <Button onClick={handleIssueWarning} disabled={isOverCharLimit(warningForm.description)} className="min-h-[44px]">
                       Issue Warning
                     </Button>
                   </DialogFooter>
@@ -629,18 +630,15 @@ export default function DisciplineIncidentPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="disciplinary-description">Description * (max {DESCRIPTION_MAX_WORDS} words)</Label>
+                      <Label htmlFor="disciplinary-description">Description *</Label>
                       <Textarea
                         id="disciplinary-description"
                         value={disciplinaryForm.description}
                         onChange={(e) => setDisciplinaryForm(prev => ({ ...prev, description: e.target.value }))}
                         placeholder="Describe the incident and violation..."
                         rows={5}
-                        className={cn('min-h-[120px]', isDescriptionOverLimit(disciplinaryForm.description) && 'border-destructive')}
+                        className={cn('min-h-[120px]', isOverCharLimit(disciplinaryForm.description) && 'border-destructive')}
                       />
-                      <p className={cn('text-xs', isDescriptionOverLimit(disciplinaryForm.description) ? 'text-destructive' : 'text-muted-foreground')}>
-                        {countWords(disciplinaryForm.description)} / {DESCRIPTION_MAX_WORDS} words
-                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="disciplinary-action">Action Taken *</Label>
@@ -650,7 +648,7 @@ export default function DisciplineIncidentPage() {
                         onChange={(e) => setDisciplinaryForm(prev => ({ ...prev, action_taken: e.target.value }))}
                         placeholder="Describe the disciplinary action taken..."
                         rows={3}
-                        className="min-h-[100px]"
+                        className={cn('min-h-[100px]', isOverCharLimit(disciplinaryForm.action_taken) && 'border-destructive')}
                       />
                     </div>
                     <div className="space-y-2">
@@ -675,7 +673,7 @@ export default function DisciplineIncidentPage() {
                     <Button variant="outline" onClick={() => setIsDisciplinaryDialogOpen(false)} className="min-h-[44px]">
                       Cancel
                     </Button>
-                    <Button onClick={handleRecordDisciplinary} disabled={isDescriptionOverLimit(disciplinaryForm.description)} className="min-h-[44px]">
+                    <Button onClick={handleRecordDisciplinary} disabled={isOverCharLimit(disciplinaryForm.description) || isOverCharLimit(disciplinaryForm.action_taken)} className="min-h-[44px]">
                       Record Action
                     </Button>
                   </DialogFooter>
@@ -726,18 +724,15 @@ export default function DisciplineIncidentPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="incident-description">Description * (max {DESCRIPTION_MAX_WORDS} words)</Label>
+                      <Label htmlFor="incident-description">Description *</Label>
                       <Textarea
                         id="incident-description"
                         value={incidentForm.description}
                         onChange={(e) => setIncidentForm(prev => ({ ...prev, description: e.target.value }))}
                         placeholder="Provide a detailed description of the incident..."
                         rows={6}
-                        className={cn('min-h-[150px]', isDescriptionOverLimit(incidentForm.description) && 'border-destructive')}
+                        className={cn('min-h-[150px]', isOverCharLimit(incidentForm.description) && 'border-destructive')}
                       />
-                      <p className={cn('text-xs', isDescriptionOverLimit(incidentForm.description) ? 'text-destructive' : 'text-muted-foreground')}>
-                        {countWords(incidentForm.description)} / {DESCRIPTION_MAX_WORDS} words
-                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="incident-severity">Severity</Label>
@@ -773,7 +768,7 @@ export default function DisciplineIncidentPage() {
                     <Button variant="outline" onClick={() => setIsIncidentDialogOpen(false)} className="min-h-[44px]">
                       Cancel
                     </Button>
-                    <Button onClick={handleSubmitIncident} disabled={isDescriptionOverLimit(incidentForm.description)} className="min-h-[44px]">
+                    <Button onClick={handleSubmitIncident} disabled={isOverCharLimit(incidentForm.description)} className="min-h-[44px]">
                       <Send className="mr-2 h-4 w-4" />
                       Submit to County
                     </Button>

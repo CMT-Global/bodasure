@@ -28,7 +28,7 @@ import { AlertCircle, HelpCircle, Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 
 function SupportHelpContent() {
   const { user, profile, roles } = useAuth();
@@ -44,8 +44,7 @@ function SupportHelpContent() {
   const [description, setDescription] = useState('');
   const [penaltyId, setPenaltyId] = useState<string | null>(null);
 
-  const descriptionWordCount = countWords(description);
-  const descriptionOverLimit = isDescriptionOverLimit(description);
+  const overCharLimit = isOverCharLimit(description);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,8 +52,8 @@ function SupportHelpContent() {
       toast.error('Please select a category, enter a subject, and describe the issue.');
       return;
     }
-    if (descriptionOverLimit) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (overCharLimit) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
     createTicket.mutate(
@@ -169,21 +168,18 @@ function SupportHelpContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (max {DESCRIPTION_MAX_WORDS} words)</Label>
+              <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Provide details so we can help you quickly."
                 rows={4}
-                className={cn('resize-y min-h-[100px]', descriptionOverLimit && 'border-destructive focus-visible:ring-destructive')}
+                className={cn('resize-y min-h-[100px]', overCharLimit && 'border-destructive focus-visible:ring-destructive')}
               />
-              <p className={cn('text-xs', descriptionOverLimit ? 'text-destructive' : 'text-muted-foreground')}>
-                {descriptionWordCount} / {DESCRIPTION_MAX_WORDS} words
-              </p>
             </div>
 
-            <Button type="submit" disabled={createTicket.isPending || descriptionOverLimit} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
+            <Button type="submit" disabled={createTicket.isPending || overCharLimit} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
               {createTicket.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               ) : (

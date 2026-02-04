@@ -56,6 +56,8 @@ import {
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 
 function InfoRow({
   icon: Icon,
@@ -250,6 +252,14 @@ function UpdateRequestDialog({
   }, [open]);
 
   const handleSubmit = () => {
+    if (type === 'photo' && isOverCharLimit(photoNote)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
+    if (type === 'owner_rider_reassignment' && isOverCharLimit(reassignNote)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     if (type === 'phone') {
       if (!phone.trim()) {
         toast.error('Enter a phone number');
@@ -317,6 +327,7 @@ function UpdateRequestDialog({
                 onChange={(e) => setPhotoNote(e.target.value)}
                 placeholder="e.g. I will upload a new photo separately..."
                 rows={3}
+                className={cn(isOverCharLimit(photoNote) && 'border-destructive')}
               />
               <p className="text-xs text-muted-foreground">
                 Request a profile photo update. County may contact you for the new
@@ -386,6 +397,7 @@ function UpdateRequestDialog({
                   onChange={(e) => setReassignNote(e.target.value)}
                   placeholder="e.g. Assign rider X to this bike..."
                   rows={3}
+                  className={cn(isOverCharLimit(reassignNote) && 'border-destructive')}
                 />
               </div>
             </>
@@ -395,7 +407,15 @@ function UpdateRequestDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation w-full sm:w-auto">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting} className="min-h-[44px] touch-manipulation w-full sm:w-auto">
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              isSubmitting ||
+              (type === 'photo' && isOverCharLimit(photoNote)) ||
+              (type === 'owner_rider_reassignment' && isOverCharLimit(reassignNote))
+            }
+            className="min-h-[44px] touch-manipulation w-full sm:w-auto"
+          >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : (

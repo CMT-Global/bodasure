@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function CommunicationToolsPage() {
@@ -122,6 +124,10 @@ export default function CommunicationToolsPage() {
   const handleSendMessage = async () => {
     if (!messageSubject.trim() || !messageContent.trim()) {
       toast.error('Please fill in both subject and message');
+      return;
+    }
+    if (isOverCharLimit(messageContent)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
 
@@ -508,7 +514,7 @@ export default function CommunicationToolsPage() {
                         value={messageContent}
                         onChange={(e) => setMessageContent(e.target.value)}
                         rows={6}
-                        className="resize-none"
+                        className={cn('resize-none', isOverCharLimit(messageContent) && 'border-destructive')}
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -520,7 +526,7 @@ export default function CommunicationToolsPage() {
                       </div>
                       <Button
                         onClick={handleSendMessage}
-                        disabled={isSending || !messageSubject.trim() || !messageContent.trim() || (messageType === 'stage' && !selectedStage)}
+                        disabled={isSending || !messageSubject.trim() || !messageContent.trim() || (messageType === 'stage' && !selectedStage) || isOverCharLimit(messageContent)}
                         className="min-h-[44px] gap-2"
                       >
                         {isSending ? (

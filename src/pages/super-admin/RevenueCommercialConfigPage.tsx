@@ -26,7 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Map, Loader2, Save, DollarSign, Percent, Users, Eye } from 'lucide-react';
 import { toast } from 'sonner';
-import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 import { cn } from '@/lib/utils';
 
 export default function RevenueCommercialConfigPage() {
@@ -101,8 +101,12 @@ export default function RevenueCommercialConfigPage() {
 
   const handleSaveRevenue = () => {
     if (!selectedCountyId) return;
-    if (isDescriptionOverLimit(countyRevenueModel.description ?? '')) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(countyRevenueModel.description ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
+    if (isOverCharLimit(platformFeeModel.notes ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
     updateMutation.mutate(
@@ -250,17 +254,14 @@ export default function RevenueCommercialConfigPage() {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <Label>Description (optional, max {DESCRIPTION_MAX_WORDS} words)</Label>
+                    <Label>Description (optional)</Label>
                     <Textarea
                       value={countyRevenueModel.description ?? ''}
                       onChange={e => setCountyRevenueModel(prev => ({ ...prev, description: e.target.value || undefined }))}
                       placeholder="e.g. Monthly county levy per rider"
                       rows={2}
-                      className={cn(isDescriptionOverLimit(countyRevenueModel.description ?? '') && 'border-destructive')}
+                      className={cn(isOverCharLimit(countyRevenueModel.description ?? '') && 'border-destructive')}
                     />
-                    <p className={cn('text-xs', isDescriptionOverLimit(countyRevenueModel.description ?? '') ? 'text-destructive' : 'text-muted-foreground')}>
-                      {countWords(countyRevenueModel.description ?? '')} / {DESCRIPTION_MAX_WORDS} words
-                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -353,6 +354,7 @@ export default function RevenueCommercialConfigPage() {
                       onChange={e => setPlatformFeeModel(prev => ({ ...prev, notes: e.target.value || undefined }))}
                       placeholder="e.g. Reviewed quarterly"
                       rows={2}
+                      className={cn(isOverCharLimit(platformFeeModel.notes ?? '') && 'border-destructive')}
                     />
                   </div>
                 </CardContent>
@@ -529,7 +531,7 @@ export default function RevenueCommercialConfigPage() {
             <div className="flex justify-end">
               <Button
               onClick={handleSaveRevenue}
-              disabled={updateMutation.isPending || isDescriptionOverLimit(countyRevenueModel.description ?? '')}
+              disabled={updateMutation.isPending || isOverCharLimit(countyRevenueModel.description ?? '') || isOverCharLimit(platformFeeModel.notes ?? '')}
             >
                 {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Save revenue & commercial config

@@ -34,6 +34,7 @@ import { AlertCircle, HelpCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 
 const STATUS_OPTIONS: { value: SupportTicketStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
@@ -237,6 +238,10 @@ function TicketDetailDialog({
   const cat = SUPPORT_CATEGORIES.find((c) => c.value === ticket.category)?.label ?? ticket.category;
 
   const handleSave = () => {
+    if (isOverCharLimit(adminNotes)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     updateTicket.mutate(
       { id: ticket.id, status, admin_notes: adminNotes.trim() || null },
       {
@@ -292,7 +297,7 @@ function TicketDetailDialog({
               onChange={(e) => setAdminNotes(e.target.value)}
               placeholder="Internal notes for county support…"
               rows={3}
-              className="resize-y"
+              className={cn('resize-y', isOverCharLimit(adminNotes) && 'border-destructive')}
             />
           </div>
         </div>
@@ -300,7 +305,7 @@ function TicketDetailDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateTicket.isPending} className="gap-2">
+          <Button onClick={handleSave} disabled={updateTicket.isPending || isOverCharLimit(adminNotes)} className="gap-2">
             {updateTicket.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Save
           </Button>

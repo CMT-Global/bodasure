@@ -28,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Map, Loader2, Save, History, FileCheck, Scale, ShieldCheck, ChevronRight, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 import { cn } from '@/lib/utils';
 
 export default function CountyConfigurationPage() {
@@ -77,6 +77,10 @@ export default function CountyConfigurationPage() {
 
   const handleSavePermit = () => {
     if (!selectedCountyId) return;
+    if (isOverCharLimit(permitConfig.validityRulesNote ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     const sanitized: CountyPermitConfig = {
       ...permitConfig,
       gracePeriodDays: permitConfig.gracePeriodDays ?? 0,
@@ -94,13 +98,13 @@ export default function CountyConfigurationPage() {
   const handleSavePenalty = () => {
     if (!selectedCountyId) return;
     for (const cat of penaltyConfig.categories) {
-      if (isDescriptionOverLimit(cat.description ?? '')) {
-        toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+      if (isOverCharLimit(cat.description ?? '')) {
+        toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
         return;
       }
     }
-    if (isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '')) {
-      toast.error(`Auto-penalty rules note must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(penaltyConfig.autoPenaltyRulesNote ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
     const sanitized: CountyPenaltyConfig = {
@@ -123,6 +127,14 @@ export default function CountyConfigurationPage() {
   };
   const handleSaveCompliance = () => {
     if (!selectedCountyId) return;
+    if (isOverCharLimit(complianceRules.nonCompliantDefinition)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
+    if (isOverCharLimit(complianceRules.complianceScoringLogic ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     updateMutation.mutate(
       { countyId: selectedCountyId, config: { complianceRules: complianceRules }, section: 'complianceRules' },
       { onError: () => {} }
@@ -352,9 +364,10 @@ export default function CountyConfigurationPage() {
                       onChange={e => setPermitConfig(prev => ({ ...prev, validityRulesNote: e.target.value || undefined }))}
                       placeholder="e.g. Applied prospectively to new and renewed permits."
                       rows={2}
+                      className={cn(isOverCharLimit(permitConfig.validityRulesNote ?? '') && 'border-destructive')}
                     />
                   </div>
-                  <Button onClick={handleSavePermit} disabled={updateMutation.isPending} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
+                  <Button onClick={handleSavePermit} disabled={updateMutation.isPending || isOverCharLimit(permitConfig.validityRulesNote ?? '')} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save permit config
                   </Button>
@@ -391,14 +404,11 @@ export default function CountyConfigurationPage() {
                         </div>
                         <div className="flex-1 min-w-0 space-y-1">
                           <Input
-                            className={cn('w-full', isDescriptionOverLimit(cat.description ?? '') && 'border-destructive')}
-                            placeholder={`Description (optional, max ${DESCRIPTION_MAX_WORDS} words)`}
+                            className={cn('w-full', isOverCharLimit(cat.description ?? '') && 'border-destructive')}
+                            placeholder="Description (optional)"
                             value={cat.description ?? ''}
                             onChange={e => updatePenaltyCategory(i, { description: e.target.value || undefined })}
                           />
-                          <p className={cn('text-xs', isDescriptionOverLimit(cat.description ?? '') ? 'text-destructive' : 'text-muted-foreground')}>
-                            {countWords(cat.description ?? '')} / {DESCRIPTION_MAX_WORDS} words
-                          </p>
                         </div>
                         <Button type="button" variant="ghost" size="sm" onClick={() => removePenaltyCategory(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto">
                           Remove
@@ -417,17 +427,14 @@ export default function CountyConfigurationPage() {
                     <Label>Auto-penalty rules enabled</Label>
                   </div>
                   <div className="grid gap-2">
-                    <Label>Auto-penalty rules note (optional, max {DESCRIPTION_MAX_WORDS} words)</Label>
+                    <Label>Auto-penalty rules note (optional)</Label>
                     <Textarea
                       value={penaltyConfig.autoPenaltyRulesNote ?? ''}
                       onChange={e => setPenaltyConfig(prev => ({ ...prev, autoPenaltyRulesNote: e.target.value || undefined }))}
                       placeholder="When to apply penalties automatically."
                       rows={2}
-                      className={cn(isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '') && 'border-destructive')}
+                      className={cn(isOverCharLimit(penaltyConfig.autoPenaltyRulesNote ?? '') && 'border-destructive')}
                     />
-                    <p className={cn('text-xs', isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '') ? 'text-destructive' : 'text-muted-foreground')}>
-                      {countWords(penaltyConfig.autoPenaltyRulesNote ?? '')} / {DESCRIPTION_MAX_WORDS} words
-                    </p>
                   </div>
                   <div className="grid gap-2">
                     <Label>Escalation logic (repeat offenders)</Label>
@@ -524,8 +531,8 @@ export default function CountyConfigurationPage() {
                     onClick={handleSavePenalty}
                     disabled={
                       updateMutation.isPending ||
-                      penaltyConfig.categories.some(c => isDescriptionOverLimit(c.description ?? '')) ||
-                      isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '')
+                      penaltyConfig.categories.some(c => isOverCharLimit(c.description ?? '')) ||
+                      isOverCharLimit(penaltyConfig.autoPenaltyRulesNote ?? '')
                     }
                     className="w-full sm:w-auto min-h-[44px] touch-manipulation"
                   >
@@ -550,6 +557,7 @@ export default function CountyConfigurationPage() {
                       onChange={e => setComplianceRules(prev => ({ ...prev, nonCompliantDefinition: e.target.value }))}
                       placeholder="e.g. Rider with expired permit, unpaid penalty, or suspended status."
                       rows={3}
+                      className={cn(isOverCharLimit(complianceRules.nonCompliantDefinition) && 'border-destructive')}
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -618,9 +626,10 @@ export default function CountyConfigurationPage() {
                       onChange={e => setComplianceRules(prev => ({ ...prev, complianceScoringLogic: e.target.value || undefined }))}
                       placeholder="e.g. Score 0–100 based on permit validity, penalty history, and payments."
                       rows={3}
+                      className={cn(isOverCharLimit(complianceRules.complianceScoringLogic ?? '') && 'border-destructive')}
                     />
                   </div>
-                  <Button onClick={handleSaveCompliance} disabled={updateMutation.isPending} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
+                  <Button onClick={handleSaveCompliance} disabled={updateMutation.isPending || isOverCharLimit(complianceRules.nonCompliantDefinition) || isOverCharLimit(complianceRules.complianceScoringLogic ?? '')} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save compliance rules
                   </Button>

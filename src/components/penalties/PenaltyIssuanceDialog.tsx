@@ -31,11 +31,18 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 
 const penaltyFormSchema = z.object({
   rider_id: z.string().min(1, 'Rider is required'),
   penalty_type: z.string().min(1, 'Penalty type is required'),
-  description: z.string().optional(),
+  description: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.length <= TEXTAREA_MAX_CHARS, {
+      message: `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`,
+    }),
   amount: z.number().min(0, 'Amount must be positive'),
   due_date: z.string().optional(),
 });
@@ -253,6 +260,7 @@ export function PenaltyIssuanceDialog({
                   <FormControl>
                     <Textarea
                       placeholder="Additional details about the violation..."
+                      className={cn(isOverCharLimit(field.value ?? '') && 'border-destructive')}
                       {...field}
                     />
                   </FormControl>
@@ -269,7 +277,7 @@ export function PenaltyIssuanceDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createPenalty.isPending}>
+              <Button type="submit" disabled={createPenalty.isPending || isOverCharLimit(form.watch('description') ?? '')}>
                 {createPenalty.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}

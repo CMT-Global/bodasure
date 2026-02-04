@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
@@ -250,8 +250,8 @@ export default function SettingsPage() {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (isDescriptionOverLimit(penaltyTypeForm.description)) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(penaltyTypeForm.description)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
 
@@ -287,8 +287,8 @@ export default function SettingsPage() {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (isDescriptionOverLimit(escalationForm.description)) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    if (isOverCharLimit(escalationForm.description)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
 
@@ -865,16 +865,13 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description (max {DESCRIPTION_MAX_WORDS} words)</Label>
+                <Label>Description</Label>
                 <Input
                   value={permitTypeForm.description}
                   onChange={(e) => setPermitTypeForm({ ...permitTypeForm, description: e.target.value })}
                   placeholder="Brief description"
-                  className={cn('min-h-[44px]', isDescriptionOverLimit(permitTypeForm.description) && 'border-destructive')}
+                  className={cn('min-h-[44px]', isOverCharLimit(permitTypeForm.description) && 'border-destructive')}
                 />
-                <p className={cn('text-xs', isDescriptionOverLimit(permitTypeForm.description) ? 'text-destructive' : 'text-muted-foreground')}>
-                  {countWords(permitTypeForm.description)} / {DESCRIPTION_MAX_WORDS} words
-                </p>
               </div>
               <div className="space-y-2">
                 <Label>Amount (KES) *</Label>
@@ -921,7 +918,7 @@ export default function SettingsPage() {
                   duration_days: parseInt(permitTypeForm.duration_days),
                   county_id: finalCountyId,
                 });
-              }} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || (!selectedCountyId && !countyId && !selectedPermitType) || createPermitTypeMutation.isPending || isDescriptionOverLimit(permitTypeForm.description)} className="w-full sm:w-auto min-h-[44px]">
+              }} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || (!selectedCountyId && !countyId && !selectedPermitType) || createPermitTypeMutation.isPending || isOverCharLimit(permitTypeForm.description)} className="w-full sm:w-auto min-h-[44px]">
                 {createPermitTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {selectedPermitType ? 'Update' : 'Create'}
               </Button>
@@ -947,16 +944,13 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description (max {DESCRIPTION_MAX_WORDS} words)</Label>
+                <Label>Description</Label>
                 <Input
                   value={penaltyTypeForm.description}
                   onChange={(e) => setPenaltyTypeForm({ ...penaltyTypeForm, description: e.target.value })}
                   placeholder="Brief description"
-                  className={cn('min-h-[44px]', isDescriptionOverLimit(penaltyTypeForm.description) && 'border-destructive')}
+                  className={cn('min-h-[44px]', isOverCharLimit(penaltyTypeForm.description) && 'border-destructive')}
                 />
-                <p className={cn('text-xs', isDescriptionOverLimit(penaltyTypeForm.description) ? 'text-destructive' : 'text-muted-foreground')}>
-                  {countWords(penaltyTypeForm.description)} / {DESCRIPTION_MAX_WORDS} words
-                </p>
               </div>
               <div className="space-y-2">
                 <Label>Amount (KES) *</Label>
@@ -973,7 +967,7 @@ export default function SettingsPage() {
             </div>
             <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setIsPenaltyTypeDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleSavePenaltyType} disabled={isDescriptionOverLimit(penaltyTypeForm.description)} className="w-full sm:w-auto min-h-[44px]">
+              <Button onClick={handleSavePenaltyType} disabled={isOverCharLimit(penaltyTypeForm.description)} className="w-full sm:w-auto min-h-[44px]">
                 {selectedPenaltyType ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
@@ -1014,21 +1008,18 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">Penalty multiplier (e.g., 1.5 = 150% of base penalty)</p>
               </div>
               <div className="space-y-2">
-                <Label>Description (max {DESCRIPTION_MAX_WORDS} words)</Label>
+                <Label>Description</Label>
                 <Input
                   value={escalationForm.description}
                   onChange={(e) => setEscalationForm({ ...escalationForm, description: e.target.value })}
                   placeholder="Brief description of this rule"
-                  className={cn('min-h-[44px]', isDescriptionOverLimit(escalationForm.description) && 'border-destructive')}
+                  className={cn('min-h-[44px]', isOverCharLimit(escalationForm.description) && 'border-destructive')}
                 />
-                <p className={cn('text-xs', isDescriptionOverLimit(escalationForm.description) ? 'text-destructive' : 'text-muted-foreground')}>
-                  {countWords(escalationForm.description)} / {DESCRIPTION_MAX_WORDS} words
-                </p>
               </div>
             </div>
             <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setIsEscalationDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleSaveEscalationRule} disabled={isDescriptionOverLimit(escalationForm.description)} className="w-full sm:w-auto min-h-[44px]">
+              <Button onClick={handleSaveEscalationRule} disabled={isOverCharLimit(escalationForm.description)} className="w-full sm:w-auto min-h-[44px]">
                 {selectedEscalationIndex !== null ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
