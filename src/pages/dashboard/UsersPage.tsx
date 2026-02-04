@@ -468,6 +468,7 @@ export default function UsersPage() {
             <DataTable
               columns={columns}
               data={filteredUsers}
+              searchKeys={['full_name', 'email', 'phone']}
               searchPlaceholder="Search users..."
               isLoading={isLoading}
             />
