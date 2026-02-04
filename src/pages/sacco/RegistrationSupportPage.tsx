@@ -366,15 +366,21 @@ export default function RegistrationSupportPage() {
   };
 
   const filteredRiders = useMemo(() => {
-    if (!searchQuery) return pendingRiders;
-    const query = searchQuery.toLowerCase();
-    return pendingRiders.filter(
-      (rider) =>
-        rider.full_name.toLowerCase().includes(query) ||
-        rider.id_number.toLowerCase().includes(query) ||
-        rider.phone.includes(query) ||
-        rider.motorbike?.registration_number.toLowerCase().includes(query)
-    );
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return pendingRiders;
+    const query = trimmed.toLowerCase();
+    return pendingRiders.filter((rider) => {
+      const name = String(rider.full_name ?? '').toLowerCase();
+      const idNum = String(rider.id_number ?? '').toLowerCase();
+      const phoneStr = String(rider.phone ?? '').toLowerCase();
+      const plate = String(rider.motorbike?.registration_number ?? '').toLowerCase();
+      return (
+        name.includes(query) ||
+        idNum.includes(query) ||
+        phoneStr.includes(query) ||
+        plate.includes(query)
+      );
+    });
   }, [pendingRiders, searchQuery]);
 
   const hasDuplicate = duplicateCheck?.existingRider !== undefined;

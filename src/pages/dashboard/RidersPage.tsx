@@ -152,6 +152,7 @@ export default function RidersPage() {
         <DataTable
           columns={columns}
           data={filteredRiders}
+          searchKeys={['full_name', 'id_number', 'phone']}
           searchPlaceholder="Search by name, ID, phone..."
           isLoading={isLoading}
         />

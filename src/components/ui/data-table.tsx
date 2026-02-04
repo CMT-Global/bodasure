@@ -27,7 +27,10 @@ import { Card, CardContent } from '@/components/ui/card';
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  /** Single column key to search (legacy). Prefer searchKeys for multiple fields. */
   searchKey?: string;
+  /** Column/field keys to search (e.g. ['full_name', 'email']). If provided, global filter matches if the term appears in any of these fields. */
+  searchKeys?: string[];
   searchPlaceholder?: string;
   isLoading?: boolean;
   mobileCardRender?: (item: TData) => React.ReactNode;
@@ -37,6 +40,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   searchKey,
+  searchKeys,
   searchPlaceholder = 'Search...',
   isLoading,
   mobileCardRender,
@@ -45,6 +49,18 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const isMobile = useIsMobile();
+
+  const keysToSearch = searchKeys ?? (searchKey ? [searchKey] : undefined);
+
+  /** Get value from record by key; supports nested keys like 'motorbike.registration_number'. */
+  const getValueByKey = (record: Record<string, unknown>, key: string): unknown => {
+    const parts = key.split('.');
+    let val: unknown = record;
+    for (const part of parts) {
+      val = val != null && typeof val === 'object' && part in (val as object) ? (val as Record<string, unknown>)[part] : undefined;
+    }
+    return val;
+  };
 
   const table = useReactTable({
     data,
@@ -56,7 +72,23 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: 'includesString',
+    globalFilterFn:
+      keysToSearch && keysToSearch.length > 0
+        ? (row, _columnId, filterValue) => {
+            const term = String(filterValue ?? '').trim().toLowerCase();
+            if (!term) return true;
+            const record = row.original as Record<string, unknown>;
+            const termDigits = term.replace(/\D/g, '');
+            return keysToSearch.some((key) => {
+              const val = getValueByKey(record, key);
+              if (val == null) return false;
+              const str = String(val).toLowerCase();
+              if (str.includes(term)) return true;
+              if (termDigits.length > 0 && str.replace(/\D/g, '').includes(termDigits)) return true;
+              return false;
+            });
+          }
+        : 'includesString',
     state: {
       sorting,
       columnFilters,

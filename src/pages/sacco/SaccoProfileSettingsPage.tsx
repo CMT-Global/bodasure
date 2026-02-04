@@ -10,6 +10,7 @@ import {
   useRemoveSaccoRole,
   useSaccoRevenueShares,
   useUploadSaccoDocument,
+  useDeleteSaccoDocument,
 } from '@/hooks/useSaccoManagement';
 import { useCountyUsers } from '@/hooks/useUserManagement';
 import {
@@ -65,6 +66,7 @@ import {
   X,
   Loader2,
   Save,
+  Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -88,6 +90,8 @@ export default function SaccoProfileSettingsPage() {
   const assignRole = useAssignSaccoRole();
   const removeRole = useRemoveSaccoRole();
   const uploadDocument = useUploadSaccoDocument();
+  const deleteDocument = useDeleteSaccoDocument();
+  const [documentToDelete, setDocumentToDelete] = useState<{ index: number; type: string } | null>(null);
 
   // Form state
   const [profileForm, setProfileForm] = useState({
@@ -178,6 +182,21 @@ export default function SaccoProfileSettingsPage() {
       countyId,
       documentType,
     });
+  };
+
+  const handleDeleteDocument = () => {
+    if (!saccoId || documentToDelete == null) return;
+    const doc = documents[documentToDelete.index] as { path?: string };
+    deleteDocument.mutate(
+      {
+        saccoId,
+        documentIndex: documentToDelete.index,
+        path: doc?.path,
+      },
+      {
+        onSuccess: () => setDocumentToDelete(null),
+      }
+    );
   };
 
   const documents = (sacco?.settings as any)?.documents || [];
@@ -547,14 +566,25 @@ export default function SaccoProfileSettingsPage() {
                                 </p>
                               </div>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(doc.url, '_blank')}
-                              className="min-h-[44px] touch-manipulation w-full sm:w-auto shrink-0"
-                            >
-                              View
-                            </Button>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(doc.url, '_blank')}
+                                className="min-h-[44px] touch-manipulation"
+                              >
+                                View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDocumentToDelete({ index, type: doc.type })}
+                                disabled={deleteDocument.isPending}
+                                className="min-h-[44px] touch-manipulation text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -658,6 +688,38 @@ export default function SaccoProfileSettingsPage() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {removeRole.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Removing…
+                  </>
+                ) : (
+                  'Remove'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Document Confirmation */}
+        <AlertDialog
+          open={!!documentToDelete}
+          onOpenChange={(open) => !open && setDocumentToDelete(null)}
+        >
+          <AlertDialogContent className="w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-lg p-4 sm:p-6">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove document</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove this document ({documentToDelete?.type})? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteDocument}
+                disabled={deleteDocument.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteDocument.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Removing…

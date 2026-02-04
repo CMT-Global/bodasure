@@ -363,6 +363,7 @@ export default function UserAccessGovernancePage() {
                 <DataTable
                   columns={columns}
                   data={filteredUsers}
+                  searchKeys={['full_name', 'email']}
                   searchPlaceholder="Search users by name or email..."
                   isLoading={isLoading}
                   mobileCardRender={(user) => {
