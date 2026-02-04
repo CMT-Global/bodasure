@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -197,6 +197,30 @@ function OwnerFormDialog({ open, onOpenChange, owner, countyId }: { open: boolea
     address: owner?.address || '',
     status: owner?.status || 'pending',
   });
+
+  // When dialog opens (or selected owner changes), sync form with that owner so edit shows current data
+  useEffect(() => {
+    if (!open) return;
+    if (owner) {
+      setFormData({
+        full_name: owner.full_name,
+        id_number: owner.id_number,
+        phone: owner.phone,
+        email: owner.email || '',
+        address: owner.address || '',
+        status: owner.status,
+      });
+    } else {
+      setFormData({
+        full_name: '',
+        id_number: '',
+        phone: '',
+        email: '',
+        address: '',
+        status: 'pending',
+      });
+    }
+  }, [open, owner]);
 
   const mutation = useMutation({
     mutationFn: async () => {

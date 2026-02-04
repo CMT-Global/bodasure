@@ -137,23 +137,31 @@ export function MotorbikeFormDialog({ open, onOpenChange, motorbike, countyId }:
     }
   }, [wizardStep]);
 
+  const getDefaultValues = (bike: Motorbike | null | undefined): MotorbikeFormValues => ({
+    registration_number: bike?.registration_number || '',
+    owner_id: bike?.owner_id || '',
+    rider_id: bike?.rider_id || '',
+    make: bike?.make || '',
+    model: bike?.model || '',
+    year: bike?.year?.toString() || '',
+    color: bike?.color || '',
+    chassis_number: bike?.chassis_number || '',
+    engine_number: bike?.engine_number || '',
+    photo_url: bike?.photo_url || '',
+    status: (bike?.status as 'pending' | 'approved' | 'rejected' | 'suspended') || 'pending',
+    county_id: countyId || bike?.county_id || '',
+  });
+
   const form = useForm<MotorbikeFormValues>({
     resolver: zodResolver(createMotorbikeFormSchema(needsCountySelection)),
-    defaultValues: {
-      registration_number: motorbike?.registration_number || '',
-      owner_id: motorbike?.owner_id || '',
-      rider_id: motorbike?.rider_id || '',
-      make: motorbike?.make || '',
-      model: motorbike?.model || '',
-      year: motorbike?.year?.toString() || '',
-      color: motorbike?.color || '',
-      chassis_number: motorbike?.chassis_number || '',
-      engine_number: motorbike?.engine_number || '',
-      photo_url: motorbike?.photo_url || '',
-      status: (motorbike?.status as 'pending' | 'approved' | 'rejected' | 'suspended') || 'pending',
-      county_id: countyId || motorbike?.county_id || '',
-    },
+    defaultValues: getDefaultValues(motorbike),
   });
+
+  // When dialog opens (or selected motorbike changes), sync form so edit shows current data
+  useEffect(() => {
+    if (!open) return;
+    form.reset(getDefaultValues(motorbike));
+  }, [open, motorbike]);
 
   const mutation = useMutation({
     mutationFn: async (values: MotorbikeFormValues) => {
