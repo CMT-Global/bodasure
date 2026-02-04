@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { exportToCSV } from '@/utils/exportCsv';
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -134,6 +135,22 @@ export default function PaymentsPage() {
     setIsHistoryOpen(true);
   };
 
+  const handleExport = () => {
+    if (!filteredPayments.length) return;
+    const rows = filteredPayments.map((p) => ({
+      payment_reference: p.payment_reference ?? '',
+      rider_name: p.riders?.full_name ?? '',
+      rider_phone: p.riders?.phone ?? '',
+      amount: p.amount ?? '',
+      payment_method: p.payment_method ?? '',
+      status: p.status ?? '',
+      permit_number: p.permits?.permit_number ?? '',
+      created_at: p.created_at ?? '',
+      paid_at: p.paid_at ?? '',
+    }));
+    exportToCSV(rows, 'payments_export');
+  };
+
   const columns: ColumnDef<PaymentRow>[] = useMemo(() => [
     {
       accessorKey: 'payment_reference',
@@ -222,7 +239,7 @@ export default function PaymentsPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredPayments.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>

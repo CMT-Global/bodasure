@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { exportToCSV } from '@/utils/exportCsv';
 
 export default function MotorbikesPage() {
   const { profile, roles } = useAuth();
@@ -81,6 +82,23 @@ export default function MotorbikesPage() {
     setIsFormOpen(true);
   };
 
+  const handleExport = () => {
+    if (!filteredMotorbikes.length) return;
+    const rows = filteredMotorbikes.map((m) => ({
+      registration_number: m.registration_number ?? '',
+      make: m.make ?? '',
+      model: m.model ?? '',
+      year: m.year ?? '',
+      color: m.color ?? '',
+      chassis_number: m.chassis_number ?? '',
+      engine_number: m.engine_number ?? '',
+      owner: m.owner?.full_name ?? '',
+      rider: m.rider?.full_name ?? '',
+      status: m.status ?? '',
+    }));
+    exportToCSV(rows, 'motorbikes_export');
+  };
+
   const columns = getMotorbikeColumns({
     onEdit: handleEdit,
     onView: handleView,
@@ -97,7 +115,7 @@ export default function MotorbikesPage() {
               <p className="text-sm sm:text-base text-muted-foreground mt-1">Registered motorbikes • {filteredMotorbikes.length} total</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
+              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || filteredMotorbikes.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export
               </Button>

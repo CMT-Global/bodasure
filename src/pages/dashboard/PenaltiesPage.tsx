@@ -57,6 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { exportToCSV } from '@/utils/exportCsv';
 
 // Helper to get penalty status
 function getPenaltyStatus(penalty: PenaltyWithRepeatInfo): 'unpaid' | 'paid' | 'waived' {
@@ -190,6 +191,23 @@ export default function PenaltiesPage() {
       return true;
     });
   }, [penalties, searchQuery, statusFilter, typeFilter, repeatOffenderFilter]);
+
+  const handleExport = () => {
+    if (!filteredPenalties.length) return;
+    const rows = filteredPenalties.map((p) => ({
+      rider_name: p.riders?.full_name ?? '',
+      rider_phone: p.riders?.phone ?? '',
+      rider_id_number: p.riders?.id_number ?? '',
+      penalty_type: p.penalty_type ?? '',
+      description: p.description ?? '',
+      amount: p.amount ?? '',
+      status: getPenaltyStatus(p),
+      due_date: p.due_date ?? '',
+      created_at: p.created_at ?? '',
+      repeat_offender: p.repeat_offender ? 'Yes' : 'No',
+    }));
+    exportToCSV(rows, 'penalties_export');
+  };
 
   const handleMarkPaid = async (penalty: PenaltyWithRepeatInfo) => {
     await updatePenaltyStatus.mutateAsync({
@@ -391,7 +409,7 @@ export default function PenaltiesPage() {
               <span className="hidden sm:inline">Check Expired Permits</span>
               <span className="sm:hidden">Check Expired</span>
             </Button>
-            <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
+            <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || filteredPenalties.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>

@@ -38,6 +38,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { exportToCSV } from '@/utils/exportCsv';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +85,23 @@ export default function SaccosPage() {
       return true;
     });
   }, [saccos, statusFilter, riskFilter]);
+
+  const handleExport = () => {
+    if (!filteredSaccos.length) return;
+    const rows = filteredSaccos.map((s) => ({
+      name: s.name ?? '',
+      registration_number: s.registration_number ?? '',
+      contact_phone: s.contact_phone ?? '',
+      contact_email: s.contact_email ?? '',
+      address: s.address ?? '',
+      member_count: s.member_count ?? '',
+      stages_count: s.stages_count ?? '',
+      compliance_rate: s.compliance_rate ?? '',
+      penalties_count: s.penalties_count ?? '',
+      status: s.status ?? '',
+    }));
+    exportToCSV(rows, 'saccos_export');
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (saccoId: string) => {
@@ -252,7 +270,7 @@ export default function SaccosPage() {
             <p className="text-muted-foreground">Manage Sacco organizations • {filteredSaccos.length} total</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredSaccos.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
             <Button onClick={() => { setSelectedSacco(null); setIsFormOpen(true); }} className="glow-primary">
               <Plus className="mr-2 h-4 w-4" />Add Sacco
             </Button>

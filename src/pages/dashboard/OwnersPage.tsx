@@ -30,6 +30,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { exportToCSV } from '@/utils/exportCsv';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +59,19 @@ export default function OwnersPage() {
       return true;
     });
   }, [owners, statusFilter]);
+
+  const handleExport = () => {
+    if (!filteredOwners.length) return;
+    const rows = filteredOwners.map((o) => ({
+      full_name: o.full_name ?? '',
+      id_number: o.id_number ?? '',
+      phone: o.phone ?? '',
+      email: o.email ?? '',
+      address: o.address ?? '',
+      status: o.status ?? '',
+    }));
+    exportToCSV(rows, 'owners_export');
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (ownerId: string) => {
@@ -143,7 +157,7 @@ export default function OwnersPage() {
             <p className="text-muted-foreground">Manage bike owners • {filteredOwners.length} total</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredOwners.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
             <Button onClick={() => { setSelectedOwner(null); setIsFormOpen(true); }} className="glow-primary">
               <Plus className="mr-2 h-4 w-4" />Add Owner
             </Button>

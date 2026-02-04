@@ -30,6 +30,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { exportToCSV } from '@/utils/exportCsv';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +67,18 @@ export default function StagesPage() {
       return true;
     });
   }, [stages, statusFilter]);
+
+  const handleExport = () => {
+    if (!filteredStages.length) return;
+    const rows = filteredStages.map((s) => ({
+      name: s.name ?? '',
+      location: s.location ?? '',
+      sacco: s.sacco?.name ?? '',
+      capacity: s.capacity ?? '',
+      status: s.status ?? '',
+    }));
+    exportToCSV(rows, 'stages_export');
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (stageId: string) => {
@@ -152,7 +165,7 @@ export default function StagesPage() {
             <p className="text-muted-foreground">Manage stage locations • {filteredStages.length} total</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredStages.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
             <Button onClick={() => { setSelectedStage(null); setIsFormOpen(true); }} className="glow-primary">
               <Plus className="mr-2 h-4 w-4" />Add Stage
             </Button>

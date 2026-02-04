@@ -11,6 +11,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { format, differenceInDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import { exportToCSV } from '@/utils/exportCsv';
 
 // Helper to determine permit type from duration
 function getPermitType(durationDays: number): string {
@@ -210,6 +211,24 @@ export default function PermitsPage() {
     setIsPaymentsOpen(true);
   };
 
+  const handleExport = () => {
+    if (!permits.length) return;
+    const rows = permits.map((p) => ({
+      permit_number: p.permit_number ?? '',
+      rider_name: p.riders?.full_name ?? '',
+      rider_phone: p.riders?.phone ?? '',
+      registration_number: p.motorbikes?.registration_number ?? '',
+      make: p.motorbikes?.make ?? '',
+      model: p.motorbikes?.model ?? '',
+      permit_type: p.permit_types?.name ?? '',
+      status: p.status ?? '',
+      issued_at: p.issued_at ?? '',
+      expires_at: p.expires_at ?? '',
+      amount_paid: p.amount_paid ?? '',
+    }));
+    exportToCSV(rows, 'permits_export');
+  };
+
   const activePermits = permits.filter(p => p.status === 'active').length;
   const expiringSoon = permits.filter(p => {
     if (p.status !== 'active' || !p.expires_at) return false;
@@ -231,7 +250,7 @@ export default function PermitsPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
+              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || permits.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export
               </Button>
