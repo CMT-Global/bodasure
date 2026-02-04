@@ -32,6 +32,7 @@ import SettingsPage from "./pages/dashboard/SettingsPage";
 import UsersPage from "./pages/dashboard/UsersPage";
 import SupportTicketsPage from "./pages/dashboard/SupportTicketsPage";
 import UpdateRequestsPage from "./pages/dashboard/UpdateRequestsPage";
+import DisciplineIncidentsPage from "./pages/dashboard/DisciplineIncidentsPage";
 import SaccoPortal from "./pages/sacco/SaccoPortal";
 import MemberManagementPage from "./pages/sacco/MemberManagementPage";
 import RegistrationSupportPage from "./pages/sacco/RegistrationSupportPage";
@@ -91,6 +92,7 @@ const countyWelfareGroups = ["platform_super_admin", "county_super_admin", "coun
 const countyStages = ["platform_super_admin", "county_super_admin", "county_enforcement_officer", "county_registration_agent", "county_analyst"];
 const countyMotorbikesOwners = ["platform_super_admin", "county_super_admin", "county_registration_agent", "county_analyst"];
 const countySupportTickets = ["platform_super_admin", "county_super_admin"];
+const countyDisciplineIncidents = ["platform_super_admin", "county_super_admin", "county_enforcement_officer"];
 
 /** Sacco Portal: sacco_admin, sacco_officer, stage_chairman, stage_secretary, stage_treasurer; platform_super_admin for oversight. */
 const saccoPortalAccess = ["platform_super_admin", ...SACCO_PORTAL_ACCESS_ROLES] as string[];
@@ -347,6 +349,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={countySupportTickets}>
                   <SupportTicketsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/discipline-incidents"
+              element={
+                <ProtectedRoute requiredRoles={countyDisciplineIncidents}>
+                  <DisciplineIncidentsPage />
                 </ProtectedRoute>
               }
             />

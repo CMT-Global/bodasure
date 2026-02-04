@@ -85,7 +85,25 @@ function PermitPaymentsContent() {
   const [selectedPermitType, setSelectedPermitType] = useState<PermitType | null>(null);
   const [selectedMotorbikeId, setSelectedMotorbikeId] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
   const [receiptPayment, setReceiptPayment] = useState<PaymentWithPermit | null>(null);
+
+  /** M-Pesa: optional; digits only; 5 (local) or 6–15 (with country code, no +). */
+  const validateMpesaPhone = (value: string): string | null => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return null;
+    if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
+      return 'Use 5 digits (local) or 6–15 digits (with country code, no +).';
+    }
+    return null;
+  };
+
+  const handleMpesaPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const digitsOnly = raw.replace(/\D/g, '');
+    setMpesaPhone(digitsOnly);
+    setMpesaPhoneError(validateMpesaPhone(digitsOnly));
+  };
 
   const email = profile?.email ?? '';
   const riderId = rider?.id ?? '';
@@ -95,6 +113,12 @@ function PermitPaymentsContent() {
     if (!selectedType || !selectedMotorbikeId || !email || !riderId || !countyId) {
       return;
     }
+    const phoneError = validateMpesaPhone(mpesaPhone);
+    if (phoneError) {
+      setMpesaPhoneError(phoneError);
+      return;
+    }
+    setMpesaPhoneError(null);
     initializePayment.mutate(
       {
         amount: selectedType.amount,
@@ -235,15 +259,22 @@ function PermitPaymentsContent() {
                 <Input
                   id="mpesa-phone"
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   placeholder="254712345678"
                   value={mpesaPhone}
-                  onChange={(e) => setMpesaPhone(e.target.value)}
-                  className="min-h-[44px]"
+                  onChange={handleMpesaPhoneChange}
+                  onBlur={() => setMpesaPhoneError(validateMpesaPhone(mpesaPhone))}
+                  className={cn('min-h-[44px]', mpesaPhoneError && 'border-destructive')}
+                  maxLength={15}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Leave blank for card payment. Enter phone for M-Pesa (test: use test numbers in
-                  Paystack).
-                </p>
+                {mpesaPhoneError ? (
+                  <p className="text-xs text-destructive">{mpesaPhoneError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank for card payment. Digits only: 5 (local) or 6–15 (with country code, no +).
+                  </p>
+                )}
               </div>
 
               <Button
@@ -252,6 +283,7 @@ function PermitPaymentsContent() {
                   !selectedPermitType ||
                   !selectedMotorbikeId ||
                   !email ||
+                  !!mpesaPhoneError ||
                   initializePayment.isPending
                 }
                 onClick={handlePay}
