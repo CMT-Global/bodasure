@@ -29,6 +29,17 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 
+/** M-Pesa: optional; digits only; 5 (local) or 6–15 (with country code, no +). */
+const mpesaPhoneMessage = 'Use 5 digits (local) or 6–15 digits (with country code, no +).';
+const validateMpesaPhone = (value: string): string | null => {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return null;
+  if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
+    return mpesaPhoneMessage;
+  }
+  return null;
+};
+
 // Base schema - county_id will be conditionally required
 const createPaymentFormSchema = (needsCountySelection: boolean) => z.object({
   rider_id: z.string().min(1, 'Please select a rider'),
@@ -40,6 +51,11 @@ const createPaymentFormSchema = (needsCountySelection: boolean) => z.object({
   county_id: needsCountySelection 
     ? z.string().min(1, 'County is required')
     : z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.payment_method === 'mobile_money' && data.phone != null && data.phone.trim() !== '') {
+    const err = validateMpesaPhone(data.phone);
+    if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['phone'], message: err });
+  }
 });
 
 type PaymentFormValues = z.infer<ReturnType<typeof createPaymentFormSchema>>;
@@ -364,15 +380,27 @@ export function PaymentDialog({
                 <FormField
                   control={form.control}
                   name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>M-Pesa Phone Number *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="254708374149" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const phoneError = form.formState.errors.phone?.message;
+                    return (
+                      <FormItem>
+                        <FormLabel>M-Pesa Phone Number *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="254708374149"
+                            value={field.value ?? ''}
+                            onChange={(e) => {
+                              const digitsOnly = e.target.value.replace(/\D/g, '');
+                              field.onChange(digitsOnly);
+                            }}
+                            onBlur={field.onBlur}
+                            className={phoneError ? 'border-destructive' : undefined}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               )}
             </div>

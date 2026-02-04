@@ -28,6 +28,7 @@ import { AlertCircle, HelpCircle, Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
 
 function SupportHelpContent() {
   const { user, profile, roles } = useAuth();
@@ -38,15 +39,13 @@ function SupportHelpContent() {
   const { data: tickets = [], isLoading: ticketsLoading, error: ticketsError } = useMySupportTickets(!!user);
   const createTicket = useCreateSupportTicket();
 
-  const DESCRIPTION_MAX_WORDS = 300;
-
   const [category, setCategory] = useState<SupportTicketCategory | ''>('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [penaltyId, setPenaltyId] = useState<string | null>(null);
 
-  const descriptionWordCount = description.trim() ? description.trim().split(/\s+/).filter(Boolean).length : 0;
-  const descriptionOverLimit = descriptionWordCount > DESCRIPTION_MAX_WORDS;
+  const descriptionWordCount = countWords(description);
+  const descriptionOverLimit = isDescriptionOverLimit(description);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -27,6 +27,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Map, Loader2, Save, History, FileCheck, Scale, ShieldCheck, ChevronRight, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
+import { DESCRIPTION_MAX_WORDS, countWords, isDescriptionOverLimit } from '@/utils/descriptionLimit';
+import { cn } from '@/lib/utils';
+
 export default function CountyConfigurationPage() {
   const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
   const { data: counties = [], isLoading: countiesLoading } = useAllCounties();
@@ -89,6 +93,16 @@ export default function CountyConfigurationPage() {
   };
   const handleSavePenalty = () => {
     if (!selectedCountyId) return;
+    for (const cat of penaltyConfig.categories) {
+      if (isDescriptionOverLimit(cat.description ?? '')) {
+        toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+        return;
+      }
+    }
+    if (isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '')) {
+      toast.error(`Auto-penalty rules note must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+      return;
+    }
     const sanitized: CountyPenaltyConfig = {
       ...penaltyConfig,
       categories: penaltyConfig.categories.map(c => ({ ...c, amountCents: c.amountCents ?? 0 })),
@@ -375,12 +389,17 @@ export default function CountyConfigurationPage() {
                             onChange={e => updatePenaltyCategory(i, { amountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PenaltyCategoryConfig>)}
                           />
                         </div>
-                        <Input
-                          className="flex-1 min-w-0"
-                          placeholder="Description (optional)"
-                          value={cat.description ?? ''}
-                          onChange={e => updatePenaltyCategory(i, { description: e.target.value || undefined })}
-                        />
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <Input
+                            className={cn('w-full', isDescriptionOverLimit(cat.description ?? '') && 'border-destructive')}
+                            placeholder={`Description (optional, max ${DESCRIPTION_MAX_WORDS} words)`}
+                            value={cat.description ?? ''}
+                            onChange={e => updatePenaltyCategory(i, { description: e.target.value || undefined })}
+                          />
+                          <p className={cn('text-xs', isDescriptionOverLimit(cat.description ?? '') ? 'text-destructive' : 'text-muted-foreground')}>
+                            {countWords(cat.description ?? '')} / {DESCRIPTION_MAX_WORDS} words
+                          </p>
+                        </div>
                         <Button type="button" variant="ghost" size="sm" onClick={() => removePenaltyCategory(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto">
                           Remove
                         </Button>
@@ -398,13 +417,17 @@ export default function CountyConfigurationPage() {
                     <Label>Auto-penalty rules enabled</Label>
                   </div>
                   <div className="grid gap-2">
-                    <Label>Auto-penalty rules note (optional)</Label>
+                    <Label>Auto-penalty rules note (optional, max {DESCRIPTION_MAX_WORDS} words)</Label>
                     <Textarea
                       value={penaltyConfig.autoPenaltyRulesNote ?? ''}
                       onChange={e => setPenaltyConfig(prev => ({ ...prev, autoPenaltyRulesNote: e.target.value || undefined }))}
                       placeholder="When to apply penalties automatically."
                       rows={2}
+                      className={cn(isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '') && 'border-destructive')}
                     />
+                    <p className={cn('text-xs', isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '') ? 'text-destructive' : 'text-muted-foreground')}>
+                      {countWords(penaltyConfig.autoPenaltyRulesNote ?? '')} / {DESCRIPTION_MAX_WORDS} words
+                    </p>
                   </div>
                   <div className="grid gap-2">
                     <Label>Escalation logic (repeat offenders)</Label>
@@ -497,7 +520,15 @@ export default function CountyConfigurationPage() {
                       <Label>Require approval for waiver</Label>
                     </div>
                   </div>
-                  <Button onClick={handleSavePenalty} disabled={updateMutation.isPending} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
+                  <Button
+                    onClick={handleSavePenalty}
+                    disabled={
+                      updateMutation.isPending ||
+                      penaltyConfig.categories.some(c => isDescriptionOverLimit(c.description ?? '')) ||
+                      isDescriptionOverLimit(penaltyConfig.autoPenaltyRulesNote ?? '')
+                    }
+                    className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+                  >
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save penalty config
                   </Button>

@@ -31,13 +31,37 @@ function PenaltiesPaymentsContent() {
   const initializePenaltyPayment = useInitializePenaltyPayment();
 
   const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
   const [payingPenaltyId, setPayingPenaltyId] = useState<string | null>(null);
+
+  /** M-Pesa: optional; digits only; 5 (local) or 6–15 (with country code, no +). */
+  const validateMpesaPhone = (value: string): string | null => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return null;
+    if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
+      return 'Use 5 digits (local) or 6–15 digits (with country code, no +).';
+    }
+    return null;
+  };
+
+  const handleMpesaPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const digitsOnly = raw.replace(/\D/g, '');
+    setMpesaPhone(digitsOnly);
+    setMpesaPhoneError(validateMpesaPhone(digitsOnly));
+  };
 
   const email = profile?.email ?? '';
   const riderId = rider?.id ?? '';
 
   const handlePayPenalty = (penalty: Penalty) => {
     if (!email || !riderId || !countyId) return;
+    const phoneError = validateMpesaPhone(mpesaPhone);
+    if (phoneError) {
+      setMpesaPhoneError(phoneError);
+      return;
+    }
+    setMpesaPhoneError(null);
     setPayingPenaltyId(penalty.id);
     initializePenaltyPayment.mutate(
       {
@@ -109,14 +133,19 @@ function PenaltiesPaymentsContent() {
               Enter your M-Pesa number to pay via mobile money. Leave blank to pay by card.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             <Input
               type="tel"
-              placeholder="07XX XXX XXX"
+              inputMode="numeric"
+              placeholder="254708374149"
               value={mpesaPhone}
-              onChange={(e) => setMpesaPhone(e.target.value)}
-              className="w-full sm:max-w-xs min-h-[44px] touch-manipulation"
+              onChange={handleMpesaPhoneChange}
+              onBlur={() => setMpesaPhoneError(validateMpesaPhone(mpesaPhone))}
+              className={cn('w-full sm:max-w-xs min-h-[44px] touch-manipulation', mpesaPhoneError && 'border-destructive')}
             />
+            {mpesaPhoneError ? (
+              <p className="text-xs text-destructive">{mpesaPhoneError}</p>
+            ) : null}
           </CardContent>
         </Card>
       )}
@@ -187,7 +216,7 @@ function PenaltiesPaymentsContent() {
                         size="sm"
                         className="shrink-0 gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
                         onClick={() => handlePayPenalty(penalty)}
-                        disabled={initializePenaltyPayment.isPending || isPaying}
+                        disabled={initializePenaltyPayment.isPending || isPaying || !!mpesaPhoneError}
                       >
                         {isPaying ? (
                           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
