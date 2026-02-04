@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { signUp } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,9 +37,8 @@ export function SignupForm() {
       const { error } = await signUp(email, password, fullName);
       if (error) {
         setError(error.message);
-      } else {
-        navigate('/dashboard');
       }
+      // When successful, stay on this page; RedirectIfAuthenticated will redirect to the user's portal when roles load.
     } catch (err) {
       setError('An unexpected error occurred');
     } finally {
