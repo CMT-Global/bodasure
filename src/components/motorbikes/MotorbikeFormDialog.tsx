@@ -30,43 +30,6 @@ import { useOwners, useRiders, Motorbike, useCounties } from '@/hooks/useData';
 
 const currentYear = new Date().getFullYear();
 
-function isBetween(c: string, start: string, end: string): boolean {
-  return c >= start && c <= end;
-}
-function isLower(c: string): boolean {
-  return isBetween(c, 'a', 'z');
-}
-function isUpper(c: string): boolean {
-  return isBetween(c, 'A', 'Z');
-}
-function isDigit(c: string): boolean {
-  return isBetween(c, '0', '9');
-}
-
-function isRegistrationChar(c: string): boolean {
-  return isLower(c) || isUpper(c) || isDigit(c) || c === '-' || c === '/';
-}
-function isAlphanumericChar(c: string): boolean {
-  return isLower(c) || isUpper(c) || isDigit(c);
-}
-function isAlphabeticChar(c: string): boolean {
-  return isLower(c) || isUpper(c) || c === ' ';
-}
-function isMakeModelChar(c: string): boolean {
-  return isLower(c) || isUpper(c) || isDigit(c) || c === ' ';
-}
-
-function optionalStringRefine(
-  charCheck: (c: string) => boolean,
-  minLen: number,
-  maxLen: number
-) {
-  return (val: string | undefined) => {
-    const s = val?.trim() ?? '';
-    return !s || (s.length >= minLen && s.length <= maxLen && s.split('').every(charCheck));
-  };
-}
-
 // Base schema - county_id will be conditionally required
 function createMotorbikeFormSchema(
   needsCountySelection: boolean,
@@ -81,9 +44,11 @@ function createMotorbikeFormSchema(
         .pipe(
           z
             .string()
-            .refine(
-              optionalStringRefine(isRegistrationChar, 5, 20),
-              'Must be between 5 and 20 characters. Only letters, numbers, hyphens and slashes allowed'
+            .min(5, 'Must be at least 5 characters')
+            .max(20, 'Must be at most 20 characters')
+            .regex(
+              /^[A-Z0-9\-/]+$/,
+              'Only letters, numbers, hyphens and slashes allowed'
             )
         ),
       owner_id: z.string().min(1, 'Owner is required'),
@@ -91,17 +56,41 @@ function createMotorbikeFormSchema(
       make: z
         .string()
         .optional()
-        .refine(
-          optionalStringRefine(isMakeModelChar, 2, 50),
-          'Must be between 2 and 50 characters and may contain only letters, numbers, and spaces.'
-        ),
+        .transform((s) => s?.trim() ?? '')
+        .pipe(
+          z
+            .union([
+              z.literal(''),
+              z
+                .string()
+                .min(2, 'Must be at least 2 characters')
+                .max(50, 'Must be at most 50 characters')
+                .regex(
+                  /^[a-zA-Z0-9 ]+$/,
+                  'Only letters, numbers, and spaces allowed'
+                ),
+            ])
+        )
+        .transform((s) => (s === '' ? undefined : s)),
       model: z
         .string()
         .optional()
-        .refine(
-          optionalStringRefine(isMakeModelChar, 1, 50),
-          'Must be between 1 and 50 characters and contain only letters, numbers, and spaces.'
-        ),
+        .transform((s) => s?.trim() ?? '')
+        .pipe(
+          z
+            .union([
+              z.literal(''),
+              z
+                .string()
+                .min(1, 'Must be at least 1 character')
+                .max(50, 'Must be at most 50 characters')
+                .regex(
+                  /^[a-zA-Z0-9 ]+$/,
+                  'Only letters, numbers, and spaces allowed'
+                ),
+            ])
+        )
+        .transform((s) => (s === '' ? undefined : s)),
       year: z
         .string()
         .optional()
@@ -116,24 +105,51 @@ function createMotorbikeFormSchema(
       color: z
         .string()
         .optional()
-        .refine(
-          optionalStringRefine(isAlphabeticChar, 3, 30),
-          'Must be between 3 and 30 characters and contain letters only.'
-        ),
+        .transform((s) => s?.trim() ?? '')
+        .pipe(
+          z
+            .union([
+              z.literal(''),
+              z
+                .string()
+                .min(3, 'Must be at least 3 characters')
+                .max(30, 'Must be at most 30 characters')
+                .regex(/^[a-zA-Z ]+$/, 'Letters and spaces only'),
+            ])
+        )
+        .transform((s) => (s === '' ? undefined : s)),
       chassis_number: z
         .string()
         .optional()
-        .refine(
-          optionalStringRefine(isAlphanumericChar, 5, 30),
-          'Must be between 5 and 30 characters and contain only letters and numbers.'
-        ),
+        .transform((s) => s?.trim() ?? '')
+        .pipe(
+          z
+            .union([
+              z.literal(''),
+              z
+                .string()
+                .min(5, 'Must be at least 5 characters')
+                .max(30, 'Must be at most 30 characters')
+                .regex(/^[a-zA-Z0-9]+$/, 'Alphanumeric only'),
+            ])
+        )
+        .transform((s) => (s === '' ? undefined : s)),
       engine_number: z
         .string()
         .optional()
-        .refine(
-          optionalStringRefine(isAlphanumericChar, 5, 30),
-          'Must be between 5 and 30 characters and contain only letters and numbers.'
-        ),
+        .transform((s) => s?.trim() ?? '')
+        .pipe(
+          z
+            .union([
+              z.literal(''),
+              z
+                .string()
+                .min(5, 'Must be at least 5 characters')
+                .max(30, 'Must be at most 30 characters')
+                .regex(/^[a-zA-Z0-9]+$/, 'Alphanumeric only'),
+            ])
+        )
+        .transform((s) => (s === '' ? undefined : s)),
       photo_url: z.string().optional(),
       status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
       county_id: needsCountySelection
