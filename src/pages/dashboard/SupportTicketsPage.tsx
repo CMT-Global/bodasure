@@ -35,7 +35,7 @@ import { AlertCircle, HelpCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 const STATUS_OPTIONS: { value: SupportTicketStatus; label: string }[] = [
   { value: 'open', label: 'Open' },

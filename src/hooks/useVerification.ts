@@ -58,6 +58,20 @@ function mapPublicRiderPayload(
   };
 }
 
+// Extract verification ID from scanned value: full URL (e.g. http://localhost:8080/verify/BS75D043E210D2) -> hex only
+function normalizeQrScannedValue(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(/\/verify\/([^/?#]+)/i);
+  if (match) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+  return trimmed;
+}
+
 // Search rider by QR code (uses RPC for public/anon when countyId is undefined; direct query when county-scoped)
 export function useRiderByQRCode(qrCode: string, countyId?: string) {
   return useQuery({
@@ -65,7 +79,7 @@ export function useRiderByQRCode(qrCode: string, countyId?: string) {
     queryFn: async () => {
       if (!qrCode.trim()) return null;
 
-      const trimmed = qrCode.trim();
+      const trimmed = normalizeQrScannedValue(qrCode);
 
       // Public verification (no countyId): anon cannot read riders table due to RLS; use SECURITY DEFINER RPC
       if (countyId === undefined) {

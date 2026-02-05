@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {

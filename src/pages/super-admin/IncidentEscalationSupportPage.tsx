@@ -36,7 +36,7 @@ import { AlertCircle, Headset, Loader2, MapPin, Clock, History } from 'lucide-re
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 const STATUS_OPTIONS: { value: SupportTicketStatus; label: string }[] = [
   { value: 'open', label: 'Open' },

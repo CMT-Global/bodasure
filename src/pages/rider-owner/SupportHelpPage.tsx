@@ -29,7 +29,7 @@ import { AlertCircle, HelpCircle, Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 function SupportHelpContent() {
   const { user, profile, roles } = useAuth();

@@ -55,7 +55,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 // Types for discipline and incident records (align with DB)

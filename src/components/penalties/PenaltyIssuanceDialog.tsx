@@ -32,7 +32,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 const penaltyFormSchema = z.object({
   rider_id: z.string().min(1, 'Rider is required'),

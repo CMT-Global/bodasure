@@ -26,7 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Map, Loader2, Save, DollarSign, Percent, Users, Eye } from 'lucide-react';
 import { toast } from 'sonner';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 export default function RevenueCommercialConfigPage() {
