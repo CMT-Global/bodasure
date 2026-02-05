@@ -767,8 +767,12 @@ export interface DisciplineIncidentRow {
   attachments?: string[];
 }
 
+// Table sacco_discipline_incidents is not in generated Supabase types; use typed from() assertion.
+type SaccoDisciplineIncidentsClient = typeof supabase & {
+  from(table: 'sacco_discipline_incidents'): ReturnType<typeof supabase.from>;
+};
+
 // Fetch discipline incidents for a sacco (persisted in DB)
-// Table sacco_discipline_incidents may not be in generated Supabase types; use typed Row.
 export function useDisciplineIncidents(saccoId: string | undefined, countyId: string | undefined) {
   return useQuery({
     queryKey: ['discipline-incidents', saccoId, countyId],
@@ -793,7 +797,7 @@ export function useDisciplineIncidents(saccoId: string | undefined, countyId: st
         riders?: RiderRef;
         rider?: RiderRef;
       };
-      const db = supabase as any;
+      const db = supabase as SaccoDisciplineIncidentsClient;
       const { data, error } = await db
         .from('sacco_discipline_incidents')
         .select(`
@@ -876,7 +880,7 @@ export function useCountyDisciplineIncidents(countyId: string | undefined) {
         rider?: RiderRef;
         sacco?: SaccoRef;
       };
-      const db = supabase as any;
+      const db = supabase as SaccoDisciplineIncidentsClient;
       const { data, error } = await db
         .from('sacco_discipline_incidents')
         .select(`
