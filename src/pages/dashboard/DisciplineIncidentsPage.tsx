@@ -312,7 +312,7 @@ export default function DisciplineIncidentsPage() {
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="all">All Statuses</SelectItem>
                         <SelectItem value="escalated">Escalated</SelectItem>
                         <SelectItem value="resolved">Resolved</SelectItem>
                         <SelectItem value="dismissed">Dismissed</SelectItem>
@@ -324,7 +324,7 @@ export default function DisciplineIncidentsPage() {
                         <SelectValue placeholder="Severity" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Severity</SelectItem>
+                        <SelectItem value="all">All Severities</SelectItem>
                         <SelectItem value="low">Low</SelectItem>
                         <SelectItem value="medium">Medium</SelectItem>
                         <SelectItem value="high">High</SelectItem>

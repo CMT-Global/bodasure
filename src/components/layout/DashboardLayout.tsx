@@ -73,7 +73,7 @@ const navItems: NavItem[] = [
   { title: 'User Management', href: '/dashboard/users', icon: UserCog, roles: ['county_super_admin'] },
   { title: 'Support Tickets', href: '/dashboard/support-tickets', icon: HelpCircle, roles: ['county_super_admin'] },
   { title: 'Discipline & Incidents', href: '/dashboard/discipline-incidents', icon: FileWarning, roles: ['county_super_admin', 'county_enforcement_officer'] },
-  { title: 'Update requests', href: '/dashboard/update-requests', icon: FileEdit, roles: ['county_super_admin'] },
+  { title: 'Update Requests', href: '/dashboard/update-requests', icon: FileEdit, roles: ['county_super_admin'] },
   { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin'] },
 ];
 
