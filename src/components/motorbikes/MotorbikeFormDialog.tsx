@@ -28,11 +28,44 @@ import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOwners, useRiders, Motorbike, useCounties } from '@/hooks/useData';
 
-const REGISTRATION_REGEX = /^[A-Z0-9-\/]+$/;
-const ALPHANUMERIC_REGEX = /^[A-Za-z0-9]+$/;
-const ALPHABETIC_REGEX = /^[A-Za-z\s]+$/;
-const MAKE_MODEL_REGEX = /^[A-Za-z0-9\s]+$/;
 const currentYear = new Date().getFullYear();
+
+function isBetween(c: string, start: string, end: string): boolean {
+  return c >= start && c <= end;
+}
+function isLower(c: string): boolean {
+  return isBetween(c, 'a', 'z');
+}
+function isUpper(c: string): boolean {
+  return isBetween(c, 'A', 'Z');
+}
+function isDigit(c: string): boolean {
+  return isBetween(c, '0', '9');
+}
+
+function isRegistrationChar(c: string): boolean {
+  return isLower(c) || isUpper(c) || isDigit(c) || c === '-' || c === '/';
+}
+function isAlphanumericChar(c: string): boolean {
+  return isLower(c) || isUpper(c) || isDigit(c);
+}
+function isAlphabeticChar(c: string): boolean {
+  return isLower(c) || isUpper(c) || c === ' ';
+}
+function isMakeModelChar(c: string): boolean {
+  return isLower(c) || isUpper(c) || isDigit(c) || c === ' ';
+}
+
+function optionalStringRefine(
+  charCheck: (c: string) => boolean,
+  minLen: number,
+  maxLen: number
+) {
+  return (val: string | undefined) => {
+    const s = val?.trim() ?? '';
+    return !s || (s.length >= minLen && s.length <= maxLen && s.split('').every(charCheck));
+  };
+}
 
 // Base schema - county_id will be conditionally required
 function createMotorbikeFormSchema(
@@ -48,9 +81,10 @@ function createMotorbikeFormSchema(
         .pipe(
           z
             .string()
-            .min(5, 'Must be 5–20 characters')
-            .max(20, 'Must be 5–20 characters')
-            .regex(REGISTRATION_REGEX, 'Only letters, numbers, hyphens, and slashes allowed')
+            .refine(
+              optionalStringRefine(isRegistrationChar, 5, 20),
+              'Must be between 5 and 20 characters. Only letters, numbers, hyphens and slashes allowed'
+            )
         ),
       owner_id: z.string().min(1, 'Owner is required'),
       rider_id: z.string().optional(),
@@ -58,21 +92,15 @@ function createMotorbikeFormSchema(
         .string()
         .optional()
         .refine(
-          (val) => {
-            const s = val?.trim() ?? '';
-            return !s || (s.length >= 2 && s.length <= 50 && MAKE_MODEL_REGEX.test(s));
-          },
-          '2–50 characters, letters, numbers, spaces only'
+          optionalStringRefine(isMakeModelChar, 2, 50),
+          'Must be between 2 and 50 characters and may contain only letters, numbers, and spaces.'
         ),
       model: z
         .string()
         .optional()
         .refine(
-          (val) => {
-            const s = val?.trim() ?? '';
-            return !s || (s.length >= 1 && s.length <= 50 && MAKE_MODEL_REGEX.test(s));
-          },
-          '1–50 characters, letters, numbers, spaces only'
+          optionalStringRefine(isMakeModelChar, 1, 50),
+          'Must be between 1 and 50 characters and contain only letters, numbers, and spaces.'
         ),
       year: z
         .string()
@@ -89,31 +117,22 @@ function createMotorbikeFormSchema(
         .string()
         .optional()
         .refine(
-          (val) => {
-            const s = val?.trim() ?? '';
-            return !s || (s.length >= 3 && s.length <= 30 && ALPHABETIC_REGEX.test(s));
-          },
-          '3–30 characters, alphabetic only'
+          optionalStringRefine(isAlphabeticChar, 3, 30),
+          'Must be between 3 and 30 characters and contain letters only.'
         ),
       chassis_number: z
         .string()
         .optional()
         .refine(
-          (val) => {
-            const s = val?.trim() ?? '';
-            return !s || (s.length >= 5 && s.length <= 30 && ALPHANUMERIC_REGEX.test(s));
-          },
-          '5–30 characters, alphanumeric only'
+          optionalStringRefine(isAlphanumericChar, 5, 30),
+          'Must be between 5 and 30 characters and contain only letters and numbers.'
         ),
       engine_number: z
         .string()
         .optional()
         .refine(
-          (val) => {
-            const s = val?.trim() ?? '';
-            return !s || (s.length >= 5 && s.length <= 30 && ALPHANUMERIC_REGEX.test(s));
-          },
-          '5–30 characters, alphanumeric only'
+          optionalStringRefine(isAlphanumericChar, 5, 30),
+          'Must be between 5 and 30 characters and contain only letters and numbers.'
         ),
       photo_url: z.string().optional(),
       status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
