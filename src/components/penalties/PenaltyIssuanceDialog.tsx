@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useCreatePenalty } from '@/hooks/usePenalties';
 import { useRiders } from '@/hooks/useData';
 import {
@@ -33,21 +32,7 @@ import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
-
-const penaltyFormSchema = z.object({
-  rider_id: z.string().min(1, 'Rider is required'),
-  penalty_type: z.string().min(1, 'Penalty type is required'),
-  description: z
-    .string()
-    .optional()
-    .refine((v) => !v || v.length <= TEXTAREA_MAX_CHARS, {
-      message: `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`,
-    }),
-  amount: z.number().min(0, 'Amount must be positive'),
-  due_date: z.string().optional(),
-});
-
-type PenaltyFormValues = z.infer<typeof penaltyFormSchema>;
+import { penaltyIssuanceFormSchema, type PenaltyIssuanceFormValues } from '@/lib/zod';
 
 interface PenaltyIssuanceDialogProps {
   open: boolean;
@@ -72,8 +57,8 @@ export function PenaltyIssuanceDialog({
   const createPenalty = useCreatePenalty();
   const [amountInput, setAmountInput] = useState<string>('');
 
-  const form = useForm<PenaltyFormValues>({
-    resolver: zodResolver(penaltyFormSchema),
+  const form = useForm<PenaltyIssuanceFormValues>({
+    resolver: zodResolver(penaltyIssuanceFormSchema),
     defaultValues: {
       rider_id: preselectedRiderId || '',
       penalty_type: '',
@@ -102,7 +87,7 @@ export function PenaltyIssuanceDialog({
     }
   }, [open, form]);
 
-  const onSubmit = async (values: PenaltyFormValues) => {
+  const onSubmit = async (values: PenaltyIssuanceFormValues) => {
     try {
       await createPenalty.mutateAsync({
         county_id: countyId,

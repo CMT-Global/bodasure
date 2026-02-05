@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -24,13 +26,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { exportToCSV } from '@/utils/exportCsv';
+import { stageFormSchema, type StageFormValues } from '@/lib/zod';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -207,37 +217,38 @@ export default function StagesPage() {
   );
 }
 
-function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open: boolean; onOpenChange: (open: boolean) => void; stage: Stage | null; countyId: string; saccos: { id: string; name: string }[] }) {
-  const queryClient = useQueryClient();
-  const isEditing = !!stage;
-
-  const [formData, setFormData] = useState({
+function getStageDefaultValues(stage: Stage | null): StageFormValues {
+  return {
     name: stage?.name || '',
     location: stage?.location || '',
     sacco_id: stage?.sacco_id || 'none',
     capacity: stage?.capacity?.toString() || '',
-    status: stage?.status || 'pending',
+    status: (stage?.status as StageFormValues['status']) || 'pending',
+  };
+}
+
+function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open: boolean; onOpenChange: (open: boolean) => void; stage: Stage | null; countyId: string; saccos: { id: string; name: string }[] }) {
+  const queryClient = useQueryClient();
+  const isEditing = !!stage;
+
+  const form = useForm<StageFormValues>({
+    resolver: zodResolver(stageFormSchema),
+    defaultValues: getStageDefaultValues(stage),
   });
 
-  // Reset form when stage changes
   useEffect(() => {
-    setFormData({
-      name: stage?.name || '',
-      location: stage?.location || '',
-      sacco_id: stage?.sacco_id || 'none',
-      capacity: stage?.capacity?.toString() || '',
-      status: stage?.status || 'pending',
-    });
-  }, [stage]);
+    if (!open) return;
+    form.reset(getStageDefaultValues(stage));
+  }, [open, stage]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      const payload = { 
-        name: formData.name,
-        location: formData.location || null,
-        sacco_id: formData.sacco_id === 'none' ? null : formData.sacco_id || null,
-        capacity: formData.capacity ? parseInt(formData.capacity) : null,
-        status: formData.status,
+    mutationFn: async (values: StageFormValues) => {
+      const payload = {
+        name: values.name.trim(),
+        location: values.location?.trim() || null,
+        sacco_id: values.sacco_id === 'none' ? null : values.sacco_id || null,
+        capacity: values.capacity?.trim() ? parseInt(values.capacity.trim(), 10) : null,
+        status: values.status,
         county_id: countyId,
       };
       if (isEditing && stage) {
@@ -252,9 +263,12 @@ function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open
       queryClient.invalidateQueries({ queryKey: ['stages'] });
       toast.success(isEditing ? 'Stage updated' : 'Stage added');
       onOpenChange(false);
+      form.reset();
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const onSubmit = (values: StageFormValues) => mutation.mutate(values);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -263,39 +277,100 @@ function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open
           <DialogTitle>{isEditing ? 'Edit Stage' : 'Add New Stage'}</DialogTitle>
           <DialogDescription>{isEditing ? 'Update stage information' : 'Register a new stage location'}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div><Label>Name *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><Label>Location</Label><Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} /></div>
-          <div>
-            <Label>Sacco</Label>
-            <Select value={formData.sacco_id} onValueChange={(v) => setFormData({ ...formData, sacco_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Select a Sacco" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {saccos.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div><Label>Capacity</Label><Input type="number" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: e.target.value })} /></div>
-          <div>
-            <Label>Status</Label>
-            <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as Stage['status'] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !formData.name}>
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? 'Update' : 'Add'}
-          </Button>
-        </DialogFooter>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sacco_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sacco</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a Sacco" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {saccos.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="capacity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Capacity</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditing ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

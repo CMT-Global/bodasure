@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -24,13 +26,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { exportToCSV } from '@/utils/exportCsv';
+import { ownerFormSchema, type OwnerFormValues } from '@/lib/zod';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -199,52 +209,43 @@ export default function OwnersPage() {
   );
 }
 
-function OwnerFormDialog({ open, onOpenChange, owner, countyId }: { open: boolean; onOpenChange: (open: boolean) => void; owner: Owner | null; countyId: string }) {
-  const queryClient = useQueryClient();
-  const isEditing = !!owner;
-
-  const [formData, setFormData] = useState({
+function getDefaultValues(owner: Owner | null): OwnerFormValues {
+  const status = owner?.status;
+  const allowedStatus: OwnerFormValues['status'] =
+    status === 'approved' || status === 'rejected' ? status : 'pending';
+  return {
     full_name: owner?.full_name || '',
     id_number: owner?.id_number || '',
     phone: owner?.phone || '',
     email: owner?.email || '',
     address: owner?.address || '',
-    status: owner?.status || 'pending',
+    status: allowedStatus,
+  };
+}
+
+function OwnerFormDialog({ open, onOpenChange, owner, countyId }: { open: boolean; onOpenChange: (open: boolean) => void; owner: Owner | null; countyId: string }) {
+  const queryClient = useQueryClient();
+  const isEditing = !!owner;
+
+  const form = useForm<OwnerFormValues>({
+    resolver: zodResolver(ownerFormSchema),
+    defaultValues: getDefaultValues(owner),
   });
 
-  // When dialog opens (or selected owner changes), sync form with that owner so edit shows current data
   useEffect(() => {
     if (!open) return;
-    if (owner) {
-      setFormData({
-        full_name: owner.full_name,
-        id_number: owner.id_number,
-        phone: owner.phone,
-        email: owner.email || '',
-        address: owner.address || '',
-        status: owner.status,
-      });
-    } else {
-      setFormData({
-        full_name: '',
-        id_number: '',
-        phone: '',
-        email: '',
-        address: '',
-        status: 'pending',
-      });
-    }
+    form.reset(getDefaultValues(owner));
   }, [open, owner]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      const payload = { 
-        full_name: formData.full_name,
-        id_number: formData.id_number,
-        phone: formData.phone,
-        email: formData.email || null,
-        address: formData.address || null,
-        status: formData.status,
+    mutationFn: async (values: OwnerFormValues) => {
+      const payload = {
+        full_name: values.full_name.trim(),
+        id_number: values.id_number.trim(),
+        phone: values.phone.trim(),
+        email: values.email?.trim() || null,
+        address: values.address?.trim() || null,
+        status: values.status,
         county_id: countyId,
       };
       if (isEditing && owner) {
@@ -259,9 +260,12 @@ function OwnerFormDialog({ open, onOpenChange, owner, countyId }: { open: boolea
       queryClient.invalidateQueries({ queryKey: ['owners'] });
       toast.success(isEditing ? 'Owner updated' : 'Owner added');
       onOpenChange(false);
+      form.reset();
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const onSubmit = (values: OwnerFormValues) => mutation.mutate(values);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -270,31 +274,104 @@ function OwnerFormDialog({ open, onOpenChange, owner, countyId }: { open: boolea
           <DialogTitle>{isEditing ? 'Edit Owner' : 'Add New Owner'}</DialogTitle>
           <DialogDescription>{isEditing ? 'Update owner information' : 'Register a new bike owner'}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div><Label>Full Name *</Label><Input value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} /></div>
-          <div><Label>ID Number *</Label><Input value={formData.id_number} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })} /></div>
-          <div><Label>Phone *</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></div>
-          <div><Label>Email</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} /></div>
-          <div><Label>Address</Label><Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
-          <div>
-            <Label>Status</Label>
-            <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as Owner['status'] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !formData.full_name || !formData.id_number || !formData.phone}>
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? 'Update' : 'Add'}
-          </Button>
-        </DialogFooter>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="full_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="id_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ID Number *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditing ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

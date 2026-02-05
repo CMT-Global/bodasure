@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { generateRiderQRCode } from '@/lib/qrCode';
@@ -28,36 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSaccos, useStages, useOwners, Rider, useCounties } from '@/hooks/useData';
-import {
-  riderNameSchema,
-  riderPhoneSchema,
-  riderDateOfBirthSchema,
-  riderLicenseExpirySchema,
-  riderLicenseNumberSchema,
-  riderIdNumberSchema,
-  riderAddressSchema,
-} from '@/lib/riderValidation';
-
-// Base schema - county_id will be conditionally required
-const createRiderFormSchema = (needsCountySelection: boolean) => z.object({
-  full_name: riderNameSchema,
-  id_number: riderIdNumberSchema,
-  phone: riderPhoneSchema,
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  date_of_birth: riderDateOfBirthSchema,
-  address: riderAddressSchema,
-  license_number: riderLicenseNumberSchema,
-  license_expiry: riderLicenseExpirySchema,
-  sacco_id: z.string().optional(),
-  stage_id: z.string().optional(),
-  owner_id: z.string().optional(),
-  status: z.enum(['pending', 'approved', 'rejected', 'suspended']),
-  county_id: needsCountySelection 
-    ? z.string().min(1, 'County is required')
-    : z.string().optional(),
-});
-
-type RiderFormValues = z.infer<ReturnType<typeof createRiderFormSchema>>;
+import { riderFormSchema, RiderFormValues } from '@/lib/zod';
 
 type WizardStepGroup = {
   label: string;
@@ -151,7 +121,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
   }, [wizardStep]);
 
   const form = useForm<RiderFormValues>({
-    resolver: zodResolver(createRiderFormSchema(needsCountySelection)),
+    resolver: zodResolver(riderFormSchema(needsCountySelection)),
     defaultValues: {
       full_name: '',
       id_number: '',
@@ -169,7 +139,7 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
     },
   });
 
-  // When dialog opens (add or edit), reset form with current rider so edit uses same validation
+  // When dialog opens (add or edit), reset form with current rider. Same Zod schema validates both add and edit.
   useEffect(() => {
     if (open) {
       form.reset({
@@ -187,6 +157,10 @@ export function RiderFormDialog({ open, onOpenChange, rider, countyId }: RiderFo
         status: rider?.status || 'pending',
         county_id: countyId || rider?.county_id || '',
       });
+      // Trigger validation when editing so invalid existing data (e.g. DOB in future) shows errors immediately
+      if (rider) {
+        void form.trigger();
+      }
     }
   }, [open, rider, countyId]);
 

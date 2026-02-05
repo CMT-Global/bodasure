@@ -51,7 +51,7 @@ import {
   riderLicenseNumberSchema,
   riderIdNumberSchema,
   riderAddressSchema,
-} from '@/lib/riderValidation';
+} from '@/lib/zod';
 
 const createRegistrationSchema = (hasSaccos: boolean) => z.object({
   full_name: riderNameSchema,
