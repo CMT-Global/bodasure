@@ -879,7 +879,7 @@ export default function DisciplineIncidentPage() {
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="all">All Statuses</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="acknowledged">Acknowledged</SelectItem>
                         <SelectItem value="resolved">Resolved</SelectItem>
@@ -893,7 +893,7 @@ export default function DisciplineIncidentPage() {
                         <SelectValue placeholder="Severity" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Severity</SelectItem>
+                        <SelectItem value="all">All Severities</SelectItem>
                         <SelectItem value="low">Low</SelectItem>
                         <SelectItem value="medium">Medium</SelectItem>
                         <SelectItem value="high">High</SelectItem>
