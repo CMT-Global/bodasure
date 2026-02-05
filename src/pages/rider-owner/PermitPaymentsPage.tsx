@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { validateMpesaPhone } from '@/hooks/usePayments';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,16 +88,6 @@ function PermitPaymentsContent() {
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
   const [receiptPayment, setReceiptPayment] = useState<PaymentWithPermit | null>(null);
-
-  /** M-Pesa: optional; digits only; 5 (local) or 6–15 (with country code, no +). */
-  const validateMpesaPhone = (value: string): string | null => {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length === 0) return null;
-    if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
-      return 'Use 5 digits (local) or 6–15 digits (with country code, no +).';
-    }
-    return null;
-  };
 
   const handleMpesaPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;

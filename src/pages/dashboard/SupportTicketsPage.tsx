@@ -5,6 +5,7 @@ import {
   useSupportTicketsForCounty,
   useUpdateSupportTicket,
   SUPPORT_CATEGORIES,
+  SUPPORT_TICKET_STATUS_STYLES,
   type SupportTicket,
   type SupportTicketStatus,
 } from '@/hooks/useSupportTickets';
@@ -192,13 +193,7 @@ function TicketCard({
   onSelect: () => void;
 }) {
   const cat = SUPPORT_CATEGORIES.find((c) => c.value === ticket.category)?.label ?? ticket.category;
-  const statusColors: Record<string, string> = {
-    open: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-    in_progress: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-    resolved: 'bg-green-500/15 text-green-700 dark:text-green-400',
-    closed: 'bg-muted text-muted-foreground',
-  };
-  const sc = statusColors[ticket.status] ?? 'bg-muted text-muted-foreground';
+  const sc = SUPPORT_TICKET_STATUS_STYLES[ticket.status] ?? 'bg-muted text-muted-foreground';
 
   return (
     <div

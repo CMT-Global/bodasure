@@ -7,6 +7,7 @@ import {
   useMySupportTickets,
   useCreateSupportTicket,
   SUPPORT_CATEGORIES,
+  SUPPORT_TICKET_STATUS_STYLES,
   type SupportTicketCategory,
   type SupportTicket,
 } from '@/hooks/useSupportTickets';
@@ -237,13 +238,7 @@ const DESCRIPTION_PREVIEW_CHARS = 150;
 function TicketRow({ ticket }: { ticket: SupportTicket }) {
   const [expanded, setExpanded] = useState(false);
   const cat = SUPPORT_CATEGORIES.find((c) => c.value === ticket.category)?.label ?? ticket.category;
-  const statusColors: Record<string, string> = {
-    open: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-    in_progress: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-    resolved: 'bg-green-500/15 text-green-700 dark:text-green-400',
-    closed: 'bg-muted text-muted-foreground',
-  };
-  const sc = statusColors[ticket.status] ?? 'bg-muted text-muted-foreground';
+  const sc = SUPPORT_TICKET_STATUS_STYLES[ticket.status] ?? 'bg-muted text-muted-foreground';
   const showExpand = ticket.description.length > DESCRIPTION_PREVIEW_CHARS;
   const displayDescription = showExpand && !expanded
     ? `${ticket.description.slice(0, DESCRIPTION_PREVIEW_CHARS).trim()}…`

@@ -28,17 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-
-/** M-Pesa: optional; digits only; 5 (local) or 6–15 (with country code, no +). */
-const mpesaPhoneMessage = 'Use 5 digits (local) or 6–15 digits (with country code, no +).';
-const validateMpesaPhone = (value: string): string | null => {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 0) return null;
-  if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
-    return mpesaPhoneMessage;
-  }
-  return null;
-};
+import { validateMpesaPhone } from '@/hooks/usePayments';
 
 // Base schema - county_id will be conditionally required
 const createPaymentFormSchema = (needsCountySelection: boolean) => z.object({
