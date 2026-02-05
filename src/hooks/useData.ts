@@ -772,6 +772,51 @@ type SaccoDisciplineIncidentsClient = typeof supabase & {
   from(table: 'sacco_discipline_incidents'): ReturnType<typeof supabase.from>;
 };
 
+const SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT = `
+  id,
+  type,
+  rider_id,
+  title,
+  description,
+  notes,
+  status,
+  severity,
+  submitted_to_county,
+  county_submission_date,
+  created_by,
+  created_at,
+  updated_at
+`.trim();
+
+async function fetchDisciplineIncidentsFromDb(
+  db: SaccoDisciplineIncidentsClient,
+  options: { saccoId: string; countyId: string } | { countyId: string; forCountyView: true }
+) {
+  const isCountyView = 'forCountyView' in options && options.forCountyView;
+  const countyId = options.countyId;
+  const select = isCountyView
+    ? `${SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT},
+  sacco_id,
+  riders(full_name, phone),
+  sacco:saccos(name)`
+    : `${SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT},
+  riders(full_name, phone)`;
+
+  let query = db
+    .from('sacco_discipline_incidents')
+    .select(select)
+    .eq('county_id', countyId)
+    .order('created_at', { ascending: false });
+
+  if ('saccoId' in options) {
+    query = query.eq('sacco_id', options.saccoId);
+  } else {
+    query = query.eq('submitted_to_county', true);
+  }
+
+  return query;
+}
+
 // Fetch discipline incidents for a sacco (persisted in DB)
 export function useDisciplineIncidents(saccoId: string | undefined, countyId: string | undefined) {
   return useQuery({
@@ -798,27 +843,7 @@ export function useDisciplineIncidents(saccoId: string | undefined, countyId: st
         rider?: RiderRef;
       };
       const db = supabase as SaccoDisciplineIncidentsClient;
-      const { data, error } = await db
-        .from('sacco_discipline_incidents')
-        .select(`
-          id,
-          type,
-          rider_id,
-          title,
-          description,
-          notes,
-          status,
-          severity,
-          submitted_to_county,
-          county_submission_date,
-          created_by,
-          created_at,
-          updated_at,
-          riders(full_name, phone)
-        `)
-        .eq('sacco_id', saccoId)
-        .eq('county_id', countyId)
-        .order('created_at', { ascending: false });
+      const { data, error } = await fetchDisciplineIncidentsFromDb(db, { saccoId, countyId });
 
       if (error) throw error;
       if (!data || data.length === 0) return [] as DisciplineIncidentRow[];
@@ -881,29 +906,7 @@ export function useCountyDisciplineIncidents(countyId: string | undefined) {
         sacco?: SaccoRef;
       };
       const db = supabase as SaccoDisciplineIncidentsClient;
-      const { data, error } = await db
-        .from('sacco_discipline_incidents')
-        .select(`
-          id,
-          type,
-          rider_id,
-          sacco_id,
-          title,
-          description,
-          notes,
-          status,
-          severity,
-          submitted_to_county,
-          county_submission_date,
-          created_by,
-          created_at,
-          updated_at,
-          riders(full_name, phone),
-          sacco:saccos(name)
-        `)
-        .eq('county_id', countyId)
-        .eq('submitted_to_county', true)
-        .order('created_at', { ascending: false });
+      const { data, error } = await fetchDisciplineIncidentsFromDb(db, { countyId, forCountyView: true });
 
       if (error) throw error;
       if (!data || data.length === 0) return [] as CountyDisciplineIncidentRow[];
