@@ -389,6 +389,149 @@ export const saccoProfileFormSchema = z.object({
 
 export type SaccoProfileFormValues = z.infer<typeof saccoProfileFormSchema>;
 
+// ——— County validation (super-admin/counties add/edit) ———
+
+/** County name: letters, numbers, spaces, hyphen; 2–80 chars */
+export const countyNameSchema = z
+  .string()
+  .min(2, 'County name must be at least 2 characters')
+  .max(80, 'County name must not exceed 80 characters')
+  .refine(
+    (val) => /^[a-zA-Z0-9\s\-]+$/.test(val),
+    { message: 'County name must contain only letters, numbers, spaces, and hyphen (-)' }
+  );
+
+/** County code: letters and numbers; 2–10 chars; e.g. NBI, MSA */
+export const countyCodeSchema = z
+  .string()
+  .min(2, 'Code must be at least 2 characters')
+  .max(10, 'Code must not exceed 10 characters')
+  .refine(
+    (val) => /^[a-zA-Z0-9]+$/.test(val),
+    { message: 'Code must be alphanumeric (letters and numbers only)' }
+  );
+
+/** Optional logo URL: when provided, must be a valid URL */
+export const countyLogoUrlSchema = z
+  .string()
+  .optional()
+  .or(z.literal(''))
+  .refine(
+    (val) => {
+      const s = (val ?? '').trim();
+      if (!s) return true;
+      try {
+        new URL(s);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Logo URL must be a valid URL' }
+  );
+
+/** County add/edit form schema (super-admin/counties). */
+export const countyFormSchema = z.object({
+  name: countyNameSchema,
+  code: countyCodeSchema,
+  logo_url: countyLogoUrlSchema,
+  contact_email: z.string().email('Invalid email').optional().or(z.literal('')),
+  contact_phone: saccoContactPhoneSchema,
+  address: riderAddressSchema,
+  status: z.enum(['pending', 'active', 'suspended', 'inactive']),
+});
+
+export type CountyFormValues = z.infer<typeof countyFormSchema>;
+
+// ——— County configuration (super-admin/county-config) ———
+
+/** Optional long text: when provided, max TEXTAREA limit. */
+const countyConfigNotesSchema = z
+  .string()
+  .optional()
+  .refine((v) => !v || v.length <= TEXTAREA_MAX_CHARS, {
+    message: `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`,
+  });
+
+/** Permit type config item (name, type, feeCents, validityDays, optional description). */
+const countyPermitTypeConfigSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1, 'Permit type name is required').max(120, 'Name must not exceed 120 characters'),
+  type: z.enum(['weekly', 'monthly', 'annual', 'custom']),
+  feeCents: z.number().min(0, 'Fee must be 0 or more'),
+  validityDays: z.number().min(0, 'Validity days must be 0 or more'),
+  description: countyConfigNotesSchema,
+});
+
+/** Permit configuration form schema (super-admin/county-config). */
+export const countyPermitConfigFormSchema = z.object({
+  permitTypes: z.array(countyPermitTypeConfigSchema).min(1, 'At least one permit type is required'),
+  gracePeriodDays: z.number().int().min(0, 'Grace period must be 0 or more'),
+  autoRenewEnabled: z.boolean(),
+  validityRulesNote: countyConfigNotesSchema,
+});
+
+export type CountyPermitConfigFormValues = z.infer<typeof countyPermitConfigFormSchema>;
+
+/** Penalty category config item. */
+const countyPenaltyCategoryConfigSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1, 'Category name is required').max(120, 'Name must not exceed 120 characters'),
+  amountCents: z.number().min(0, 'Amount must be 0 or more'),
+  description: countyConfigNotesSchema,
+});
+
+/** Escalation rule config item. */
+const countyEscalationRuleSchema = z.object({
+  repeatCount: z.number().int().min(2, 'Repeat count must be at least 2 for escalation'),
+  multiplier: z.number().min(1, 'Multiplier must be at least 1'),
+  maxAmountCents: z.number().min(0).optional(),
+});
+
+/** Waiver rules config. */
+const countyWaiverRulesSchema = z.object({
+  roles: z.array(z.string()),
+  maxWaiverAmountCents: z.number().min(0).optional(),
+  requireApproval: z.boolean(),
+});
+
+/** Penalty configuration form schema (super-admin/county-config). */
+export const countyPenaltyConfigFormSchema = z.object({
+  categories: z.array(countyPenaltyCategoryConfigSchema),
+  autoPenaltyEnabled: z.boolean(),
+  autoPenaltyRulesNote: countyConfigNotesSchema,
+  escalationLogic: z.array(countyEscalationRuleSchema),
+  waiverRules: countyWaiverRulesSchema,
+});
+
+export type CountyPenaltyConfigFormValues = z.infer<typeof countyPenaltyConfigFormSchema>;
+
+/** Compliance rules form schema (super-admin/county-config). */
+export const countyComplianceRulesFormSchema = z.object({
+  nonCompliantDefinition: z
+    .string()
+    .min(1, 'Non-compliant definition is required')
+    .max(TEXTAREA_MAX_CHARS, `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`),
+  suspensionThresholdPenalties: z.number().int().min(0, 'Suspension threshold must be 0 or more'),
+  blacklistThresholdPenalties: z.number().int().min(0, 'Blacklist threshold must be 0 or more'),
+  suspensionThresholdUnpaidDays: z.number().int().min(0).optional(),
+  blacklistThresholdUnpaidDays: z.number().int().min(0).optional(),
+  complianceScoringEnabled: z.boolean(),
+  complianceScoringLogic: countyConfigNotesSchema,
+});
+
+export type CountyComplianceRulesFormValues = z.infer<typeof countyComplianceRulesFormSchema>;
+
+/** Helper: get first error message by path from Zod issues. Returns Record<pathKey, message>. */
+export function getZodErrorsByPath(issues: z.ZodIssue[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path.join('.');
+    if (!map[key]) map[key] = issue.message;
+  }
+  return map;
+}
+
 // ——— Welfare group validation (dashboard/welfare-groups add/edit) ———
 
 /** Welfare group add/edit form schema. Same rules as sacco: name required; contact and address optional. */
@@ -736,6 +879,64 @@ export const reportsDateRangeFormSchema = z
   }, { message: 'Start date cannot be after end date', path: ['start_date'] });
 
 export type ReportsDateRangeFormValues = z.infer<typeof reportsDateRangeFormSchema>;
+
+// ——— Super-admin finance view date range ———
+
+const SUPER_ADMIN_DATE_MIN = new Date(2020, 0, 1); // 1 Jan 2020
+
+/** Validates yyyy-mm-dd is a real calendar date (valid year, month, day) and returns the Date or null. */
+function parseFinanceDateOnly(val: string): Date | null {
+  const s = (val ?? '').trim();
+  if (!s) return null;
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  if (!match) return null;
+  const y = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const d = parseInt(match[3], 10);
+  if (m < 1 || m > 12) return null;
+  const daysInMonth = new Date(y, m, 0).getDate();
+  if (d < 1 || d > daysInMonth) return null;
+  const date = new Date(y, m - 1, d);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+/** Single date schema: required, valid day/month/year, between 1/1/2020 and today. */
+const superAdminFinanceDateSchema = z
+  .string()
+  .min(1, 'Date is required')
+  .refine(
+    (val) => {
+      const d = parseFinanceDateOnly(val);
+      if (!d) return false;
+      d.setHours(0, 0, 0, 0);
+      const min = new Date(SUPER_ADMIN_DATE_MIN);
+      min.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return d.getTime() >= min.getTime() && d.getTime() <= today.getTime();
+    },
+    { message: 'Date must be between 1/1/2020 and today; use a valid day and month (yyyy-mm-dd).' }
+  );
+
+/** Date range for super-admin Finance View: 1/1/2020 to today; valid day and month; start <= end. */
+export const superAdminFinanceDateRangeSchema = z
+  .object({
+    startDate: superAdminFinanceDateSchema,
+    endDate: superAdminFinanceDateSchema,
+  })
+  .refine(
+    (data) => {
+      const start = parseFinanceDateOnly(data.startDate);
+      const end = parseFinanceDateOnly(data.endDate);
+      if (!start || !end) return true;
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      return start.getTime() <= end.getTime();
+    },
+    { message: 'From date cannot be after To date', path: ['startDate'] }
+  );
+
+export type SuperAdminFinanceDateRangeFormValues = z.infer<typeof superAdminFinanceDateRangeSchema>;
 
 // ——— Sacco audit logs filter (sacco/audit-logs) ———
 

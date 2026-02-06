@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { SuperAdminLayout } from '@/components/layout/SuperAdminLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -41,8 +43,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColumnDef } from '@tanstack/react-table';
 import { Plus, MoreHorizontal, Edit, Trash2, CheckCircle, XCircle, Lock, Unlock, Map, Loader2 } from 'lucide-react';
@@ -50,6 +59,7 @@ import { useCountyUsers } from '@/hooks/useUserManagement';
 import { useAssignUserRoles } from '@/hooks/useUserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { countyFormSchema, type CountyFormValues } from '@/lib/zod';
 
 const COUNTY_STATUS_LABELS: Record<string, string> = {
   pending: 'Pilot',
@@ -387,6 +397,18 @@ export default function CountyManagementPage() {
   );
 }
 
+function getCountyFormDefaultValues(county: County | null): CountyFormValues {
+  return {
+    name: county?.name ?? '',
+    code: county?.code ?? '',
+    logo_url: county?.logo_url ?? '',
+    contact_email: county?.contact_email ?? '',
+    contact_phone: county?.contact_phone ?? '',
+    address: county?.address ?? '',
+    status: (county?.status as CountyFormValues['status']) ?? 'pending',
+  };
+}
+
 function CountyFormDialog({
   open,
   onOpenChange,
@@ -399,24 +421,16 @@ function CountyFormDialog({
   onSuccess: () => void;
 }) {
   const isEdit = !!county;
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [logoUrl, setLogoUrl] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [status, setStatus] = useState<string>('pending');
   const [assignEmail, setAssignEmail] = useState('');
+
+  const form = useForm<CountyFormValues>({
+    resolver: zodResolver(countyFormSchema),
+    defaultValues: getCountyFormDefaultValues(county),
+  });
 
   useEffect(() => {
     if (open) {
-      setName(county?.name ?? '');
-      setCode(county?.code ?? '');
-      setLogoUrl(county?.logo_url ?? '');
-      setContactEmail(county?.contact_email ?? '');
-      setContactPhone(county?.contact_phone ?? '');
-      setAddress(county?.address ?? '');
-      setStatus(county?.status ?? 'pending');
+      form.reset(getCountyFormDefaultValues(county));
       setAssignEmail('');
     }
   }, [open, county]);
@@ -428,40 +442,24 @@ function CountyFormDialog({
 
   const countySuperAdmin = countyUsers.find((u) => u.roles.some((r) => r.role === 'county_super_admin' && r.county_id === county?.id));
 
-  const resetForm = () => {
-    setName(county?.name ?? '');
-    setCode(county?.code ?? '');
-    setLogoUrl(county?.logo_url ?? '');
-    setContactEmail(county?.contact_email ?? '');
-    setContactPhone(county?.contact_phone ?? '');
-    setAddress(county?.address ?? '');
-    setStatus(county?.status ?? 'pending');
-    setAssignEmail('');
-  };
-
   const handleOpenChange = (next: boolean) => {
-    if (!next) resetForm();
+    if (!next) form.reset();
     onOpenChange(next);
   };
 
-  const handleSubmit = () => {
-    if (!name.trim() || !code.trim()) {
-      toast.error('Name and code are required');
-      return;
-    }
-    const statusVal = status as County['status'];
+  const onSubmit = (values: CountyFormValues) => {
+    const payloadBase = {
+      name: values.name.trim(),
+      code: values.code.trim(),
+      logo_url: values.logo_url?.trim() || null,
+      contact_email: values.contact_email?.trim() || null,
+      contact_phone: values.contact_phone?.trim() || null,
+      address: values.address?.trim() || null,
+      status: values.status as County['status'],
+    };
     if (isEdit && county) {
-      const payload: CountyUpdate = {
-        name: name.trim(),
-        code: code.trim(),
-        logo_url: logoUrl.trim() || null,
-        contact_email: contactEmail.trim() || null,
-        contact_phone: contactPhone.trim() || null,
-        address: address.trim() || null,
-        status: statusVal,
-      };
       updateMutation.mutate(
-        { id: county.id, payload },
+        { id: county.id, payload: payloadBase as CountyUpdate },
         {
           onSuccess: () => {
             onSuccess();
@@ -470,21 +468,21 @@ function CountyFormDialog({
         }
       );
     } else {
-      const payload: CountyInsert = {
-        name: name.trim(),
-        code: code.trim(),
-        logo_url: logoUrl.trim() || undefined,
-        contact_email: contactEmail.trim() || undefined,
-        contact_phone: contactPhone.trim() || undefined,
-        address: address.trim() || undefined,
-        status: statusVal,
-      };
-      createMutation.mutate(payload, {
-        onSuccess: () => {
-          onSuccess();
-          handleOpenChange(false);
-        },
-      });
+      createMutation.mutate(
+        {
+          ...payloadBase,
+          logo_url: payloadBase.logo_url ?? undefined,
+          contact_email: payloadBase.contact_email ?? undefined,
+          contact_phone: payloadBase.contact_phone ?? undefined,
+          address: payloadBase.address ?? undefined,
+        } as CountyInsert,
+        {
+          onSuccess: () => {
+            onSuccess();
+            handleOpenChange(false);
+          },
+        }
+      );
     }
   };
 
@@ -521,78 +519,143 @@ function CountyFormDialog({
             {isEdit ? 'Update county profile, branding, contact details and status.' : 'Add a new county. You can assign a County Super Admin after creation.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label>County name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nairobi" disabled={isEdit} />
-            {isEdit && <p className="text-xs text-muted-foreground">Name cannot be changed after creation.</p>}
-          </div>
-          <div className="grid gap-2">
-            <Label>Code</Label>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. NBI" disabled={isEdit} />
-            {isEdit && <p className="text-xs text-muted-foreground">Code cannot be changed after creation.</p>}
-          </div>
-          <div className="grid gap-2">
-            <Label>Logo URL</Label>
-            <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
-          </div>
-          <div className="grid gap-2">
-            <Label>Contact email</Label>
-            <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="county@example.com" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Contact phone</Label>
-            <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+254..." />
-          </div>
-          <div className="grid gap-2">
-            <Label>Address</Label>
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="County HQ address" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pilot</SelectItem>
-                <SelectItem value="active">Live</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {isEdit && county && (
-            <div className="grid gap-2 pt-2 border-t">
-              <Label>County Super Admin</Label>
-              {countySuperAdmin ? (
-                <p className="text-sm text-muted-foreground">
-                  Current: {countySuperAdmin.email} {countySuperAdmin.full_name && `(${countySuperAdmin.full_name})`}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">Not assigned</p>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>County name</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g. Nairobi" disabled={isEdit} />
+                  </FormControl>
+                  {isEdit && <p className="text-xs text-muted-foreground">Name cannot be changed after creation.</p>}
+                  <FormMessage />
+                </FormItem>
               )}
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="Assign by email"
-                  value={assignEmail}
-                  onChange={(e) => setAssignEmail(e.target.value)}
-                />
-                <Button type="button" variant="secondary" onClick={handleAssignSuperAdmin} disabled={assignRoles.isPending || !assignEmail.trim()}>
-                  {assignRoles.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
-                </Button>
+            />
+            <FormField
+              control={form.control}
+              name="code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Code</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g. NBI" disabled={isEdit} />
+                  </FormControl>
+                  {isEdit && <p className="text-xs text-muted-foreground">Code cannot be changed after creation.</p>}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="logo_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Logo URL</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="https://..." />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contact email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} placeholder="county@example.com" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contact phone</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="+254..." />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="County HQ address" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pending">Pilot</SelectItem>
+                      <SelectItem value="active">Live</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {isEdit && county && (
+              <div className="grid gap-2 pt-2 border-t">
+                <p className="text-sm font-medium">County Super Admin</p>
+                {countySuperAdmin ? (
+                  <p className="text-sm text-muted-foreground">
+                    Current: {countySuperAdmin.email} {countySuperAdmin.full_name && `(${countySuperAdmin.full_name})`}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not assigned</p>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Assign by email"
+                    value={assignEmail}
+                    onChange={(e) => setAssignEmail(e.target.value)}
+                  />
+                  <Button type="button" variant="secondary" onClick={handleAssignSuperAdmin} disabled={assignRoles.isPending || !assignEmail.trim()}>
+                    {assignRoles.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            {isEdit ? 'Save changes' : 'Create county'}
-          </Button>
-        </DialogFooter>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {isEdit ? 'Save changes' : 'Create county'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
