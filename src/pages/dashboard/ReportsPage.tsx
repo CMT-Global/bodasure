@@ -1,10 +1,19 @@
 import { useState, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { useAuth } from '@/hooks/useAuth';
@@ -41,6 +50,7 @@ import {
 } from '@/hooks/useReports';
 import { useUserActivityLogs, UserActivityLog } from '@/hooks/useUserManagement';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { reportsDateRangeFormSchema, type ReportsDateRangeFormValues } from '@/lib/zod';
 
 export default function ReportsPage() {
   const { profile, roles } = useAuth();
@@ -50,13 +60,26 @@ export default function ReportsPage() {
     return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
   }, [profile, roles]);
 
-  // Date range state
+  // Date range state (used by report hooks)
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 1);
     return format(date, 'yyyy-MM-dd');
   });
   const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+
+  const dateRangeForm = useForm<ReportsDateRangeFormValues>({
+    resolver: zodResolver(reportsDateRangeFormSchema),
+    defaultValues: {
+      start_date: startDate,
+      end_date: endDate,
+    },
+  });
+
+  const onDateRangeSubmit = (values: ReportsDateRangeFormValues) => {
+    setStartDate(values.start_date);
+    setEndDate(values.end_date);
+  };
 
   // Fetch all revenue data
   const { data: revenueByDate = [], isLoading: loadingDate } = useRevenueByDateRange(countyId, startDate, endDate);
@@ -1361,37 +1384,59 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Date Range Filter */}
+        {/* Date Range Filter (validation from @/lib/zod: min 1/1/2020, max today) */}
         <Card>
           <CardHeader className="pb-3 sm:pb-6">
             <CardTitle className="text-base sm:text-lg">Date Range Filter</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Select the date range for revenue analysis</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Select the date range for revenue analysis (min 1/1/2020, max today)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
-              <div className="space-y-2 flex-1 w-full">
-                <Label className="text-sm">Start Date</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="min-h-[44px] text-base"
+            <Form {...dateRangeForm}>
+              <form onSubmit={dateRangeForm.handleSubmit(onDateRangeSubmit)} className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
+                <FormField
+                  control={dateRangeForm.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem className="flex-1 w-full">
+                      <FormLabel className="text-sm">Start Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          min="2020-01-01"
+                          max={format(new Date(), 'yyyy-MM-dd')}
+                          className="min-h-[44px] text-base"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2 flex-1 w-full">
-                <Label className="text-sm">End Date</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="min-h-[44px] text-base"
+                <FormField
+                  control={dateRangeForm.control}
+                  name="end_date"
+                  render={({ field }) => (
+                    <FormItem className="flex-1 w-full">
+                      <FormLabel className="text-sm">End Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          min="2020-01-01"
+                          max={format(new Date(), 'yyyy-MM-dd')}
+                          className="min-h-[44px] text-base"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <Button variant="outline" className="w-full sm:w-auto min-h-[44px]">
-                <Calendar className="mr-2 h-4 w-4" />
-                Apply Filter
-              </Button>
-            </div>
+                <Button type="submit" variant="outline" className="w-full sm:w-auto min-h-[44px]">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Apply Filter
+                </Button>
+              </form>
+            </Form>
           </CardContent>
         </Card>
 

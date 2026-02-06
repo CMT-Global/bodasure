@@ -2,6 +2,21 @@ import { z } from 'zod';
 
 export { z };
 
+// ——— Textarea (shared limit for UI and validation) ———
+
+/** Textarea character limit: plain text, max 1000 characters. */
+export const TEXTAREA_MAX_CHARS = 1000;
+
+/** Returns true if the text exceeds the maximum character count. */
+export function isOverCharLimit(value: string, maxChars: number = TEXTAREA_MAX_CHARS): boolean {
+  return value.length > maxChars;
+}
+
+/** Schema for a string that must not exceed the textarea character limit. */
+export const textareaStringSchema = z
+  .string()
+  .max(TEXTAREA_MAX_CHARS, `Please write less than ${TEXTAREA_MAX_CHARS} characters.`);
+
 // ——— Rider validation (dashboard/riders and elsewhere) ———
 
 /** Name: alphabet (letters) and spaces only, 2–40 chars */
@@ -9,13 +24,13 @@ export const riderNameSchema = z
   .string()
   .min(2, 'Name must be at least 2 characters')
   .max(40, 'Name must not exceed 40 characters')
-  .regex(/^[a-zA-Z\s]+$/, 'Name must contain only letters and spaces');
+  .refine((val) => /^[a-zA-Z\s]+$/.test(val), { message: 'Name must contain only letters and spaces' });
 
 /** Phone: numbers only (digits); optional + at start; 5–15 digits */
 export const riderPhoneSchema = z
   .string()
   .min(1, 'Phone is required')
-  .regex(/^\+?\d{5,15}$/, 'Phone must contain only numbers between 5 and 15, optional + at start');
+  .refine((val) => /^\+?\d{5,15}$/.test(val), { message: 'Phone must contain only numbers between 5 and 15, optional + at start' });
 
 /** Optional date of birth: dd/mm/yyyy, yyyy-mm-dd, or mm/dd/yyyy; max = today (current date); year min 1900 */
 export const riderDateOfBirthSchema = z
@@ -103,7 +118,7 @@ export const riderLicenseNumberSchema = z
 export const riderIdNumberSchema = z
   .string()
   .min(2, 'ID number must be at least 2 characters')
-  .regex(/^[a-zA-Z0-9]+$/, 'ID must be alphanumeric (letters and numbers only); no special characters');
+  .refine((val) => /^[a-zA-Z0-9]+$/.test(val), { message: 'ID must be alphanumeric (letters and numbers only); no special characters' });
 
 /** Address: optional; alphanumeric, spaces, comma (,), plus (+), slash (/), hyphen (-) */
 export const riderAddressSchema = z
@@ -140,7 +155,7 @@ export type RiderFormValues = z.infer<ReturnType<typeof riderFormSchema>>;
 
 const currentYear = new Date().getFullYear();
 
-/** Registration number: required, trimmed/uppercase, 5–20 chars, letters, numbers, hyphens, slashes */
+/** Registration number: required, trimmed/uppercase, 5–20 chars, letters, numbers, hyphens, slashes, spaces */
 export const motorbikeRegistrationNumberSchema = z
   .string()
   .min(1, 'Registration number is required')
@@ -150,7 +165,7 @@ export const motorbikeRegistrationNumberSchema = z
       .string()
       .min(5, 'Must be at least 5 characters')
       .max(20, 'Must be at most 20 characters')
-      .regex(/^[A-Z0-9\-/]+$/, 'Only letters, numbers, hyphens and slashes allowed')
+      .refine((val) => /^[A-Z0-9\-/ ]+$/.test(val), { message: 'Only letters, numbers, hyphens, slashes and spaces allowed' })
   );
 
 /** Make: optional; if set, 2–50 chars, letters, numbers, spaces */
@@ -166,7 +181,7 @@ export const motorbikeMakeSchema = z
           .string()
           .min(2, 'Must be at least 2 characters')
           .max(50, 'Must be at most 50 characters')
-          .regex(/^[a-zA-Z0-9 ]+$/, 'Only letters, numbers, and spaces allowed'),
+          .refine((val) => /^[a-zA-Z0-9 ]+$/.test(val), { message: 'Only letters, numbers, and spaces allowed' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));
@@ -184,7 +199,7 @@ export const motorbikeModelSchema = z
           .string()
           .min(1, 'Must be at least 1 character')
           .max(50, 'Must be at most 50 characters')
-          .regex(/^[a-zA-Z0-9 ]+$/, 'Only letters, numbers, and spaces allowed'),
+          .refine((val) => /^[a-zA-Z0-9 ]+$/.test(val), { message: 'Only letters, numbers, and spaces allowed' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));
@@ -215,7 +230,7 @@ export const motorbikeColorSchema = z
           .string()
           .min(3, 'Must be at least 3 characters')
           .max(30, 'Must be at most 30 characters')
-          .regex(/^[a-zA-Z ]+$/, 'Letters and spaces only'),
+          .refine((val) => /^[a-zA-Z ]+$/.test(val), { message: 'Letters and spaces only' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));
@@ -233,7 +248,7 @@ export const motorbikeChassisNumberSchema = z
           .string()
           .min(5, 'Must be at least 5 characters')
           .max(30, 'Must be at most 30 characters')
-          .regex(/^[a-zA-Z0-9]+$/, 'Alphanumeric only'),
+          .refine((val) => /^[a-zA-Z0-9]+$/.test(val), { message: 'Alphanumeric only' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));
@@ -251,7 +266,7 @@ export const motorbikeEngineNumberSchema = z
           .string()
           .min(5, 'Must be at least 5 characters')
           .max(30, 'Must be at most 30 characters')
-          .regex(/^[a-zA-Z0-9]+$/, 'Alphanumeric only'),
+          .refine((val) => /^[a-zA-Z0-9]+$/.test(val), { message: 'Alphanumeric only' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));
@@ -366,7 +381,7 @@ export const stageNameSchema = z
   .string()
   .min(2, 'Name must be at least 2 characters')
   .max(80, 'Name must not exceed 80 characters')
-  .regex(/^[a-zA-Z0-9\s\-]+$/, 'Stage name must contain only letters (alphabet), numbers, spaces, and hyphen (-)');
+  .refine((val) => /^[a-zA-Z0-9\s\-]+$/.test(val), { message: 'Stage name must contain only letters (alphabet), numbers, spaces, and hyphen (-)' });
 
 /** Optional capacity: when provided, non-negative integer 0–999999 */
 export const stageCapacitySchema = z
@@ -475,3 +490,266 @@ export const penaltyIssuanceFormSchema = z.object({
 });
 
 export type PenaltyIssuanceFormValues = z.infer<typeof penaltyIssuanceFormSchema>;
+
+// ——— Verification search (dashboard/verification) ———
+
+/** Search form for verification page: by name (letters/spaces, min 2) or by plate (alphanumeric, hyphen, slash; 5–20 chars). */
+export const verificationSearchFormSchema = z
+  .object({
+    search_type: z.enum(['name', 'plate']),
+    search_query: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    const s = (data.search_query ?? '').trim();
+    if (s === '') return;
+    if (data.search_type === 'name') {
+      if (s.length < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['search_query'], message: 'Name must be at least 2 characters' });
+        return;
+      }
+      if (!/^[a-zA-Z\s]+$/.test(s)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['search_query'], message: 'Name must contain only letters (alphabet) and spaces' });
+        return;
+      }
+      return;
+    }
+    if (s.length < 5 || s.length > 20) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['search_query'], message: 'Plate must be 5–20 characters' });
+      return;
+    }
+    if (!/^[A-Za-z0-9\-/]+$/.test(s)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['search_query'], message: 'Plate: only letters, numbers, hyphen, or slash' });
+    }
+  });
+
+export type VerificationSearchFormValues = z.infer<typeof verificationSearchFormSchema>;
+
+// ——— Reports date range (dashboard/reports) ———
+
+const REPORTS_DATE_MIN = new Date(2020, 0, 1); // 1 Jan 2020
+
+function parseDateOnly(val: string): Date | null {
+  const s = (val ?? '').trim();
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Start/end date for reports: min 1/1/2020, max today; start must be <= end. */
+export const reportsDateRangeFormSchema = z
+  .object({
+    start_date: z
+      .string()
+      .min(1, 'Start date is required')
+      .refine(
+        (val) => {
+          const d = parseDateOnly(val);
+          if (!d) return false;
+          d.setHours(0, 0, 0, 0);
+          const min = new Date(REPORTS_DATE_MIN);
+          min.setHours(0, 0, 0, 0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return d.getTime() >= min.getTime() && d.getTime() <= today.getTime();
+        },
+        { message: 'Start date must be between 1/1/2020 and today' }
+      ),
+    end_date: z
+      .string()
+      .min(1, 'End date is required')
+      .refine(
+        (val) => {
+          const d = parseDateOnly(val);
+          if (!d) return false;
+          d.setHours(0, 0, 0, 0);
+          const min = new Date(REPORTS_DATE_MIN);
+          min.setHours(0, 0, 0, 0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return d.getTime() >= min.getTime() && d.getTime() <= today.getTime();
+        },
+        { message: 'End date must be between 1/1/2020 and today' }
+      ),
+  })
+  .refine((data) => {
+    const start = parseDateOnly(data.start_date);
+    const end = parseDateOnly(data.end_date);
+    if (!start || !end) return true;
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    return start.getTime() <= end.getTime();
+  }, { message: 'Start date cannot be after end date', path: ['start_date'] });
+
+export type ReportsDateRangeFormValues = z.infer<typeof reportsDateRangeFormSchema>;
+
+// ——— County user management (dashboard/users) ———
+
+/** Create county user form: name, email, optional phone, password, at least one role. */
+export const countyUserCreateFormSchema = z.object({
+  full_name: riderNameSchema,
+  email: z.string().min(1, 'Email is required').email('Invalid email'),
+  phone: saccoContactPhoneSchema,
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  roles: z.array(z.string()).min(1, 'Assign at least one role'),
+});
+
+export type CountyUserCreateFormValues = z.infer<typeof countyUserCreateFormSchema>;
+
+/** Edit county user form: name and optional phone. */
+export const countyUserEditFormSchema = z.object({
+  full_name: riderNameSchema,
+  phone: saccoContactPhoneSchema,
+});
+
+export type CountyUserEditFormValues = z.infer<typeof countyUserEditFormSchema>;
+
+/** Manage roles form: array of role strings (can be empty to remove all). */
+export const countyUserRolesFormSchema = z.object({
+  roles: z.array(z.string()),
+});
+
+export type CountyUserRolesFormValues = z.infer<typeof countyUserRolesFormSchema>;
+
+/** Reset password form: new password min 6 chars, must match confirm. */
+export const countyUserResetPasswordFormSchema = z
+  .object({
+    new_password: z.string().min(6, 'Password must be at least 6 characters'),
+    confirm_password: z.string().min(1, 'Please confirm password'),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: 'Passwords do not match',
+    path: ['confirm_password'],
+  });
+
+export type CountyUserResetPasswordFormValues = z.infer<typeof countyUserResetPasswordFormSchema>;
+
+// ——— County settings (dashboard/settings) ———
+
+const SETTINGS_DESCRIPTION_MAX_CHARS = 1000;
+
+/** Permit frequency & grace period form (Permit Settings card). */
+export const settingsPermitFormSchema = z.object({
+  defaultFrequency: z.enum(['weekly', 'monthly', 'annual']),
+  gracePeriodDays: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : typeof v === 'string' ? parseInt(v, 10) : v))
+    .pipe(z.number().int().min(0, 'Grace period must be 0 or more').optional()),
+});
+
+export type SettingsPermitFormValues = z.infer<typeof settingsPermitFormSchema>;
+
+/** Permit type add/edit dialog (name, description, amount, duration_days). */
+export const settingsPermitTypeFormSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(120, 'Name must not exceed 120 characters'),
+  description: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.length <= SETTINGS_DESCRIPTION_MAX_CHARS, {
+      message: `Maximum ${SETTINGS_DESCRIPTION_MAX_CHARS} characters allowed.`,
+    }),
+  amount: z
+    .union([z.string(), z.number()])
+    .refine((v) => v !== '', 'Amount is required')
+    .transform((v) => (typeof v === 'string' ? parseFloat(v) : v))
+    .pipe(z.number().min(0, 'Amount must be 0 or more')),
+  duration_days: z
+    .union([z.string(), z.number()])
+    .refine((v) => v !== '', 'Duration (days) is required')
+    .transform((v) => (typeof v === 'string' ? parseInt(v, 10) : v))
+    .pipe(z.number().int().min(1, 'Duration must be at least 1 day')),
+});
+
+export type SettingsPermitTypeFormValues = z.infer<typeof settingsPermitTypeFormSchema>;
+
+/** Penalty type add/edit dialog. */
+export const settingsPenaltyTypeFormSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(120, 'Name must not exceed 120 characters'),
+  description: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.length <= SETTINGS_DESCRIPTION_MAX_CHARS, {
+      message: `Maximum ${SETTINGS_DESCRIPTION_MAX_CHARS} characters allowed.`,
+    }),
+  amount: z
+    .union([z.string(), z.number()])
+    .refine((v) => v !== '', 'Amount is required')
+    .transform((v) => (typeof v === 'string' ? parseFloat(v) : v))
+    .pipe(z.number().min(0, 'Amount must be 0 or more')),
+});
+
+export type SettingsPenaltyTypeFormValues = z.infer<typeof settingsPenaltyTypeFormSchema>;
+
+/** Escalation rule add/edit dialog. */
+export const settingsEscalationFormSchema = z.object({
+  offenseCount: z
+    .union([z.string(), z.number()])
+    .refine((v) => v !== '', 'Offense count is required')
+    .transform((v) => (typeof v === 'string' ? parseInt(v, 10) : v))
+    .pipe(z.number().int().min(2, 'Offense count must be at least 2')),
+  multiplier: z
+    .union([z.string(), z.number()])
+    .refine((v) => v !== '', 'Multiplier is required')
+    .transform((v) => (typeof v === 'string' ? parseFloat(v) : v))
+    .pipe(z.number().min(1, 'Multiplier must be at least 1')),
+  description: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.length <= SETTINGS_DESCRIPTION_MAX_CHARS, {
+      message: `Maximum ${SETTINGS_DESCRIPTION_MAX_CHARS} characters allowed.`,
+    }),
+});
+
+export type SettingsEscalationFormValues = z.infer<typeof settingsEscalationFormSchema>;
+
+/** Revenue share rule add/edit dialog. Conditional: percentage 0–100 when percentage; fixedAmount >= 0 when fixed_per_rider. */
+export const settingsRevenueShareFormSchema = z
+  .object({
+    saccoId: z.string(),
+    shareType: z.enum(['none', 'percentage', 'fixed_per_rider']),
+    percentage: z.string().optional(),
+    fixedAmount: z.string().optional(),
+    period: z.enum(['weekly', 'monthly', 'annual']).optional(),
+    activePermitsOnly: z.boolean(),
+    complianceThreshold: z.string().optional(),
+    isActive: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.shareType === 'none') return;
+    if (!data.saccoId || data.saccoId.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['saccoId'], message: 'Please select a Sacco' });
+      return;
+    }
+    if (data.shareType === 'percentage') {
+      const p = data.percentage?.trim();
+      if (!p) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['percentage'], message: 'Please enter percentage amount' });
+        return;
+      }
+      const n = parseFloat(p);
+      if (isNaN(n) || n < 0 || n > 100) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['percentage'], message: 'Percentage must be between 0 and 100' });
+      }
+      return;
+    }
+    if (data.shareType === 'fixed_per_rider') {
+      const a = data.fixedAmount?.trim();
+      if (!a) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fixedAmount'], message: 'Please enter fixed amount per rider' });
+        return;
+      }
+      const n = parseFloat(a);
+      if (isNaN(n) || n < 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fixedAmount'], message: 'Amount must be 0 or more' });
+      }
+      return;
+    }
+    if (data.complianceThreshold && data.complianceThreshold.trim() !== '') {
+      const n = parseFloat(data.complianceThreshold.trim());
+      if (isNaN(n) || n < 0 || n > 100) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['complianceThreshold'], message: 'Compliance threshold must be between 0 and 100' });
+      }
+    }
+  });
+
+export type SettingsRevenueShareFormValues = z.infer<typeof settingsRevenueShareFormSchema>;

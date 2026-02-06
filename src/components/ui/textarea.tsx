@@ -1,14 +1,9 @@
 import * as React from "react";
 
+import { TEXTAREA_MAX_CHARS } from "@/lib/zod";
 import { cn } from "@/lib/utils";
 
-/** Textarea character limit: plain text, max 500 characters. */
-export const TEXTAREA_MAX_CHARS = 1000;
-
-/** Returns true if the text exceeds the maximum character count. */
-export function isOverCharLimit(value: string, maxChars: number = TEXTAREA_MAX_CHARS): boolean {
-  return value.length > maxChars;
-}
+export { TEXTAREA_MAX_CHARS, isOverCharLimit } from "@/lib/zod";
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   /** When true (default), show red message below when length exceeds TEXTAREA_MAX_CHARS. */
