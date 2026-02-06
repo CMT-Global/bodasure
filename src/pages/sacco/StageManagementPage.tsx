@@ -1,7 +1,17 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useSaccos, useStages, useSaccoMembers, Stage, type RiderWithDetails } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import {
   Select,
   SelectContent,
@@ -46,6 +56,7 @@ import {
 } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { stageFormSchema, STAGE_CAPACITY_MIN, STAGE_CAPACITY_MAX, type StageFormValues } from '@/lib/zod';
 
 const PROBLEMATIC_COMPLIANCE_THRESHOLD = 50;
 const PROBLEMATIC_PENALTIES_THRESHOLD = 3;
@@ -350,19 +361,39 @@ function RequestStageDialog({
   saccoId: string;
 }) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [location, setLocation] = useState('');
-  const [capacity, setCapacity] = useState('');
+
+  const form = useForm<StageFormValues>({
+    resolver: zodResolver(stageFormSchema),
+    defaultValues: {
+      name: '',
+      location: '',
+      capacity: '',
+      sacco_id: saccoId,
+      status: 'pending',
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: '',
+        location: '',
+        capacity: '',
+        sacco_id: saccoId,
+        status: 'pending',
+      });
+    }
+  }, [open, saccoId, form]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: StageFormValues) => {
       const payload = {
-        name: name.trim(),
-        location: location.trim() || null,
-        capacity: capacity ? parseInt(capacity, 10) : null,
+        name: values.name.trim(),
+        location: (values.location ?? '').trim() || null,
+        capacity: values.capacity?.trim() ? parseInt(values.capacity.trim(), 10) : null,
         county_id: countyId,
-        sacco_id: saccoId,
-        status: 'pending' as const,
+        sacco_id: values.sacco_id,
+        status: values.status,
       };
       const { error } = await supabase.from('stages').insert([payload]);
       if (error) throw error;
@@ -370,9 +401,7 @@ function RequestStageDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stages'] });
       toast.success('Stage request submitted. County approval required.');
-      setName('');
-      setLocation('');
-      setCapacity('');
+      form.reset();
       onOpenChange(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -387,47 +416,77 @@ function RequestStageDialog({
             Submit a new stage for county approval. Name and location will be reviewed.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label>Name *</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Central Stage"
-            />
-          </div>
-          <div>
-            <Label>Location</Label>
-            <Input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Address or landmark"
-            />
-          </div>
-          <div>
-            <Label>Capacity (optional)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              placeholder="Max members"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation">
-            Cancel
-          </Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !name.trim()}
-            className="min-h-[44px] touch-manipulation"
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+            className="space-y-4"
           >
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Submit request
-          </Button>
-        </DialogFooter>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Central Stage" className="min-h-[44px]" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Address or landmark" className="min-h-[44px]" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="capacity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Capacity (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={STAGE_CAPACITY_MIN}
+                      max={STAGE_CAPACITY_MAX}
+                      placeholder={`Max members (${STAGE_CAPACITY_MIN}–${STAGE_CAPACITY_MAX})`}
+                      className="min-h-[44px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="min-h-[44px] touch-manipulation"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={mutation.isPending}
+                className="min-h-[44px] touch-manipulation"
+              >
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Submit request
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

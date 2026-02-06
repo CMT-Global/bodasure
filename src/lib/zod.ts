@@ -151,6 +151,24 @@ export const riderFormSchema = (needsCountySelection: boolean) =>
 
 export type RiderFormValues = z.infer<ReturnType<typeof riderFormSchema>>;
 
+/** Sacco registration support form schema (sacco/registration-support). Same fields as rider form; sacco_id required when saccos exist; status limited to pending/approved. */
+export const registrationSupportFormSchema = (hasSaccos: boolean) =>
+  z.object({
+    full_name: riderNameSchema,
+    id_number: riderIdNumberSchema,
+    phone: riderPhoneSchema,
+    email: z.string().email('Invalid email').optional().or(z.literal('')),
+    date_of_birth: riderDateOfBirthSchema,
+    address: riderAddressSchema,
+    license_number: riderLicenseNumberSchema,
+    license_expiry: riderLicenseExpirySchema,
+    sacco_id: hasSaccos ? z.string().min(1, 'Sacco is required') : z.string().optional(),
+    stage_id: z.string().optional(),
+    status: z.enum(['pending', 'approved']),
+  });
+
+export type RegistrationSupportFormValues = z.infer<ReturnType<typeof registrationSupportFormSchema>>;
+
 // ——— Motorbike validation (dashboard/motorbikes add/edit) ———
 
 const currentYear = new Date().getFullYear();
@@ -360,6 +378,17 @@ export const saccoFormSchema = z.object({
 
 export type SaccoFormValues = z.infer<typeof saccoFormSchema>;
 
+/** Sacco profile form (sacco/settings). Same field rules as sacco form; no status. */
+export const saccoProfileFormSchema = z.object({
+  name: riderNameSchema,
+  registration_number: saccoRegistrationNumberSchema,
+  contact_email: z.string().email('Invalid email').optional().or(z.literal('')),
+  contact_phone: saccoContactPhoneSchema,
+  address: riderAddressSchema,
+});
+
+export type SaccoProfileFormValues = z.infer<typeof saccoProfileFormSchema>;
+
 // ——— Welfare group validation (dashboard/welfare-groups add/edit) ———
 
 /** Welfare group add/edit form schema. Same rules as sacco: name required; contact and address optional. */
@@ -376,6 +405,10 @@ export type WelfareGroupFormValues = z.infer<typeof welfareGroupFormSchema>;
 
 // ——— Stage validation (dashboard/stages add/edit) ———
 
+/** Stage capacity: when provided, must be at least 1 member (import for UI min/max). */
+export const STAGE_CAPACITY_MIN = 1;
+export const STAGE_CAPACITY_MAX = 99;
+
 /** Stage name: letters, numbers, spaces, hyphen; 2–80 chars */
 export const stageNameSchema = z
   .string()
@@ -383,7 +416,7 @@ export const stageNameSchema = z
   .max(80, 'Name must not exceed 80 characters')
   .refine((val) => /^[a-zA-Z0-9\s\-]+$/.test(val), { message: 'Stage name must contain only letters (alphabet), numbers, spaces, and hyphen (-)' });
 
-/** Optional capacity: when provided, non-negative integer 0–999999 */
+/** Optional capacity: when provided, integer STAGE_CAPACITY_MIN–STAGE_CAPACITY_MAX (at least 1 member). */
 export const stageCapacitySchema = z
   .string()
   .optional()
@@ -392,9 +425,9 @@ export const stageCapacitySchema = z
     (val) => {
       if (!val || val.trim() === '') return true;
       const n = parseInt(val.trim(), 10);
-      return !isNaN(n) && n >= 0 && n <= 99;
+      return !isNaN(n) && n >= STAGE_CAPACITY_MIN && n <= STAGE_CAPACITY_MAX;
     },
-    { message: 'Capacity must be a number from 0 to 99' }
+    { message: `Capacity must be at least ${STAGE_CAPACITY_MIN} and at most ${STAGE_CAPACITY_MAX}` }
   );
 
 /** Stage add/edit form schema. */
@@ -407,6 +440,98 @@ export const stageFormSchema = z.object({
 });
 
 export type StageFormValues = z.infer<typeof stageFormSchema>;
+
+// ——— Discipline incident validation (sacco/discipline) ———
+
+/** Title for discipline/incident: required, 1–200 chars. */
+export const disciplineIncidentTitleSchema = z
+  .string()
+  .min(1, 'Title is required')
+  .max(100, 'Title must not exceed 100 characters');
+
+/** Description for discipline/incident: required, max TEXTAREA limit. */
+export const disciplineIncidentDescriptionSchema = z
+  .string()
+  .min(1, 'Description is required')
+  .max(TEXTAREA_MAX_CHARS, `Please write less than ${TEXTAREA_MAX_CHARS} characters.`);
+
+/** Optional long text (e.g. action taken): when provided, max TEXTAREA limit. */
+export const disciplineIncidentNotesSchema = z
+  .string()
+  .optional()
+  .or(z.literal(''))
+  .refine(
+    (val) => !val || val.length <= TEXTAREA_MAX_CHARS,
+    { message: `Please write less than ${TEXTAREA_MAX_CHARS} characters.` }
+  );
+
+export const disciplineIncidentSeveritySchema = z.enum(['low', 'medium', 'high', 'critical']);
+
+/** Warning form (sacco discipline: Issue Warning). */
+export const disciplineWarningFormSchema = z.object({
+  member_id: z.string().min(1, 'Please select a member'),
+  title: disciplineIncidentTitleSchema,
+  description: disciplineIncidentDescriptionSchema,
+  severity: disciplineIncidentSeveritySchema,
+});
+
+export type DisciplineWarningFormValues = z.infer<typeof disciplineWarningFormSchema>;
+
+/** Disciplinary action form (sacco discipline: Record Disciplinary). */
+export const disciplineDisciplinaryFormSchema = z.object({
+  member_id: z.string().min(1, 'Please select a member'),
+  title: disciplineIncidentTitleSchema,
+  description: disciplineIncidentDescriptionSchema,
+  action_taken: disciplineIncidentNotesSchema,
+  severity: disciplineIncidentSeveritySchema,
+});
+
+export type DisciplineDisciplinaryFormValues = z.infer<typeof disciplineDisciplinaryFormSchema>;
+
+/** Incident report form (sacco discipline: Submit Incident). */
+export const disciplineIncidentFormSchema = z.object({
+  member_id: z.string().min(1, 'Please select a member'),
+  title: disciplineIncidentTitleSchema,
+  description: disciplineIncidentDescriptionSchema,
+  severity: disciplineIncidentSeveritySchema,
+  submit_to_county: z.boolean(),
+});
+
+export type DisciplineIncidentFormValues = z.infer<typeof disciplineIncidentFormSchema>;
+
+// ——— Sacco communication (sacco/communication) ———
+
+/** Subject for sent message: required, 1–200 chars. */
+export const communicationMessageSubjectSchema = z
+  .string()
+  .min(1, 'Subject is required')
+  .max(100, 'Subject must not exceed 100 characters');
+
+/** Message body: required, max TEXTAREA limit. */
+export const communicationMessageBodySchema = z
+  .string()
+  .min(1, 'Message is required')
+  .max(TEXTAREA_MAX_CHARS, `Please write less than ${TEXTAREA_MAX_CHARS} characters.`);
+
+/** Send message form (sacco communication). Stage required when recipient_type is 'stage'. */
+export const saccoSendMessageFormSchema = z
+  .object({
+    recipient_type: z.enum(['all', 'stage', 'non-compliant']),
+    stage_id: z.string().optional(),
+    subject: communicationMessageSubjectSchema,
+    body: communicationMessageBodySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.recipient_type === 'stage' && (!data.stage_id || data.stage_id.trim() === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['stage_id'],
+        message: 'Please select a stage',
+      });
+    }
+  });
+
+export type SaccoSendMessageFormValues = z.infer<typeof saccoSendMessageFormSchema>;
 
 // ——— Permit payment / new payment (dashboard/permits + dashboard/payments) ———
 // Used by PaymentDialog: "Issue Permit" on dashboard/permits and "New Payment" on dashboard/payments.
@@ -581,6 +706,58 @@ export const reportsDateRangeFormSchema = z
   }, { message: 'Start date cannot be after end date', path: ['start_date'] });
 
 export type ReportsDateRangeFormValues = z.infer<typeof reportsDateRangeFormSchema>;
+
+// ——— Sacco audit logs filter (sacco/audit-logs) ———
+
+/** Optional date string: when provided, must be valid date between 1/1/2020 and today. */
+const auditLogDateSchema = z
+  .string()
+  .optional()
+  .or(z.literal(''))
+  .refine(
+    (val) => {
+      const s = (val ?? '').trim();
+      if (!s) return true;
+      const d = parseDateOnly(s);
+      if (!d) return false;
+      d.setHours(0, 0, 0, 0);
+      const min = new Date(REPORTS_DATE_MIN);
+      min.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return d.getTime() >= min.getTime() && d.getTime() <= today.getTime();
+    },
+    { message: 'Date must be between 1/1/2020 and today' }
+  );
+
+/** Sacco audit logs filter form. All fields optional; action type max 80 chars; when both dates set, start must be <= end. */
+export const saccoAuditLogsFilterFormSchema = z
+  .object({
+    actionType: z
+      .string()
+      .optional()
+      .or(z.literal(''))
+      .refine((val) => !val || val.trim().length <= 80, { message: 'Action type must not exceed 80 characters' }),
+    entityType: z.string().optional().or(z.literal('')),
+    startDate: auditLogDateSchema,
+    endDate: auditLogDateSchema,
+  })
+  .refine(
+    (data) => {
+      const startStr = (data.startDate ?? '').trim();
+      const endStr = (data.endDate ?? '').trim();
+      if (!startStr || !endStr) return true;
+      const start = parseDateOnly(startStr);
+      const end = parseDateOnly(endStr);
+      if (!start || !end) return true;
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      return start.getTime() <= end.getTime();
+    },
+    { message: 'Start date cannot be after end date', path: ['startDate'] }
+  );
+
+export type SaccoAuditLogsFilterFormValues = z.infer<typeof saccoAuditLogsFilterFormSchema>;
 
 // ——— County user management (dashboard/users) ———
 

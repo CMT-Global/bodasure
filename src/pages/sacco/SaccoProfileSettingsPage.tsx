@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useSaccos } from '@/hooks/useData';
@@ -13,6 +15,14 @@ import {
   useDeleteSaccoDocument,
 } from '@/hooks/useSaccoManagement';
 import { useCountyUsers } from '@/hooks/useUserManagement';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import {
   Select,
   SelectContent,
@@ -70,6 +80,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { saccoProfileFormSchema, type SaccoProfileFormValues } from '@/lib/zod';
 
 export default function SaccoProfileSettingsPage() {
   const { profile, roles } = useAuth();
@@ -93,13 +104,15 @@ export default function SaccoProfileSettingsPage() {
   const deleteDocument = useDeleteSaccoDocument();
   const [documentToDelete, setDocumentToDelete] = useState<{ index: number; type: string } | null>(null);
 
-  // Form state
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    registration_number: '',
-    contact_email: '',
-    contact_phone: '',
-    address: '',
+  const profileForm = useForm<SaccoProfileFormValues>({
+    resolver: zodResolver(saccoProfileFormSchema),
+    defaultValues: {
+      name: '',
+      registration_number: '',
+      contact_email: '',
+      contact_phone: '',
+      address: '',
+    },
   });
 
   const [showAssignRoleDialog, setShowAssignRoleDialog] = useState(false);
@@ -110,7 +123,7 @@ export default function SaccoProfileSettingsPage() {
   // Update form when sacco data loads
   useEffect(() => {
     if (sacco) {
-      setProfileForm({
+      profileForm.reset({
         name: sacco.name || '',
         registration_number: sacco.registration_number || '',
         contact_email: sacco.contact_email || '',
@@ -118,7 +131,7 @@ export default function SaccoProfileSettingsPage() {
         address: sacco.address || '',
       });
     }
-  }, [sacco]);
+  }, [sacco, profileForm]);
 
   // Auto-select first sacco
   useEffect(() => {
@@ -127,11 +140,11 @@ export default function SaccoProfileSettingsPage() {
     }
   }, [saccos, saccoId]);
 
-  const handleUpdateProfile = async () => {
+  const handleUpdateProfile = async (values: SaccoProfileFormValues) => {
     if (!saccoId) return;
     updateProfile.mutate({
       saccoId,
-      updates: profileForm,
+      updates: values,
     });
   };
 
@@ -283,78 +296,122 @@ export default function SaccoProfileSettingsPage() {
                   <CardDescription className="text-sm">Update your sacco or welfare profile information.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Sacco Name *</Label>
-                      <Input
-                        id="name"
-                        value={profileForm.name}
-                        onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                        disabled={updateProfile.isPending}
-                        className="min-h-[44px]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="registration_number">Registration Number</Label>
-                      <Input
-                        id="registration_number"
-                        value={profileForm.registration_number}
-                        onChange={(e) => setProfileForm({ ...profileForm, registration_number: e.target.value })}
-                        disabled={updateProfile.isPending}
-                        className="min-h-[44px]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="contact_email">Contact Email</Label>
-                      <Input
-                        id="contact_email"
-                        type="email"
-                        value={profileForm.contact_email}
-                        onChange={(e) => setProfileForm({ ...profileForm, contact_email: e.target.value })}
-                        disabled={updateProfile.isPending}
-                        className="min-h-[44px]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="contact_phone">Contact Phone</Label>
-                      <Input
-                        id="contact_phone"
-                        value={profileForm.contact_phone}
-                        onChange={(e) => setProfileForm({ ...profileForm, contact_phone: e.target.value })}
-                        disabled={updateProfile.isPending}
-                        className="min-h-[44px]"
-                      />
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Input
-                        id="address"
-                        value={profileForm.address}
-                        onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
-                        disabled={updateProfile.isPending}
-                        className="min-h-[44px]"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleUpdateProfile}
-                      disabled={updateProfile.isPending || !profileForm.name}
-                      className="gap-2 min-h-[44px] touch-manipulation"
-                    >
-                      {updateProfile.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Saving…
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4" />
-                          Save Changes
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Form {...profileForm}>
+                    <form onSubmit={profileForm.handleSubmit(handleUpdateProfile)} className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={profileForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Sacco Name *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. 2NK SACCO"
+                                  disabled={updateProfile.isPending}
+                                  className="min-h-[44px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={profileForm.control}
+                          name="registration_number"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Registration Number</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. CS/22341/NBI"
+                                  disabled={updateProfile.isPending}
+                                  className="min-h-[44px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={profileForm.control}
+                          name="contact_email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Contact Email</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="email"
+                                  placeholder="e.g. contact@sacco.org"
+                                  disabled={updateProfile.isPending}
+                                  className="min-h-[44px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={profileForm.control}
+                          name="contact_phone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Contact Phone</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. +254700000000"
+                                  disabled={updateProfile.isPending}
+                                  className="min-h-[44px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={profileForm.control}
+                          name="address"
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-2">
+                              <FormLabel>Address</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. Kiambu, Kenya"
+                                  disabled={updateProfile.isPending}
+                                  className="min-h-[44px]"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          type="submit"
+                          disabled={updateProfile.isPending}
+                          className="gap-2 min-h-[44px] touch-manipulation"
+                        >
+                          {updateProfile.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Saving…
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
                 </CardContent>
               </Card>
             </TabsContent>

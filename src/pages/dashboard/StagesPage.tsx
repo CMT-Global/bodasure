@@ -40,7 +40,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { exportToCSV } from '@/utils/exportCsv';
-import { stageFormSchema, type StageFormValues } from '@/lib/zod';
+import { stageFormSchema, STAGE_CAPACITY_MIN, STAGE_CAPACITY_MAX, type StageFormValues } from '@/lib/zod';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -333,7 +333,7 @@ function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open
                 <FormItem>
                   <FormLabel>Capacity</FormLabel>
                   <FormControl>
-                    <Input type="number" min={0} {...field} />
+                    <Input type="number" min={STAGE_CAPACITY_MIN} max={STAGE_CAPACITY_MAX} placeholder={`${STAGE_CAPACITY_MIN}–${STAGE_CAPACITY_MAX}`} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
