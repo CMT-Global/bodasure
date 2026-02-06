@@ -1,8 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from '@/components/ui/form';
 import {
   Search,
   QrCode,
@@ -21,6 +30,7 @@ import {
 } from '@/hooks/useVerification';
 import { useAuth } from '@/hooks/useAuth';
 import { RiderWithDetails } from '@/hooks/useData';
+import { verificationSearchFormSchema, type VerificationSearchFormValues } from '@/lib/zod';
 
 export default function VerificationPage() {
   const { profile, roles } = useAuth();
@@ -29,6 +39,11 @@ export default function VerificationPage() {
   const [scannedQR, setScannedQR] = useState<string>('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedRider, setSelectedRider] = useState<RiderWithDetails | null>(null);
+
+  const searchForm = useForm<VerificationSearchFormValues>({
+    resolver: zodResolver(verificationSearchFormSchema),
+    defaultValues: { search_type: 'name', search_query: '' },
+  });
 
   // Get county_id from profile or first role
   const countyId = useMemo(() => {
@@ -84,16 +99,27 @@ export default function VerificationPage() {
     setIsScannerOpen(false);
     setSearchQuery('');
     setSelectedRider(null);
+    searchForm.reset({ search_type: searchType, search_query: '' });
   };
 
   const handleClear = () => {
     setSearchQuery('');
     setScannedQR('');
     setSelectedRider(null);
+    searchForm.reset({ search_type: searchType, search_query: '' });
   };
 
-  const handleSearchInputChange = (value: string) => {
-    setSearchQuery(value);
+  const onSearchSubmit = (values: VerificationSearchFormValues) => {
+    const q = values.search_query.trim();
+    setSearchQuery(q);
+    setSearchType(values.search_type);
+    setSelectedRider(null);
+  };
+
+  const setSearchTypeAndClear = (type: 'name' | 'plate') => {
+    searchForm.setValue('search_type', type);
+    searchForm.setValue('search_query', '');
+    setSearchQuery('');
     setSelectedRider(null);
   };
 
@@ -138,7 +164,7 @@ export default function VerificationPage() {
             </CardContent>
           </Card>
 
-          {/* Search Card - By Name or By Plate */}
+          {/* Search Card - By Name or By Plate (validation from @/lib/zod) */}
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="p-4 sm:p-6">
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -150,53 +176,64 @@ export default function VerificationPage() {
               </p>
             </CardHeader>
             <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  variant={searchType === 'name' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setSearchType('name');
-                    setSearchQuery('');
-                    setSelectedRider(null);
-                  }}
-                  className="flex-1 min-h-[44px] touch-manipulation"
-                >
-                  <User className="h-4 w-4 mr-2 shrink-0" />
-                  By Name
-                </Button>
-                <Button
-                  variant={searchType === 'plate' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setSearchType('plate');
-                    setSearchQuery('');
-                    setSelectedRider(null);
-                  }}
-                  className="flex-1 min-h-[44px] touch-manipulation"
-                >
-                  <Bike className="h-4 w-4 mr-2 shrink-0" />
-                  By Plate
-                </Button>
-              </div>
+              <Form {...searchForm}>
+                <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="button"
+                      variant={searchForm.watch('search_type') === 'name' ? 'default' : 'outline'}
+                      onClick={() => setSearchTypeAndClear('name')}
+                      className="flex-1 min-h-[44px] touch-manipulation"
+                    >
+                      <User className="h-4 w-4 mr-2 shrink-0" />
+                      By Name
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={searchForm.watch('search_type') === 'plate' ? 'default' : 'outline'}
+                      onClick={() => setSearchTypeAndClear('plate')}
+                      className="flex-1 min-h-[44px] touch-manipulation"
+                    >
+                      <Bike className="h-4 w-4 mr-2 shrink-0" />
+                      By Plate
+                    </Button>
+                  </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                  placeholder={
-                    searchType === 'name'
-                      ? 'Enter rider name...'
-                      : 'Enter bike plate number...'
-                  }
-                  value={searchQuery}
-                  onChange={(e) => handleSearchInputChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.preventDefault();
-                  }}
-                  className="flex-1 min-h-[44px] min-w-0 text-base sm:text-sm"
-                />
-                {currentRider && (
-                  <Button variant="outline" onClick={handleClear} className="min-h-[44px] min-w-0 sm:min-w-[80px] touch-manipulation">
-                    Clear
-                  </Button>
-                )}
-              </div>
+                  <FormField
+                    control={searchForm.control}
+                    name="search_query"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <FormControl>
+                            <Input
+                              placeholder={
+                                searchForm.watch('search_type') === 'name'
+                                  ? 'Enter rider name...'
+                                  : 'Enter bike plate number...'
+                              }
+                              className="flex-1 min-h-[44px] min-w-0 text-base sm:text-sm"
+                              {...field}
+                            />
+                          </FormControl>
+                          <div className="flex gap-2">
+                            <Button type="submit" className="min-h-[44px] flex-1 sm:flex-initial touch-manipulation">
+                              <Search className="h-4 w-4 mr-2 sm:mr-0" />
+                              <span className="sm:inline">Search</span>
+                            </Button>
+                            {currentRider && (
+                              <Button type="button" variant="outline" onClick={handleClear} className="min-h-[44px] min-w-0 sm:min-w-[80px] touch-manipulation">
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </div>

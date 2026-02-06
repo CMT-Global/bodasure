@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SuperAdminLayout } from '@/components/layout/SuperAdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useMonetizationSummary, type MonetizationSummaryByCounty } from '@/hooks/useRevenue';
+import { superAdminFinanceDateRangeSchema } from '@/lib/zod';
 import { format } from 'date-fns';
 import { Loader2, Download, FileSpreadsheet, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
@@ -99,15 +100,39 @@ function exportMonetizationExcel(data: MonetizationSummaryByCounty[], startDate:
   toast.success('Excel exported.');
 }
 
+const DATE_MIN = '2020-01-01';
+
+function getTodayISO() {
+  return format(new Date(), 'yyyy-MM-dd');
+}
+
 export default function SuperAdminFinanceViewPage() {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
     return format(d, 'yyyy-MM-dd');
   });
-  const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(() => getTodayISO());
 
-  const { data: summaryByCounty = [], isLoading } = useMonetizationSummary(startDate, endDate);
+  const validation = useMemo(
+    () => superAdminFinanceDateRangeSchema.safeParse({ startDate, endDate }),
+    [startDate, endDate]
+  );
+  const errors: { startDate?: string; endDate?: string } = {};
+  if (!validation.success && validation.error.flatten()) {
+    const field = validation.error.flatten().fieldErrors;
+    if (field.startDate?.[0]) errors.startDate = field.startDate[0];
+    if (field.endDate?.[0]) errors.endDate = field.endDate[0];
+  }
+  const isValid = validation.success;
+  const effectiveStart = isValid ? validation.data.startDate : (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return format(d, 'yyyy-MM-dd');
+  })();
+  const effectiveEnd = isValid ? validation.data.endDate : getTodayISO();
+
+  const { data: summaryByCounty = [], isLoading } = useMonetizationSummary(effectiveStart, effectiveEnd);
 
   return (
     <SuperAdminLayout>
@@ -135,28 +160,46 @@ export default function SuperAdminFinanceViewPage() {
               <Input
                 id="start"
                 type="date"
+                min={DATE_MIN}
+                max={getTodayISO()}
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full sm:w-auto"
+                className={errors.startDate ? 'border-destructive w-full sm:w-auto' : 'w-full sm:w-auto'}
+                aria-invalid={!!errors.startDate}
+                aria-describedby={errors.startDate ? 'start-error' : undefined}
               />
+              {errors.startDate && (
+                <p id="start-error" className="text-sm text-destructive">
+                  {errors.startDate}
+                </p>
+              )}
             </div>
             <div className="min-w-0 flex-1 space-y-2 sm:flex-initial">
               <Label htmlFor="end" className="text-sm">To</Label>
               <Input
                 id="end"
                 type="date"
+                min={DATE_MIN}
+                max={getTodayISO()}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full sm:w-auto"
+                className={errors.endDate ? 'border-destructive w-full sm:w-auto' : 'w-full sm:w-auto'}
+                aria-invalid={!!errors.endDate}
+                aria-describedby={errors.endDate ? 'end-error' : undefined}
               />
+              {errors.endDate && (
+                <p id="end-error" className="text-sm text-destructive">
+                  {errors.endDate}
+                </p>
+              )}
             </div>
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-initial">
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full sm:w-auto"
-                onClick={() => exportMonetizationCSV(summaryByCounty, startDate, endDate)}
-                disabled={!summaryByCounty.length}
+                onClick={() => exportMonetizationCSV(summaryByCounty, effectiveStart, effectiveEnd)}
+                disabled={!summaryByCounty.length || !isValid}
               >
                 <Download className="mr-2 h-4 w-4 shrink-0" />
                 Export CSV
@@ -165,8 +208,8 @@ export default function SuperAdminFinanceViewPage() {
                 variant="outline"
                 size="sm"
                 className="w-full sm:w-auto"
-                onClick={() => exportMonetizationExcel(summaryByCounty, startDate, endDate)}
-                disabled={!summaryByCounty.length}
+                onClick={() => exportMonetizationExcel(summaryByCounty, effectiveStart, effectiveEnd)}
+                disabled={!summaryByCounty.length || !isValid}
               >
                 <FileSpreadsheet className="mr-2 h-4 w-4 shrink-0" />
                 Export Excel

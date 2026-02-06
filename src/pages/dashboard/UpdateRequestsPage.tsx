@@ -43,6 +43,7 @@ import { AlertCircle, CheckCircle, XCircle, Loader2, FileEdit } from 'lucide-rea
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 const REQUEST_TYPE_LABELS: Record<RiderUpdateRequestType, string> = {
   phone: 'Phone update',
@@ -116,6 +117,10 @@ export default function UpdateRequestsPage() {
   const confirmReject = () => {
     const req = rejectDialog.request;
     if (!req || !user?.id) return;
+    if (isOverCharLimit(rejectNotes)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     reviewMutation.mutate(
       {
         requestId: req.id,
@@ -380,7 +385,7 @@ export default function UpdateRequestsPage() {
             <div className="py-2">
               <label className="text-sm font-medium text-foreground">Note (optional)</label>
               <Textarea
-                className="mt-1 min-h-[80px]"
+                className={cn('mt-1 min-h-[80px]', isOverCharLimit(rejectNotes) && 'border-destructive')}
                 placeholder="Reason for declining…"
                 value={rejectNotes}
                 onChange={(e) => setRejectNotes(e.target.value)}
@@ -390,6 +395,7 @@ export default function UpdateRequestsPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmReject}
+                disabled={isOverCharLimit(rejectNotes)}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {reviewMutation.isPending ? (

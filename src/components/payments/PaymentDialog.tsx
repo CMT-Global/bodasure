@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -28,21 +27,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-
-// Base schema - county_id will be conditionally required
-const createPaymentFormSchema = (needsCountySelection: boolean) => z.object({
-  rider_id: z.string().min(1, 'Please select a rider'),
-  motorbike_id: z.string().min(1, 'Please select a motorbike'),
-  permit_type_id: z.string().min(1, 'Please select a permit type'),
-  email: z.string().email('Invalid email'),
-  phone: z.string().optional(),
-  payment_method: z.enum(['card', 'mobile_money']),
-  county_id: needsCountySelection 
-    ? z.string().min(1, 'County is required')
-    : z.string().optional(),
-});
-
-type PaymentFormValues = z.infer<ReturnType<typeof createPaymentFormSchema>>;
+import { permitPaymentFormSchema, type PermitPaymentFormValues } from '@/lib/zod';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -68,9 +53,14 @@ export function PaymentDialog({
   
   // Use selected county or provided countyId
   const effectiveCountyId = selectedCountyId || countyId;
-  
-  const form = useForm<PaymentFormValues>({
-    resolver: zodResolver(createPaymentFormSchema(needsCountySelection)),
+
+  const paymentFormSchema = useMemo(
+    () => permitPaymentFormSchema(needsCountySelection),
+    [needsCountySelection]
+  );
+
+  const form = useForm<PermitPaymentFormValues>({
+    resolver: zodResolver(paymentFormSchema),
     defaultValues: {
       rider_id: preselectedRiderId || '',
       motorbike_id: preselectedMotorbikeId || '',
@@ -108,7 +98,7 @@ export function PaymentDialog({
   const selectedType = permitTypes.find(pt => pt.id === form.watch('permit_type_id'));
   const paymentMethod = form.watch('payment_method');
 
-  const onSubmit = async (values: PaymentFormValues) => {
+  const onSubmit = async (values: PermitPaymentFormValues) => {
     if (!selectedType) return;
 
     // Determine the county_id to use
@@ -364,15 +354,27 @@ export function PaymentDialog({
                 <FormField
                   control={form.control}
                   name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>M-Pesa Phone Number *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="254708374149" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const phoneError = form.formState.errors.phone?.message;
+                    return (
+                      <FormItem>
+                        <FormLabel>M-Pesa Phone Number *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="254708374149"
+                            value={field.value ?? ''}
+                            onChange={(e) => {
+                              const digitsOnly = e.target.value.replace(/\D/g, '');
+                              field.onChange(digitsOnly);
+                            }}
+                            onBlur={field.onBlur}
+                            className={phoneError ? 'border-destructive' : undefined}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               )}
             </div>

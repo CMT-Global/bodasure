@@ -1,5 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +65,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import {
+  TEXTAREA_MAX_CHARS,
+  disciplineWarningFormSchema,
+  disciplineDisciplinaryFormSchema,
+  disciplineIncidentFormSchema,
+  type DisciplineWarningFormValues,
+  type DisciplineDisciplinaryFormValues,
+  type DisciplineIncidentFormValues,
+} from '@/lib/zod';
 
 // Types for discipline and incident records (align with DB)
 type IncidentType = 'warning' | 'disciplinary_action' | 'incident_report';
@@ -91,28 +111,20 @@ export default function DisciplineIncidentPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<DisciplineIncident | null>(null);
 
-  // Form states
-  const [warningForm, setWarningForm] = useState({
-    member_id: '',
-    title: '',
-    description: '',
-    severity: 'low' as 'low' | 'medium' | 'high' | 'critical',
+  // Form state with zod validation
+  const warningForm = useForm<DisciplineWarningFormValues>({
+    resolver: zodResolver(disciplineWarningFormSchema),
+    defaultValues: { member_id: '', title: '', description: '', severity: 'low' },
   });
 
-  const [disciplinaryForm, setDisciplinaryForm] = useState({
-    member_id: '',
-    title: '',
-    description: '',
-    severity: 'medium' as 'low' | 'medium' | 'high' | 'critical',
-    action_taken: '',
+  const disciplinaryForm = useForm<DisciplineDisciplinaryFormValues>({
+    resolver: zodResolver(disciplineDisciplinaryFormSchema),
+    defaultValues: { member_id: '', title: '', description: '', action_taken: '', severity: 'medium' },
   });
 
-  const [incidentForm, setIncidentForm] = useState({
-    member_id: '',
-    title: '',
-    description: '',
-    severity: 'medium' as 'low' | 'medium' | 'high' | 'critical',
-    submit_to_county: true,
+  const incidentForm = useForm<DisciplineIncidentFormValues>({
+    resolver: zodResolver(disciplineIncidentFormSchema),
+    defaultValues: { member_id: '', title: '', description: '', severity: 'medium', submit_to_county: true },
   });
 
   // Filters
@@ -176,35 +188,28 @@ export default function DisciplineIncidentPage() {
     });
   }, [incidents, searchQuery, typeFilter, statusFilter, severityFilter]);
 
-  const handleIssueWarning = async () => {
-    if (!warningForm.member_id || !warningForm.title || !warningForm.description) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+  const handleIssueWarning = async (values: DisciplineWarningFormValues) => {
     if (!saccoId || !countyId || !user?.id) {
       toast.error('Missing sacco, county, or user');
       return;
     }
-
-    const member = members.find(m => m.id === warningForm.member_id);
+    const member = members.find(m => m.id === values.member_id);
     if (!member) {
       toast.error('Member not found');
       return;
     }
-
     const { error } = await supabase.from('sacco_discipline_incidents').insert({
       county_id: countyId,
       sacco_id: saccoId,
-      rider_id: warningForm.member_id,
+      rider_id: values.member_id,
       type: 'warning',
-      title: warningForm.title,
-      description: warningForm.description,
+      title: values.title,
+      description: values.description,
       status: 'pending',
-      severity: warningForm.severity,
+      severity: values.severity,
       submitted_to_county: false,
       created_by: user.id,
     });
-
     if (error) {
       toast.error(error.message || 'Failed to issue warning');
       return;
@@ -212,45 +217,33 @@ export default function DisciplineIncidentPage() {
     await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
     toast.success('Internal warning issued successfully');
     setIsWarningDialogOpen(false);
-    setWarningForm({
-      member_id: '',
-      title: '',
-      description: '',
-      severity: 'low',
-    });
+    warningForm.reset();
   };
 
-  const handleRecordDisciplinary = async () => {
-    if (!disciplinaryForm.member_id || !disciplinaryForm.title || !disciplinaryForm.description) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+  const handleRecordDisciplinary = async (values: DisciplineDisciplinaryFormValues) => {
     if (!saccoId || !countyId || !user?.id) {
       toast.error('Missing sacco, county, or user');
       return;
     }
-
-    const member = members.find(m => m.id === disciplinaryForm.member_id);
+    const member = members.find(m => m.id === values.member_id);
     if (!member) {
       toast.error('Member not found');
       return;
     }
-
-    const descriptionWithAction = `${disciplinaryForm.description}\n\nAction Taken: ${disciplinaryForm.action_taken}`;
+    const descriptionWithAction = `${values.description}\n\nAction Taken: ${values.action_taken ?? ''}`;
     const { error } = await supabase.from('sacco_discipline_incidents').insert({
       county_id: countyId,
       sacco_id: saccoId,
-      rider_id: disciplinaryForm.member_id,
+      rider_id: values.member_id,
       type: 'disciplinary_action',
-      title: disciplinaryForm.title,
+      title: values.title,
       description: descriptionWithAction,
-      notes: disciplinaryForm.action_taken,
+      notes: values.action_taken || null,
       status: 'acknowledged',
-      severity: disciplinaryForm.severity,
+      severity: values.severity,
       submitted_to_county: false,
       created_by: user.id,
     });
-
     if (error) {
       toast.error(error.message || 'Failed to record disciplinary action');
       return;
@@ -258,63 +251,44 @@ export default function DisciplineIncidentPage() {
     await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
     toast.success('Disciplinary action recorded successfully');
     setIsDisciplinaryDialogOpen(false);
-    setDisciplinaryForm({
-      member_id: '',
-      title: '',
-      description: '',
-      severity: 'medium',
-      action_taken: '',
-    });
+    disciplinaryForm.reset();
   };
 
-  const handleSubmitIncident = async () => {
-    if (!incidentForm.member_id || !incidentForm.title || !incidentForm.description) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+  const handleSubmitIncident = async (values: DisciplineIncidentFormValues) => {
     if (!saccoId || !countyId || !user?.id) {
       toast.error('Missing sacco, county, or user');
       return;
     }
-
-    const member = members.find(m => m.id === incidentForm.member_id);
+    const member = members.find(m => m.id === values.member_id);
     if (!member) {
       toast.error('Member not found');
       return;
     }
-
     const { error } = await supabase.from('sacco_discipline_incidents').insert({
       county_id: countyId,
       sacco_id: saccoId,
-      rider_id: incidentForm.member_id,
+      rider_id: values.member_id,
       type: 'incident_report',
-      title: incidentForm.title,
-      description: incidentForm.description,
-      status: incidentForm.submit_to_county ? 'escalated' : 'pending',
-      severity: incidentForm.severity,
-      submitted_to_county: incidentForm.submit_to_county,
-      county_submission_date: incidentForm.submit_to_county ? new Date().toISOString() : null,
+      title: values.title,
+      description: values.description,
+      status: values.submit_to_county ? 'escalated' : 'pending',
+      severity: values.severity,
+      submitted_to_county: values.submit_to_county,
+      county_submission_date: values.submit_to_county ? new Date().toISOString() : null,
       created_by: user.id,
     });
-
     if (error) {
       toast.error(error.message || 'Failed to submit incident report');
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ['discipline-incidents', saccoId, countyId] });
-    if (incidentForm.submit_to_county) {
+    if (values.submit_to_county) {
       toast.success('Incident report submitted to county successfully');
     } else {
       toast.success('Incident report created successfully');
     }
     setIsIncidentDialogOpen(false);
-    setIncidentForm({
-      member_id: '',
-      title: '',
-      description: '',
-      severity: 'medium',
-      submit_to_county: true,
-    });
+    incidentForm.reset();
   };
 
   const handleViewIncident = (incident: DisciplineIncident) => {
@@ -499,72 +473,95 @@ export default function DisciplineIncidentPage() {
                       Issue a warning to a member for internal discipline purposes
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="warning-member">Member *</Label>
-                      <Select
-                        value={warningForm.member_id}
-                        onValueChange={(v) => setWarningForm(prev => ({ ...prev, member_id: v }))}
-                      >
-                        <SelectTrigger id="warning-member" className="min-h-[44px]">
-                          <SelectValue placeholder="Select member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members.map((m) => (
-                            <SelectItem key={m.id} value={m.id} className="min-h-[44px]">
-                              {m.full_name} - {m.phone}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="warning-title">Title *</Label>
-                      <Input
-                        id="warning-title"
-                        value={warningForm.title}
-                        onChange={(e) => setWarningForm(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="Warning title"
-                        className="min-h-[44px]"
+                  <Form {...warningForm}>
+                    <form onSubmit={warningForm.handleSubmit(handleIssueWarning)} className="space-y-4 py-4">
+                      <FormField
+                        control={warningForm.control}
+                        name="member_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Member *</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue placeholder="Select member" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {members.map((m) => (
+                                  <SelectItem key={m.id} value={m.id} className="min-h-[44px]">
+                                    {m.full_name} - {m.phone}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="warning-description">Description *</Label>
-                      <Textarea
-                        id="warning-description"
-                        value={warningForm.description}
-                        onChange={(e) => setWarningForm(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Describe the warning..."
-                        rows={5}
-                        className="min-h-[120px]"
+                      <FormField
+                        control={warningForm.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Warning title" className="min-h-[44px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="warning-severity">Severity</Label>
-                      <Select
-                        value={warningForm.severity}
-                        onValueChange={(v: 'low' | 'medium' | 'high' | 'critical') => setWarningForm(prev => ({ ...prev, severity: v }))}
-                      >
-                        <SelectTrigger id="warning-severity" className="min-h-[44px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="critical">Critical</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsWarningDialogOpen(false)} className="min-h-[44px]">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleIssueWarning} className="min-h-[44px]">
-                      Issue Warning
-                    </Button>
-                  </DialogFooter>
+                      <FormField
+                        control={warningForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description *</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="Describe the warning..." rows={5} className="min-h-[120px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={warningForm.control}
+                        name="severity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Severity</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="critical">Critical</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsWarningDialogOpen(false)} className="min-h-[44px]">
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="min-h-[44px]"
+                          disabled={(warningForm.watch('description')?.length ?? 0) > TEXTAREA_MAX_CHARS}
+                        >
+                          Issue Warning
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
                 </DialogContent>
               </Dialog>
 
@@ -582,83 +579,111 @@ export default function DisciplineIncidentPage() {
                       Record a disciplinary action taken against a member
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="disciplinary-member">Member *</Label>
-                      <Select
-                        value={disciplinaryForm.member_id}
-                        onValueChange={(v) => setDisciplinaryForm(prev => ({ ...prev, member_id: v }))}
-                      >
-                        <SelectTrigger id="disciplinary-member" className="min-h-[44px]">
-                          <SelectValue placeholder="Select member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members.map((m) => (
-                            <SelectItem key={m.id} value={m.id} className="min-h-[44px]">
-                              {m.full_name} - {m.phone}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="disciplinary-title">Title *</Label>
-                      <Input
-                        id="disciplinary-title"
-                        value={disciplinaryForm.title}
-                        onChange={(e) => setDisciplinaryForm(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="Disciplinary action title"
-                        className="min-h-[44px]"
+                  <Form {...disciplinaryForm}>
+                    <form onSubmit={disciplinaryForm.handleSubmit(handleRecordDisciplinary)} className="space-y-4 py-4">
+                      <FormField
+                        control={disciplinaryForm.control}
+                        name="member_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Member *</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue placeholder="Select member" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {members.map((m) => (
+                                  <SelectItem key={m.id} value={m.id} className="min-h-[44px]">
+                                    {m.full_name} - {m.phone}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="disciplinary-description">Description *</Label>
-                      <Textarea
-                        id="disciplinary-description"
-                        value={disciplinaryForm.description}
-                        onChange={(e) => setDisciplinaryForm(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Describe the incident and violation..."
-                        rows={5}
-                        className="min-h-[120px]"
+                      <FormField
+                        control={disciplinaryForm.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Disciplinary action title" className="min-h-[44px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="disciplinary-action">Action Taken *</Label>
-                      <Textarea
-                        id="disciplinary-action"
-                        value={disciplinaryForm.action_taken}
-                        onChange={(e) => setDisciplinaryForm(prev => ({ ...prev, action_taken: e.target.value }))}
-                        placeholder="Describe the disciplinary action taken..."
-                        rows={3}
-                        className="min-h-[100px]"
+                      <FormField
+                        control={disciplinaryForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description *</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="Describe the incident and violation..." rows={5} className="min-h-[120px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="disciplinary-severity">Severity</Label>
-                      <Select
-                        value={disciplinaryForm.severity}
-                        onValueChange={(v: 'low' | 'medium' | 'high' | 'critical') => setDisciplinaryForm(prev => ({ ...prev, severity: v }))}
-                      >
-                        <SelectTrigger id="disciplinary-severity" className="min-h-[44px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="critical">Critical</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDisciplinaryDialogOpen(false)} className="min-h-[44px]">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleRecordDisciplinary} className="min-h-[44px]">
-                      Record Action
-                    </Button>
-                  </DialogFooter>
+                      <FormField
+                        control={disciplinaryForm.control}
+                        name="action_taken"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Action Taken</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="Describe the disciplinary action taken..." rows={3} className="min-h-[100px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={disciplinaryForm.control}
+                        name="severity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Severity</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="critical">Critical</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsDisciplinaryDialogOpen(false)} className="min-h-[44px]">
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="min-h-[44px]"
+                          disabled={
+                            (disciplinaryForm.watch('description')?.length ?? 0) > TEXTAREA_MAX_CHARS ||
+                            (disciplinaryForm.watch('action_taken')?.length ?? 0) > TEXTAREA_MAX_CHARS
+                          }
+                        >
+                          Record Action
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
                 </DialogContent>
               </Dialog>
 
@@ -676,85 +701,116 @@ export default function DisciplineIncidentPage() {
                       Submit an incident report to county officials for review
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="incident-member">Member *</Label>
-                      <Select
-                        value={incidentForm.member_id}
-                        onValueChange={(v) => setIncidentForm(prev => ({ ...prev, member_id: v }))}
-                      >
-                        <SelectTrigger id="incident-member" className="min-h-[44px]">
-                          <SelectValue placeholder="Select member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members.map((m) => (
-                            <SelectItem key={m.id} value={m.id} className="min-h-[44px]">
-                              {m.full_name} - {m.phone}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="incident-title">Title *</Label>
-                      <Input
-                        id="incident-title"
-                        value={incidentForm.title}
-                        onChange={(e) => setIncidentForm(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="Incident report title"
-                        className="min-h-[44px]"
+                  <Form {...incidentForm}>
+                    <form onSubmit={incidentForm.handleSubmit(handleSubmitIncident)} className="space-y-4 py-4">
+                      <FormField
+                        control={incidentForm.control}
+                        name="member_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Member *</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue placeholder="Select member" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {members.map((m) => (
+                                  <SelectItem key={m.id} value={m.id} className="min-h-[44px]">
+                                    {m.full_name} - {m.phone}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="incident-description">Description *</Label>
-                      <Textarea
-                        id="incident-description"
-                        value={incidentForm.description}
-                        onChange={(e) => setIncidentForm(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Provide a detailed description of the incident..."
-                        rows={6}
-                        className="min-h-[150px]"
+                      <FormField
+                        control={incidentForm.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Incident report title" className="min-h-[44px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="incident-severity">Severity</Label>
-                      <Select
-                        value={incidentForm.severity}
-                        onValueChange={(v: 'low' | 'medium' | 'high' | 'critical') => setIncidentForm(prev => ({ ...prev, severity: v }))}
-                      >
-                        <SelectTrigger id="incident-severity" className="min-h-[44px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="critical">Critical</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="submit-to-county"
-                        checked={incidentForm.submit_to_county}
-                        onChange={(e) => setIncidentForm(prev => ({ ...prev, submit_to_county: e.target.checked }))}
-                        className="h-4 w-4 rounded border-gray-300"
+                      <FormField
+                        control={incidentForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description *</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="Provide a detailed description of the incident..." rows={6} className="min-h-[150px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                      <Label htmlFor="submit-to-county" className="text-sm font-normal cursor-pointer">
-                        Submit to county immediately
-                      </Label>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsIncidentDialogOpen(false)} className="min-h-[44px]">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleSubmitIncident} className="min-h-[44px]">
-                      <Send className="mr-2 h-4 w-4" />
-                      Submit to County
-                    </Button>
-                  </DialogFooter>
+                      <FormField
+                        control={incidentForm.control}
+                        name="severity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Severity</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="critical">Critical</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={incidentForm.control}
+                        name="submit_to_county"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <input
+                                type="checkbox"
+                                id="submit-to-county"
+                                checked={field.value}
+                                onChange={(e) => field.onChange(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                            </FormControl>
+                            <FormLabel htmlFor="submit-to-county" className="text-sm font-normal cursor-pointer">
+                              Submit to county immediately
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsIncidentDialogOpen(false)} className="min-h-[44px]">
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="min-h-[44px]"
+                          disabled={(incidentForm.watch('description')?.length ?? 0) > TEXTAREA_MAX_CHARS}
+                        >
+                          <Send className="mr-2 h-4 w-4" />
+                          Submit to County
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
                 </DialogContent>
               </Dialog>
             </div>
@@ -861,7 +917,7 @@ export default function DisciplineIncidentPage() {
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="all">All Statuses</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="acknowledged">Acknowledged</SelectItem>
                         <SelectItem value="resolved">Resolved</SelectItem>
@@ -875,7 +931,7 @@ export default function DisciplineIncidentPage() {
                         <SelectValue placeholder="Severity" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Severity</SelectItem>
+                        <SelectItem value="all">All Severities</SelectItem>
                         <SelectItem value="low">Low</SelectItem>
                         <SelectItem value="medium">Medium</SelectItem>
                         <SelectItem value="high">High</SelectItem>

@@ -4,6 +4,7 @@ import {
   useSupportTicketsForCounty,
   useUpdateSupportTicket,
   SUPPORT_CATEGORIES,
+  SUPPORT_TICKET_STATUS_STYLES,
   type SupportTicket,
   type SupportTicketStatus,
 } from '@/hooks/useSupportTickets';
@@ -35,6 +36,7 @@ import { AlertCircle, Headset, Loader2, MapPin, Clock, History } from 'lucide-re
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 const STATUS_OPTIONS: { value: SupportTicketStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
@@ -270,13 +272,7 @@ function TicketCard({
   const countyName = ticket.county_id
     ? counties.find((c) => c.id === ticket.county_id)?.name ?? 'Unknown'
     : 'Unassigned';
-  const statusColors: Record<string, string> = {
-    open: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-    in_progress: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-    resolved: 'bg-green-500/15 text-green-700 dark:text-green-400',
-    closed: 'bg-muted text-muted-foreground',
-  };
-  const sc = statusColors[ticket.status] ?? 'bg-muted text-muted-foreground';
+  const sc = SUPPORT_TICKET_STATUS_STYLES[ticket.status] ?? 'bg-muted text-muted-foreground';
 
   return (
     <div
@@ -326,6 +322,10 @@ function TicketDetailDialog({
     : 'Unassigned';
 
   const handleSave = () => {
+    if (isOverCharLimit(adminNotes)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     const updates: Parameters<typeof updateTicket.mutate>[0] = {
       id: ticket.id,
       status,
@@ -415,7 +415,7 @@ function TicketDetailDialog({
               onChange={(e) => setAdminNotes(e.target.value)}
               placeholder="Internal notes; overrides county notes where permitted."
               rows={3}
-              className="resize-y"
+              className={cn('resize-y', isOverCharLimit(adminNotes) && 'border-destructive')}
             />
           </div>
 
@@ -452,7 +452,7 @@ function TicketDetailDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateTicket.isPending} className="gap-2">
+          <Button onClick={handleSave} disabled={updateTicket.isPending || isOverCharLimit(adminNotes)} className="gap-2">
             {updateTicket.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Save
           </Button>

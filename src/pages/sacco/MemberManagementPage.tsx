@@ -76,6 +76,43 @@ export default function MemberManagementPage() {
     setIsProfileOpen(true);
   };
 
+  const handleExport = () => {
+    if (!filteredMembers.length) return;
+    const rows = filteredMembers.map((m) => ({
+      full_name: m.full_name ?? '',
+      id_number: m.id_number ?? '',
+      phone: m.phone ?? '',
+      status: m.status ?? '',
+      compliance_status: m.compliance_status ?? '',
+      stage: m.stage?.name ?? '',
+      sacco: m.sacco?.name ?? '',
+      registration_number: m.motorbike?.registration_number ?? '',
+      permit_number: m.permit?.permit_number ?? '',
+      permit_status: m.permit?.status ?? '',
+      permit_expires_at: m.permit?.expires_at ?? '',
+    }));
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) =>
+        headers
+          .map((h) => {
+            const v = row[h as keyof typeof row];
+            if (v == null) return '';
+            const s = String(v);
+            return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+          })
+          .join(',')
+      ),
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `sacco_members_${saccoId ?? 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   return (
     <SaccoPortalLayout>
       <div className="space-y-6">
@@ -88,7 +125,12 @@ export default function MemberManagementPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="min-h-[44px]">
+              <Button
+                variant="outline"
+                className="min-h-[44px]"
+                onClick={handleExport}
+                disabled={!saccoId || membersLoading || filteredMembers.length === 0}
+              >
                 <Download className="mr-2 h-4 w-4" />
                 Export
               </Button>

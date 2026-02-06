@@ -56,6 +56,8 @@ import {
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 function InfoRow({
   icon: Icon,
@@ -86,9 +88,11 @@ function InfoRow({
 function BikeDetailsTable({
   bikes,
   showAssignedRider = false,
+  onBikeClick,
 }: {
   bikes: RiderOwnerProfileBike[];
   showAssignedRider?: boolean;
+  onBikeClick?: (bike: RiderOwnerProfileBike) => void;
 }) {
   if (!bikes.length) {
     return (
@@ -100,36 +104,48 @@ function BikeDetailsTable({
   }
   return (
     <div className="space-y-3">
-      {bikes.map((b) => (
-        <div
-          key={b.id}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 transition-colors hover:bg-muted/10"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Bike className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-foreground">
-                {b.registration_number}
-              </p>
-              {(b.make || b.model) && (
-                <p className="text-sm text-muted-foreground truncate">
-                  {[b.make, b.model].filter(Boolean).join(' ')}
-                  {b.year ? ` · ${b.year}` : ''}
-                  {b.color ? ` · ${b.color}` : ''}
+      {bikes.map((b) => {
+        const isClickable = !!onBikeClick;
+        const Wrapper = isClickable ? 'button' : 'div';
+        const wrapperProps = isClickable
+          ? {
+              type: 'button' as const,
+              onClick: () => onBikeClick(b),
+              className:
+                'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 transition-colors hover:bg-muted/10 w-full text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[44px] touch-manipulation',
+            }
+          : {
+              className:
+                'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-muted/5 p-4 transition-colors hover:bg-muted/10',
+            };
+        return (
+          <Wrapper key={b.id} {...wrapperProps}>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Bike className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">
+                  {b.registration_number}
                 </p>
-              )}
+                {(b.make || b.model) && (
+                  <p className="text-sm text-muted-foreground truncate">
+                    {[b.make, b.model].filter(Boolean).join(' ')}
+                    {b.year ? ` · ${b.year}` : ''}
+                    {b.color ? ` · ${b.color}` : ''}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-          {showAssignedRider && b.rider?.full_name && (
-            <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground">
-              <User className="h-3.5 w-3.5" />
-              {b.rider.full_name}
-            </div>
-          )}
-        </div>
-      ))}
+            {showAssignedRider && b.rider?.full_name && (
+              <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground">
+                <User className="h-3.5 w-3.5" />
+                {b.rider.full_name}
+              </div>
+            )}
+          </Wrapper>
+        );
+      })}
     </div>
   );
 }
@@ -250,6 +266,14 @@ function UpdateRequestDialog({
   }, [open]);
 
   const handleSubmit = () => {
+    if (type === 'photo' && isOverCharLimit(photoNote)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
+    if (type === 'owner_rider_reassignment' && isOverCharLimit(reassignNote)) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     if (type === 'phone') {
       if (!phone.trim()) {
         toast.error('Enter a phone number');
@@ -317,6 +341,7 @@ function UpdateRequestDialog({
                 onChange={(e) => setPhotoNote(e.target.value)}
                 placeholder="e.g. I will upload a new photo separately..."
                 rows={3}
+                className={cn(isOverCharLimit(photoNote) && 'border-destructive')}
               />
               <p className="text-xs text-muted-foreground">
                 Request a profile photo update. County may contact you for the new
@@ -386,6 +411,7 @@ function UpdateRequestDialog({
                   onChange={(e) => setReassignNote(e.target.value)}
                   placeholder="e.g. Assign rider X to this bike..."
                   rows={3}
+                  className={cn(isOverCharLimit(reassignNote) && 'border-destructive')}
                 />
               </div>
             </>
@@ -395,7 +421,15 @@ function UpdateRequestDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} className="min-h-[44px] touch-manipulation w-full sm:w-auto">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting} className="min-h-[44px] touch-manipulation w-full sm:w-auto">
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              isSubmitting ||
+              (type === 'photo' && isOverCharLimit(photoNote)) ||
+              (type === 'owner_rider_reassignment' && isOverCharLimit(reassignNote))
+            }
+            className="min-h-[44px] touch-manipulation w-full sm:w-auto"
+          >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : (
@@ -420,6 +454,7 @@ function ProfileRegistrationContent() {
     open: boolean;
     type: RiderUpdateRequestType;
   }>({ open: false, type: 'phone' });
+  const [riderDetailsBike, setRiderDetailsBike] = useState<RiderOwnerProfileBike | null>(null);
 
   const rider = data?.rider ?? null;
   const owner = data?.owner ?? null;
@@ -543,7 +578,11 @@ function ProfileRegistrationContent() {
                 <MapPin className="h-4 w-4 text-primary" />
                 Owned bikes
               </h4>
-              <BikeDetailsTable bikes={ownedBikes} showAssignedRider />
+              <BikeDetailsTable
+                bikes={ownedBikes}
+                showAssignedRider
+                onBikeClick={setRiderDetailsBike}
+              />
             </div>
           </CardContent>
         </Card>
@@ -684,6 +723,90 @@ function ProfileRegistrationContent() {
         onSubmit={handleSubmitRequest}
         isSubmitting={submitRequest.isPending}
       />
+
+      <Dialog
+        open={!!riderDetailsBike}
+        onOpenChange={(open) => !open && setRiderDetailsBike(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bike className="h-5 w-5 text-primary" />
+              Bike &amp; rider details
+            </DialogTitle>
+            <DialogDescription>
+              {riderDetailsBike
+                ? `Details for ${riderDetailsBike.registration_number}${riderDetailsBike.rider?.full_name ? ` — rider: ${riderDetailsBike.rider.full_name}` : ''}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {riderDetailsBike && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-border/80 bg-muted/5 p-4 space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Bike
+                </p>
+                <p className="font-semibold text-foreground">
+                  {riderDetailsBike.registration_number}
+                </p>
+                {(riderDetailsBike.make || riderDetailsBike.model) && (
+                  <p className="text-sm text-muted-foreground">
+                    {[riderDetailsBike.make, riderDetailsBike.model]
+                      .filter(Boolean)
+                      .join(' ')}
+                    {riderDetailsBike.year ? ` · ${riderDetailsBike.year}` : ''}
+                    {riderDetailsBike.color ? ` · ${riderDetailsBike.color}` : ''}
+                  </p>
+                )}
+              </div>
+              {riderDetailsBike.rider?.full_name ? (
+                <div className="grid gap-0 divide-y divide-border/60 rounded-xl border border-border/80 bg-muted/5 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground pb-2">
+                    Rider using this bike
+                  </p>
+                  <InfoRow
+                    icon={User}
+                    label="Full name"
+                    value={riderDetailsBike.rider.full_name}
+                  />
+                  <InfoRow
+                    icon={Phone}
+                    label="Phone"
+                    value={riderDetailsBike.rider.phone ?? undefined}
+                  />
+                  <InfoRow
+                    icon={IdCard}
+                    label="ID number"
+                    value={riderDetailsBike.rider.id_number ?? undefined}
+                  />
+                  {riderDetailsBike.rider.qr_code && (
+                    <div className="flex items-start gap-3 py-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <QrCode className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          QR name / ID
+                        </p>
+                        <p className="mt-0.5 font-mono font-medium text-foreground break-all">
+                          {riderDetailsBike.rider.qr_code}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 py-6 text-center">
+                  <User className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    No rider assigned to this bike
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

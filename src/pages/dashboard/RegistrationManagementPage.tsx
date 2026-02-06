@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { exportToCSV } from '@/utils/exportCsv';
 
 export default function RegistrationManagementPage() {
   const { profile, roles } = useAuth();
@@ -69,6 +70,24 @@ export default function RegistrationManagementPage() {
     setIsDetailOpen(true);
   };
 
+  const handleExport = () => {
+    if (!filteredRiders.length) return;
+    const rows = filteredRiders.map((m) => ({
+      full_name: m.full_name ?? '',
+      id_number: m.id_number ?? '',
+      phone: m.phone ?? '',
+      status: m.status ?? '',
+      compliance_status: m.compliance_status ?? '',
+      stage: m.stage?.name ?? '',
+      sacco: m.sacco?.name ?? '',
+      registration_number: m.motorbike?.registration_number ?? '',
+      permit_number: m.permit?.permit_number ?? '',
+      permit_status: m.permit?.status ?? '',
+      permit_expires_at: m.permit?.expires_at ?? '',
+    }));
+    exportToCSV(rows, 'registration_management_export');
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -81,7 +100,7 @@ export default function RegistrationManagementPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredRiders.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>

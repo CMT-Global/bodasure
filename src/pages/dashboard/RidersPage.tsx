@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { exportToCSV } from '@/utils/exportCsv';
 import { useAuth } from '@/hooks/useAuth';
 import {
   AlertDialog,
@@ -87,6 +88,22 @@ export default function RidersPage() {
     setIsFormOpen(true);
   };
 
+  const handleExport = () => {
+    if (!filteredRiders.length) return;
+    const rows = filteredRiders.map((r) => ({
+      full_name: r.full_name ?? '',
+      id_number: r.id_number ?? '',
+      phone: r.phone ?? '',
+      email: r.email ?? '',
+      status: r.status ?? '',
+      compliance_status: r.compliance_status ?? '',
+      owner: r.owner?.full_name ?? '',
+      sacco: r.sacco?.name ?? '',
+      stage: r.stage?.name ?? '',
+    }));
+    exportToCSV(rows, 'riders_export');
+  };
+
   const columns = getRiderColumns({
     onEdit: handleEdit,
     onView: handleView,
@@ -106,7 +123,7 @@ export default function RidersPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial">
+              <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || filteredRiders.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export
               </Button>

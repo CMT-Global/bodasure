@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,6 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { useAuth } from '@/hooks/useAuth';
 import { useCountySettings, useUpdateCountySettings, PermitSettings, PenaltySettings, PenaltyType, EscalationRule, RevenueSharingSettings, RevenueShareRule, RevenueShareType } from '@/hooks/useCountySettings';
 import { usePermitTypes } from '@/hooks/usePayments';
@@ -35,6 +45,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import {
+  settingsPermitFormSchema,
+  settingsPermitTypeFormSchema,
+  settingsPenaltyTypeFormSchema,
+  settingsEscalationFormSchema,
+  settingsRevenueShareFormSchema,
+  type SettingsPermitFormValues,
+  type SettingsPermitTypeFormValues,
+  type SettingsPenaltyTypeFormValues,
+  type SettingsEscalationFormValues,
+  type SettingsRevenueShareFormValues,
+} from '@/lib/zod';
 
 export default function SettingsPage() {
   const { profile, roles, hasRole } = useAuth();
@@ -92,35 +114,38 @@ export default function SettingsPage() {
   const [selectedEscalationIndex, setSelectedEscalationIndex] = useState<number | null>(null);
   const [selectedRevenueShareRule, setSelectedRevenueShareRule] = useState<RevenueShareRule | null>(null);
 
-  // Form states
-  const [permitTypeForm, setPermitTypeForm] = useState({
-    name: '',
-    description: '',
-    amount: '',
-    duration_days: '',
+  const permitForm = useForm<SettingsPermitFormValues>({
+    resolver: zodResolver(settingsPermitFormSchema),
+    defaultValues: { defaultFrequency: 'monthly', gracePeriodDays: undefined },
   });
 
-  const [penaltyTypeForm, setPenaltyTypeForm] = useState({
-    name: '',
-    description: '',
-    amount: '',
+  const permitTypeForm = useForm<SettingsPermitTypeFormValues>({
+    resolver: zodResolver(settingsPermitTypeFormSchema),
+    defaultValues: { name: '', description: '', amount: 0, duration_days: 1 },
   });
 
-  const [escalationForm, setEscalationForm] = useState({
-    offenseCount: '',
-    multiplier: '',
-    description: '',
+  const penaltyTypeForm = useForm<SettingsPenaltyTypeFormValues>({
+    resolver: zodResolver(settingsPenaltyTypeFormSchema),
+    defaultValues: { name: '', description: '', amount: 0 },
   });
 
-  const [revenueShareForm, setRevenueShareForm] = useState({
-    saccoId: '',
-    shareType: 'none' as RevenueShareType,
-    percentage: '',
-    fixedAmount: '',
-    period: 'weekly' as 'weekly' | 'monthly' | 'annual',
-    activePermitsOnly: false,
-    complianceThreshold: '',
-    isActive: true,
+  const escalationForm = useForm<SettingsEscalationFormValues>({
+    resolver: zodResolver(settingsEscalationFormSchema),
+    defaultValues: { offenseCount: 2, multiplier: 1, description: '' },
+  });
+
+  const revenueShareForm = useForm<SettingsRevenueShareFormValues>({
+    resolver: zodResolver(settingsRevenueShareFormSchema),
+    defaultValues: {
+      saccoId: '',
+      shareType: 'none',
+      percentage: '',
+      fixedAmount: '',
+      period: 'weekly',
+      activePermitsOnly: false,
+      complianceThreshold: '',
+      isActive: true,
+    },
   });
 
   // Load settings when available
@@ -129,6 +154,10 @@ export default function SettingsPage() {
       setPermitSettings(settings.permitSettings);
       setPenaltySettings(settings.penaltySettings);
       setRevenueSharingSettings(settings.revenueSharingSettings || { rules: [] });
+      permitForm.reset({
+        defaultFrequency: settings.permitSettings.defaultFrequency,
+        gracePeriodDays: settings.permitSettings.gracePeriodDays ?? undefined,
+      });
     }
   }, [settings]);
 
@@ -148,16 +177,16 @@ export default function SettingsPage() {
     }
   }, [isPermitTypeDialogOpen, selectedPermitType, isPlatformSuperAdmin, countyId]);
 
-  // Save Permit Settings
-  const handleSavePermitSettings = async () => {
+  // Save Permit Settings (validated form values when submitted via form)
+  const handleSavePermitSettings = async (values: SettingsPermitFormValues) => {
     if (!countyId) return;
-
     await updateSettings.mutateAsync({
       countyId,
       settings: {
         permitSettings: {
           ...permitSettings,
-          gracePeriodDays: permitSettings.gracePeriodDays ?? 0,
+          defaultFrequency: values.defaultFrequency,
+          gracePeriodDays: values.gracePeriodDays ?? 0,
         },
       },
     });
@@ -210,9 +239,8 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['permit_types'] });
       toast.success(selectedPermitType ? 'Permit type updated' : 'Permit type created');
       setIsPermitTypeDialogOpen(false);
-      setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' });
+      permitTypeForm.reset({ name: '', description: '', amount: 0, duration_days: 1 });
       setSelectedPermitType(null);
-      // Reset selected county for next creation
       if (isPlatformSuperAdmin) {
         setSelectedCountyId(undefined);
       }
@@ -242,18 +270,13 @@ export default function SettingsPage() {
     },
   });
 
-  // Add/Update Penalty Type
-  const handleSavePenaltyType = () => {
-    if (!penaltyTypeForm.name || !penaltyTypeForm.amount) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
+  // Add/Update Penalty Type (validated form values)
+  const handleSavePenaltyType = (values: SettingsPenaltyTypeFormValues) => {
     const newPenaltyType: PenaltyType = {
       id: selectedPenaltyType?.id || Date.now().toString(),
-      name: penaltyTypeForm.name,
-      description: penaltyTypeForm.description,
-      amount: parseFloat(penaltyTypeForm.amount),
+      name: values.name,
+      description: values.description || '',
+      amount: values.amount,
       isActive: selectedPenaltyType?.isActive ?? true,
     };
 
@@ -263,7 +286,7 @@ export default function SettingsPage() {
 
     setPenaltySettings({ ...penaltySettings, penaltyTypes: updatedTypes });
     setIsPenaltyTypeDialogOpen(false);
-    setPenaltyTypeForm({ name: '', description: '', amount: '' });
+    penaltyTypeForm.reset({ name: '', description: '', amount: 0 });
     setSelectedPenaltyType(null);
   };
 
@@ -275,17 +298,12 @@ export default function SettingsPage() {
     });
   };
 
-  // Add/Update Escalation Rule
-  const handleSaveEscalationRule = () => {
-    if (!escalationForm.offenseCount || !escalationForm.multiplier) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
+  // Add/Update Escalation Rule (validated form values)
+  const handleSaveEscalationRule = (values: SettingsEscalationFormValues) => {
     const newRule: EscalationRule = {
-      offenseCount: parseInt(escalationForm.offenseCount),
-      multiplier: parseFloat(escalationForm.multiplier),
-      description: escalationForm.description,
+      offenseCount: values.offenseCount,
+      multiplier: values.multiplier,
+      description: values.description || '',
     };
 
     const updatedRules = selectedEscalationIndex !== null
@@ -294,7 +312,7 @@ export default function SettingsPage() {
 
     setPenaltySettings({ ...penaltySettings, escalationRules: updatedRules });
     setIsEscalationDialogOpen(false);
-    setEscalationForm({ offenseCount: '', multiplier: '', description: '' });
+    escalationForm.reset({ offenseCount: 2, multiplier: 1, description: '' });
     setSelectedEscalationIndex(null);
   };
 
@@ -309,77 +327,62 @@ export default function SettingsPage() {
   // Open edit dialogs
   const openEditPermitType = (permitType: any) => {
     setSelectedPermitType(permitType);
-    setPermitTypeForm({
+    permitTypeForm.reset({
       name: permitType.name,
       description: permitType.description || '',
-      amount: permitType.amount.toString(),
-      duration_days: permitType.duration_days.toString(),
+      amount: permitType.amount,
+      duration_days: permitType.duration_days,
     });
     setIsPermitTypeDialogOpen(true);
   };
 
   const openEditPenaltyType = (penaltyType: PenaltyType) => {
     setSelectedPenaltyType(penaltyType);
-    setPenaltyTypeForm({
+    penaltyTypeForm.reset({
       name: penaltyType.name,
-      description: penaltyType.description,
-      amount: penaltyType.amount.toString(),
+      description: penaltyType.description || '',
+      amount: penaltyType.amount,
     });
     setIsPenaltyTypeDialogOpen(true);
   };
 
   const openEditEscalation = (rule: EscalationRule, index: number) => {
     setSelectedEscalationIndex(index);
-    setEscalationForm({
-      offenseCount: rule.offenseCount.toString(),
-      multiplier: rule.multiplier.toString(),
-      description: rule.description,
+    escalationForm.reset({
+      offenseCount: rule.offenseCount,
+      multiplier: rule.multiplier,
+      description: rule.description || '',
     });
     setIsEscalationDialogOpen(true);
   };
 
-  // Add/Update Revenue Share Rule
-  const handleSaveRevenueShareRule = () => {
-    if (!revenueShareForm.saccoId || revenueShareForm.shareType === 'none') {
-      toast.error('Please select a Sacco and revenue share type');
-      return;
-    }
-
-    if (revenueShareForm.shareType === 'percentage' && !revenueShareForm.percentage) {
-      toast.error('Please enter percentage amount');
-      return;
-    }
-
-    if (revenueShareForm.shareType === 'fixed_per_rider' && !revenueShareForm.fixedAmount) {
-      toast.error('Please enter fixed amount per rider');
-      return;
-    }
-
-    const selectedSacco = saccos.find(s => s.id === revenueShareForm.saccoId);
+  // Add/Update Revenue Share Rule (validated form values)
+  const handleSaveRevenueShareRule = (values: SettingsRevenueShareFormValues) => {
+    const selectedSacco = saccos.find(s => s.id === values.saccoId);
     if (!selectedSacco) {
       toast.error('Selected Sacco not found');
       return;
     }
 
     const newRule: RevenueShareRule = {
-      saccoId: revenueShareForm.saccoId,
+      saccoId: values.saccoId,
       saccoName: selectedSacco.name,
-      shareType: revenueShareForm.shareType,
-      percentage: revenueShareForm.shareType === 'percentage' ? parseFloat(revenueShareForm.percentage) : undefined,
-      fixedAmount: revenueShareForm.shareType === 'fixed_per_rider' ? parseFloat(revenueShareForm.fixedAmount) : undefined,
-      period: revenueShareForm.shareType === 'fixed_per_rider' ? revenueShareForm.period : undefined,
-      activePermitsOnly: revenueShareForm.activePermitsOnly,
-      complianceThreshold: revenueShareForm.complianceThreshold ? parseFloat(revenueShareForm.complianceThreshold) : undefined,
-      isActive: revenueShareForm.isActive,
+      shareType: values.shareType,
+      percentage: values.shareType === 'percentage' && values.percentage ? parseFloat(values.percentage) : undefined,
+      fixedAmount: values.shareType === 'fixed_per_rider' && values.fixedAmount ? parseFloat(values.fixedAmount) : undefined,
+      period: values.shareType === 'fixed_per_rider' ? values.period : undefined,
+      activePermitsOnly: values.activePermitsOnly,
+      complianceThreshold: values.complianceThreshold?.trim() ? parseFloat(values.complianceThreshold) : undefined,
+      isActive: values.isActive,
     };
 
     const updatedRules = selectedRevenueShareRule
       ? revenueSharingSettings.rules.map(r => r.saccoId === selectedRevenueShareRule.saccoId ? newRule : r)
-      : [...revenueSharingSettings.rules.filter(r => r.saccoId !== revenueShareForm.saccoId), newRule];
+      : [...revenueSharingSettings.rules.filter(r => r.saccoId !== values.saccoId), newRule];
 
     setRevenueSharingSettings({ ...revenueSharingSettings, rules: updatedRules });
     setIsRevenueShareDialogOpen(false);
-    setRevenueShareForm({
+    revenueShareForm.reset({
       saccoId: '',
       shareType: 'none',
       percentage: '',
@@ -403,7 +406,7 @@ export default function SettingsPage() {
   // Open edit revenue share dialog
   const openEditRevenueShare = (rule: RevenueShareRule) => {
     setSelectedRevenueShareRule(rule);
-    setRevenueShareForm({
+    revenueShareForm.reset({
       saccoId: rule.saccoId,
       shareType: rule.shareType,
       percentage: rule.percentage?.toString() || '',
@@ -488,7 +491,7 @@ export default function SettingsPage() {
                   <Button
                     onClick={() => { 
                       setSelectedPermitType(null); 
-                      setPermitTypeForm({ name: '', description: '', amount: '', duration_days: '' }); 
+                      permitTypeForm.reset({ name: '', description: '', amount: 0, duration_days: 1 }); 
                       if (isPlatformSuperAdmin) {
                         setSelectedCountyId(undefined);
                       }
@@ -539,49 +542,62 @@ export default function SettingsPage() {
                 <CardDescription className="text-xs sm:text-sm">Configure default permit frequency and grace periods</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 sm:space-y-6">
-                <div className="space-y-2">
-                  <Label>Default Permit Frequency</Label>
-                  <Select
-                    value={permitSettings.defaultFrequency}
-                    onValueChange={(value: 'weekly' | 'monthly' | 'annual') =>
-                      setPermitSettings({ ...permitSettings, defaultFrequency: value })
-                    }
-                  >
-                    <SelectTrigger className="min-h-[44px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="annual">Annual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">Default frequency for new permit types</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Grace Period (Days)</Label>
-                  <Input
-                    type="number"
-                    value={permitSettings.gracePeriodDays ?? ''}
-                    onChange={(e) =>
-                      setPermitSettings({
-                        ...permitSettings,
-                        gracePeriodDays: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
-                      })
-                    }
-                    min="0"
-                    placeholder="0"
-                    className="min-h-[44px]"
-                  />
-                  <p className="text-xs text-muted-foreground">Number of days after permit expiry before penalties apply</p>
-                </div>
-
-                <Button onClick={handleSavePermitSettings} disabled={updateSettings.isPending} className="w-full sm:w-auto min-h-[44px]">
-                  {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Permit Settings
-                </Button>
+                <Form {...permitForm}>
+                  <form onSubmit={permitForm.handleSubmit(handleSavePermitSettings)} className="space-y-4 sm:space-y-6">
+                    <FormField
+                      control={permitForm.control}
+                      name="defaultFrequency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Default Permit Frequency</FormLabel>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="min-h-[44px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="annual">Annual</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">Default frequency for new permit types</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={permitForm.control}
+                      name="gracePeriodDays"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Grace Period (Days)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder="0"
+                              className="min-h-[44px]"
+                              value={field.value === undefined || field.value === null ? '' : field.value}
+                              onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Number of days after permit expiry before penalties apply</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" disabled={updateSettings.isPending} className="w-full sm:w-auto min-h-[44px]">
+                      {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Permit Settings
+                    </Button>
+                  </form>
+                </Form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -625,7 +641,7 @@ export default function SettingsPage() {
                     <CardDescription className="text-xs sm:text-sm mt-0.5">Configure penalty types and their amounts</CardDescription>
                   </div>
                   <Button
-                    onClick={() => { setSelectedPenaltyType(null); setPenaltyTypeForm({ name: '', description: '', amount: '' }); setIsPenaltyTypeDialogOpen(true); }}
+                    onClick={() => { setSelectedPenaltyType(null); penaltyTypeForm.reset({ name: '', description: '', amount: 0 }); setIsPenaltyTypeDialogOpen(true); }}
                     className="w-full sm:w-auto min-h-[44px] shrink-0"
                   >
                     <Plus className="mr-2 h-4 w-4" />
@@ -671,7 +687,7 @@ export default function SettingsPage() {
                     <CardDescription className="text-xs sm:text-sm mt-0.5">Configure penalty multipliers for repeat offenses</CardDescription>
                   </div>
                   <Button
-                    onClick={() => { setSelectedEscalationIndex(null); setEscalationForm({ offenseCount: '', multiplier: '', description: '' }); setIsEscalationDialogOpen(true); }}
+                    onClick={() => { setSelectedEscalationIndex(null); escalationForm.reset({ offenseCount: 2, multiplier: 1, description: '' }); setIsEscalationDialogOpen(true); }}
                     className="w-full sm:w-auto min-h-[44px] shrink-0"
                   >
                     <Plus className="mr-2 h-4 w-4" />
@@ -720,7 +736,7 @@ export default function SettingsPage() {
                   <Button
                     onClick={() => { 
                       setSelectedRevenueShareRule(null); 
-                      setRevenueShareForm({
+                      revenueShareForm.reset({
                         saccoId: '',
                         shareType: 'none',
                         percentage: '',
@@ -819,100 +835,119 @@ export default function SettingsPage() {
               <DialogTitle className="text-base sm:text-lg">{selectedPermitType ? 'Edit Permit Type' : 'Add Permit Type'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">Configure permit type details and pricing</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              {/* County selection for super admins */}
-              {isPlatformSuperAdmin && !selectedPermitType && (
-                <div className="space-y-2">
-                  <Label>County *</Label>
-                  <Select 
-                    value={selectedCountyId || ''} 
-                    onValueChange={(value) => setSelectedCountyId(value)}
-                  >
-                    <SelectTrigger className="min-h-[44px]">
-                      <SelectValue placeholder="Select a County" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {counties.map((county) => (
-                        <SelectItem key={county.id} value={county.id}>
-                          {county.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!selectedCountyId && (
-                    <p className="text-xs text-destructive">Please select a county</p>
-                  )}
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <Label>Name *</Label>
-                <Input
-                  value={permitTypeForm.name}
-                  onChange={(e) => setPermitTypeForm({ ...permitTypeForm, name: e.target.value })}
-                  placeholder="e.g., Monthly Permit"
-                  className="min-h-[44px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={permitTypeForm.description}
-                  onChange={(e) => setPermitTypeForm({ ...permitTypeForm, description: e.target.value })}
-                  placeholder="Brief description"
-                  className="min-h-[44px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Amount (KES) *</Label>
-                <Input
-                  type="number"
-                  value={permitTypeForm.amount}
-                  onChange={(e) => setPermitTypeForm({ ...permitTypeForm, amount: e.target.value })}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  className="min-h-[44px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Duration (Days) *</Label>
-                <Input
-                  type="number"
-                  value={permitTypeForm.duration_days}
-                  onChange={(e) => setPermitTypeForm({ ...permitTypeForm, duration_days: e.target.value })}
-                  placeholder="30"
-                  min="1"
-                  className="min-h-[44px]"
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => {
-                setIsPermitTypeDialogOpen(false);
-                // Reset selected county when closing
-                if (isPlatformSuperAdmin && !selectedPermitType) {
-                  setSelectedCountyId(undefined);
-                }
-              }} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={() => {
+            <Form {...permitTypeForm}>
+              <form onSubmit={permitTypeForm.handleSubmit((values) => {
                 const finalCountyId = selectedCountyId || countyId;
                 if (!finalCountyId && !selectedPermitType) {
                   toast.error('Please select a county');
                   return;
                 }
                 createPermitTypeMutation.mutate({
-                  name: permitTypeForm.name,
-                  description: permitTypeForm.description,
-                  amount: parseFloat(permitTypeForm.amount),
-                  duration_days: parseInt(permitTypeForm.duration_days),
+                  name: values.name,
+                  description: values.description || '',
+                  amount: values.amount,
+                  duration_days: values.duration_days,
                   county_id: finalCountyId,
                 });
-              }} disabled={!permitTypeForm.name || !permitTypeForm.amount || !permitTypeForm.duration_days || (!selectedCountyId && !countyId && !selectedPermitType) || createPermitTypeMutation.isPending} className="w-full sm:w-auto min-h-[44px]">
-                {createPermitTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {selectedPermitType ? 'Update' : 'Create'}
-              </Button>
-            </DialogFooter>
+              })} className="space-y-4">
+                {isPlatformSuperAdmin && !selectedPermitType && (
+                  <div className="space-y-2">
+                    <Label>County *</Label>
+                    <Select value={selectedCountyId || ''} onValueChange={(value) => setSelectedCountyId(value)}>
+                      <SelectTrigger className="min-h-[44px]">
+                        <SelectValue placeholder="Select a County" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {counties.map((county) => (
+                          <SelectItem key={county.id} value={county.id}>{county.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!selectedCountyId && <p className="text-xs text-destructive">Please select a county</p>}
+                  </div>
+                )}
+                <FormField
+                  control={permitTypeForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Monthly Permit" className="min-h-[44px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={permitTypeForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Brief description" className="min-h-[44px]" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={permitTypeForm.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount (KES) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          min={0}
+                          step={0.01}
+                          className="min-h-[44px]"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            field.onChange(v === '' ? '' : parseFloat(v));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={permitTypeForm.control}
+                  name="duration_days"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duration (Days) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="30"
+                          min={1}
+                          className="min-h-[44px]"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            field.onChange(v === '' ? '' : parseInt(v, 10));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={() => { setIsPermitTypeDialogOpen(false); if (isPlatformSuperAdmin && !selectedPermitType) setSelectedCountyId(undefined); }} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" disabled={(!selectedCountyId && !countyId && !selectedPermitType) || createPermitTypeMutation.isPending} className="w-full sm:w-auto min-h-[44px]">
+                    {createPermitTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {selectedPermitType ? 'Update' : 'Create'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 
@@ -923,44 +958,66 @@ export default function SettingsPage() {
               <DialogTitle className="text-base sm:text-lg">{selectedPenaltyType ? 'Edit Penalty Type' : 'Add Penalty Type'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">Configure penalty type details and amount</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Name *</Label>
-                <Input
-                  value={penaltyTypeForm.name}
-                  onChange={(e) => setPenaltyTypeForm({ ...penaltyTypeForm, name: e.target.value })}
-                  placeholder="e.g., Expired Permit"
-                  className="min-h-[44px]"
+            <Form {...penaltyTypeForm}>
+              <form onSubmit={penaltyTypeForm.handleSubmit(handleSavePenaltyType)} className="space-y-4">
+                <FormField
+                  control={penaltyTypeForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Expired Permit" className="min-h-[44px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={penaltyTypeForm.description}
-                  onChange={(e) => setPenaltyTypeForm({ ...penaltyTypeForm, description: e.target.value })}
-                  placeholder="Brief description"
-                  className="min-h-[44px]"
+                <FormField
+                  control={penaltyTypeForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Brief description" className="min-h-[44px]" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Amount (KES) *</Label>
-                <Input
-                  type="number"
-                  value={penaltyTypeForm.amount}
-                  onChange={(e) => setPenaltyTypeForm({ ...penaltyTypeForm, amount: e.target.value })}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  className="min-h-[44px]"
+                <FormField
+                  control={penaltyTypeForm.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount (KES) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          min={0}
+                          step={0.01}
+                          className="min-h-[44px]"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            field.onChange(v === '' ? '' : parseFloat(v));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-            </div>
-            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setIsPenaltyTypeDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleSavePenaltyType} className="w-full sm:w-auto min-h-[44px]">
-                {selectedPenaltyType ? 'Update' : 'Add'}
-              </Button>
-            </DialogFooter>
+                <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={() => setIsPenaltyTypeDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" className="w-full sm:w-auto min-h-[44px]">
+                    {selectedPenaltyType ? 'Update' : 'Add'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 
@@ -971,48 +1028,78 @@ export default function SettingsPage() {
               <DialogTitle className="text-base sm:text-lg">{selectedEscalationIndex !== null ? 'Edit Escalation Rule' : 'Add Escalation Rule'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">Configure penalty multiplier for repeat offenses</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Offense Count *</Label>
-                <Input
-                  type="number"
-                  value={escalationForm.offenseCount}
-                  onChange={(e) => setEscalationForm({ ...escalationForm, offenseCount: e.target.value })}
-                  placeholder="2"
-                  min="2"
-                  className="min-h-[44px]"
+            <Form {...escalationForm}>
+              <form onSubmit={escalationForm.handleSubmit(handleSaveEscalationRule)} className="space-y-4">
+                <FormField
+                  control={escalationForm.control}
+                  name="offenseCount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Offense Count *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="2"
+                          min={2}
+                          className="min-h-[44px]"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            field.onChange(v === '' ? '' : parseInt(v, 10));
+                          }}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">Number of offenses before this rule applies</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <p className="text-xs text-muted-foreground">Number of offenses before this rule applies</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Multiplier *</Label>
-                <Input
-                  type="number"
-                  value={escalationForm.multiplier}
-                  onChange={(e) => setEscalationForm({ ...escalationForm, multiplier: e.target.value })}
-                  placeholder="1.5"
-                  min="1"
-                  step="0.1"
-                  className="min-h-[44px]"
+                <FormField
+                  control={escalationForm.control}
+                  name="multiplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Multiplier *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="1.5"
+                          min={1}
+                          step={0.1}
+                          className="min-h-[44px]"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            field.onChange(v === '' ? '' : parseFloat(v));
+                          }}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">Penalty multiplier (e.g., 1.5 = 150% of base penalty)</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <p className="text-xs text-muted-foreground">Penalty multiplier (e.g., 1.5 = 150% of base penalty)</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={escalationForm.description}
-                  onChange={(e) => setEscalationForm({ ...escalationForm, description: e.target.value })}
-                  placeholder="Brief description of this rule"
-                  className="min-h-[44px]"
+                <FormField
+                  control={escalationForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Brief description of this rule" className="min-h-[44px]" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-            </div>
-            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setIsEscalationDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleSaveEscalationRule} className="w-full sm:w-auto min-h-[44px]">
-                {selectedEscalationIndex !== null ? 'Update' : 'Add'}
-              </Button>
-            </DialogFooter>
+                <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={() => setIsEscalationDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" className="w-full sm:w-auto min-h-[44px]">
+                    {selectedEscalationIndex !== null ? 'Update' : 'Add'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 
@@ -1023,146 +1110,167 @@ export default function SettingsPage() {
               <DialogTitle className="text-base sm:text-lg">{selectedRevenueShareRule ? 'Edit Revenue Share Rule' : 'Add Revenue Share Rule'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">Configure revenue sharing for a Sacco. Changes apply going forward (not retroactive).</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Sacco *</Label>
-                <Select
-                  value={revenueShareForm.saccoId}
-                  onValueChange={(value) => setRevenueShareForm({ ...revenueShareForm, saccoId: value })}
-                  disabled={!!selectedRevenueShareRule}
-                >
-                  <SelectTrigger className="min-h-[44px]">
-                    <SelectValue placeholder="Select a Sacco" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {saccos.map((sacco) => (
-                      <SelectItem key={sacco.id} value={sacco.id}>
-                        {sacco.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Applies only to riders registered under this Sacco</p>
-              </div>
+            <Form {...revenueShareForm}>
+              <form onSubmit={revenueShareForm.handleSubmit(handleSaveRevenueShareRule)} className="space-y-4">
+                <FormField
+                  control={revenueShareForm.control}
+                  name="saccoId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sacco *</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange} disabled={!!selectedRevenueShareRule}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[44px]">
+                            <SelectValue placeholder="Select a Sacco" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {saccos.map((sacco) => (
+                            <SelectItem key={sacco.id} value={sacco.id}>{sacco.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Applies only to riders registered under this Sacco</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={revenueShareForm.control}
+                  name="shareType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Revenue Share Type *</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="min-h-[44px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Revenue Share</SelectItem>
+                          <SelectItem value="percentage">Percentage-based (e.g., 5% of permit fees)</SelectItem>
+                          <SelectItem value="fixed_per_rider">Fixed Amount Per Rider (e.g., KES 10 per rider per week)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <div className="space-y-2">
-                <Label>Revenue Share Type *</Label>
-                <Select
-                  value={revenueShareForm.shareType}
-                  onValueChange={(value: RevenueShareType) => setRevenueShareForm({ ...revenueShareForm, shareType: value })}
-                >
-                  <SelectTrigger className="min-h-[44px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Revenue Share</SelectItem>
-                    <SelectItem value="percentage">Percentage-based (e.g., 5% of permit fees)</SelectItem>
-                    <SelectItem value="fixed_per_rider">Fixed Amount Per Rider (e.g., KES 10 per rider per week)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {revenueShareForm.shareType === 'percentage' && (
-                <div className="space-y-2">
-                  <Label>Percentage (%) *</Label>
-                  <Input
-                    type="number"
-                    value={revenueShareForm.percentage}
-                    onChange={(e) => setRevenueShareForm({ ...revenueShareForm, percentage: e.target.value })}
-                    placeholder="5"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className="min-h-[44px]"
+                {revenueShareForm.watch('shareType') === 'percentage' && (
+                  <FormField
+                    control={revenueShareForm.control}
+                    name="percentage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Percentage (%) *</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="5" min={0} max={100} step={0.01} className="min-h-[44px]" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Percentage of permit fees to share with this Sacco</p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                  <p className="text-xs text-muted-foreground">Percentage of permit fees to share with this Sacco</p>
-                </div>
-              )}
+                )}
 
-              {revenueShareForm.shareType === 'fixed_per_rider' && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Amount Per Rider (KES) *</Label>
-                    <Input
-                      type="number"
-                      value={revenueShareForm.fixedAmount}
-                      onChange={(e) => setRevenueShareForm({ ...revenueShareForm, fixedAmount: e.target.value })}
-                      placeholder="10"
-                      min="0"
-                      step="0.01"
-                      className="min-h-[44px]"
+                {revenueShareForm.watch('shareType') === 'fixed_per_rider' && (
+                  <>
+                    <FormField
+                      control={revenueShareForm.control}
+                      name="fixedAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Amount Per Rider (KES) *</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="10" min={0} step={0.01} className="min-h-[44px]" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Fixed amount per registered rider</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                    <p className="text-xs text-muted-foreground">Fixed amount per registered rider</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Period *</Label>
-                    <Select
-                      value={revenueShareForm.period}
-                      onValueChange={(value: 'weekly' | 'monthly' | 'annual') => setRevenueShareForm({ ...revenueShareForm, period: value })}
-                    >
-                      <SelectTrigger className="min-h-[44px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="annual">Annual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Frequency of payment per rider</p>
-                  </div>
-                </>
-              )}
+                    <FormField
+                      control={revenueShareForm.control}
+                      name="period"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Period *</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger className="min-h-[44px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="annual">Annual</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">Frequency of payment per rider</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
 
-              <Separator />
+                <Separator />
 
-              <div className="space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label>Active Permits Only</Label>
-                    <p className="text-sm text-muted-foreground">Apply revenue share only to riders with active permits</p>
-                  </div>
-                  <Switch
-                    checked={revenueShareForm.activePermitsOnly}
-                    onCheckedChange={(checked) => setRevenueShareForm({ ...revenueShareForm, activePermitsOnly: checked })}
-                    className="self-start sm:self-center"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Compliance Threshold (%) (Optional)</Label>
-                  <Input
-                    type="number"
-                    value={revenueShareForm.complianceThreshold}
-                    onChange={(e) => setRevenueShareForm({ ...revenueShareForm, complianceThreshold: e.target.value })}
-                    placeholder="80"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    className="min-h-[44px]"
-                  />
-                  <p className="text-xs text-muted-foreground">Minimum compliance percentage required (leave empty for no threshold)</p>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label>Active</Label>
-                    <p className="text-sm text-muted-foreground">Enable or disable this revenue share rule</p>
-                  </div>
-                  <Switch
-                    checked={revenueShareForm.isActive}
-                    onCheckedChange={(checked) => setRevenueShareForm({ ...revenueShareForm, isActive: checked })}
-                    className="self-start sm:self-center"
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setIsRevenueShareDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleSaveRevenueShareRule} className="w-full sm:w-auto min-h-[44px]">
-                {selectedRevenueShareRule ? 'Update' : 'Add'}
-              </Button>
-            </DialogFooter>
+                <FormField
+                  control={revenueShareForm.control}
+                  name="activePermitsOnly"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-0.5 min-w-0">
+                        <FormLabel>Active Permits Only</FormLabel>
+                        <p className="text-sm text-muted-foreground">Apply revenue share only to riders with active permits</p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} className="self-start sm:self-center" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={revenueShareForm.control}
+                  name="complianceThreshold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Compliance Threshold (%) (Optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="80" min={0} max={100} step={0.1} className="min-h-[44px]" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">Minimum compliance percentage required (leave empty for no threshold)</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={revenueShareForm.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-0.5 min-w-0">
+                        <FormLabel>Active</FormLabel>
+                        <p className="text-sm text-muted-foreground">Enable or disable this revenue share rule</p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} className="self-start sm:self-center" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={() => setIsRevenueShareDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" className="w-full sm:w-auto min-h-[44px]">
+                    {selectedRevenueShareRule ? 'Update' : 'Add'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 

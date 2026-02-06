@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -25,6 +27,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -32,12 +42,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { exportToCSV } from '@/utils/exportCsv';
+import { saccoFormSchema, type SaccoFormValues } from '@/lib/zod';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +95,23 @@ export default function SaccosPage() {
       return true;
     });
   }, [saccos, statusFilter, riskFilter]);
+
+  const handleExport = () => {
+    if (!filteredSaccos.length) return;
+    const rows = filteredSaccos.map((s) => ({
+      name: s.name ?? '',
+      registration_number: s.registration_number ?? '',
+      contact_phone: s.contact_phone ?? '',
+      contact_email: s.contact_email ?? '',
+      address: s.address ?? '',
+      member_count: s.member_count ?? '',
+      stages_count: s.stages_count ?? '',
+      compliance_rate: s.compliance_rate ?? '',
+      penalties_count: s.penalties_count ?? '',
+      status: s.status ?? '',
+    }));
+    exportToCSV(rows, 'saccos_export');
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (saccoId: string) => {
@@ -252,7 +280,7 @@ export default function SaccosPage() {
             <p className="text-muted-foreground">Manage Sacco organizations • {filteredSaccos.length} total</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export</Button>
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredSaccos.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
             <Button onClick={() => { setSelectedSacco(null); setIsFormOpen(true); }} className="glow-primary">
               <Plus className="mr-2 h-4 w-4" />Add Sacco
             </Button>
@@ -378,23 +406,43 @@ export default function SaccosPage() {
   );
 }
 
-// Sacco Form Dialog Component
-function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolean; onOpenChange: (open: boolean) => void; sacco: Sacco | null; countyId: string }) {
-  const queryClient = useQueryClient();
-  const isEditing = !!sacco;
-
-  const [formData, setFormData] = useState({
+function getSaccoDefaultValues(sacco: Sacco | null): SaccoFormValues {
+  return {
     name: sacco?.name || '',
     registration_number: sacco?.registration_number || '',
     contact_email: sacco?.contact_email || '',
     contact_phone: sacco?.contact_phone || '',
     address: sacco?.address || '',
-    status: sacco?.status || 'pending',
+    status: (sacco?.status as SaccoFormValues['status']) || 'pending',
+  };
+}
+
+// Sacco Form Dialog Component
+function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolean; onOpenChange: (open: boolean) => void; sacco: Sacco | null; countyId: string }) {
+  const queryClient = useQueryClient();
+  const isEditing = !!sacco;
+
+  const form = useForm<SaccoFormValues>({
+    resolver: zodResolver(saccoFormSchema),
+    defaultValues: getSaccoDefaultValues(sacco),
   });
 
+  useEffect(() => {
+    if (!open) return;
+    form.reset(getSaccoDefaultValues(sacco));
+  }, [open, sacco]);
+
   const mutation = useMutation({
-    mutationFn: async () => {
-      const payload = { ...formData, county_id: countyId };
+    mutationFn: async (values: SaccoFormValues) => {
+      const payload = {
+        name: values.name.trim(),
+        registration_number: values.registration_number?.trim() || null,
+        contact_email: values.contact_email?.trim() || null,
+        contact_phone: values.contact_phone?.trim() || null,
+        address: values.address?.trim() || null,
+        status: values.status,
+        county_id: countyId,
+      };
       if (isEditing && sacco) {
         const { error } = await supabase.from('saccos').update(payload).eq('id', sacco.id);
         if (error) throw error;
@@ -407,21 +455,12 @@ function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolea
       queryClient.invalidateQueries({ queryKey: ['saccos'] });
       toast.success(isEditing ? 'Sacco updated' : 'Sacco added');
       onOpenChange(false);
+      form.reset();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Reset form when sacco changes
-  useEffect(() => {
-    setFormData({
-      name: sacco?.name || '',
-      registration_number: sacco?.registration_number || '',
-      contact_email: sacco?.contact_email || '',
-      contact_phone: sacco?.contact_phone || '',
-      address: sacco?.address || '',
-      status: sacco?.status || 'pending',
-    });
-  }, [sacco]);
+  const onSubmit = (values: SaccoFormValues) => mutation.mutate(values);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -430,32 +469,105 @@ function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolea
           <DialogTitle>{isEditing ? 'Edit Sacco' : 'Add New Sacco'}</DialogTitle>
           <DialogDescription>{isEditing ? 'Update sacco information' : 'Register a new Sacco organization'}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div><Label>Name *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><Label>Registration Number</Label><Input value={formData.registration_number} onChange={(e) => setFormData({ ...formData, registration_number: e.target.value })} /></div>
-          <div><Label>Email</Label><Input type="email" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} /></div>
-          <div><Label>Phone</Label><Input value={formData.contact_phone} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} /></div>
-          <div><Label>Address</Label><Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
-          <div>
-            <Label>Status</Label>
-            <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as Sacco['status'] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !formData.name}>
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? 'Update' : 'Add'}
-          </Button>
-        </DialogFooter>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="registration_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Registration Number</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditing ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

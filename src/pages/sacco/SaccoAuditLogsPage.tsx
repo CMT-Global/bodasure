@@ -1,8 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useSaccos } from '@/hooks/useData';
 import { useSaccoAuditLogs } from '@/hooks/useSaccoAuditLogs';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import {
   Select,
   SelectContent,
@@ -36,6 +46,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { saccoAuditLogsFilterFormSchema, type SaccoAuditLogsFilterFormValues } from '@/lib/zod';
 
 export default function SaccoAuditLogsPage() {
   const { profile, roles } = useAuth();
@@ -48,12 +59,28 @@ export default function SaccoAuditLogsPage() {
   const [saccoId, setSaccoId] = useState<string | undefined>(undefined);
 
   const isMobile = useIsMobile();
-  const [filters, setFilters] = useState<{
-    actionType?: string;
-    entityType?: string;
-    startDate?: string;
-    endDate?: string;
-  }>({});
+
+  const filterForm = useForm<SaccoAuditLogsFilterFormValues>({
+    resolver: zodResolver(saccoAuditLogsFilterFormSchema),
+    mode: 'onChange',
+    defaultValues: {
+      actionType: '',
+      entityType: '',
+      startDate: '',
+      endDate: '',
+    },
+  });
+
+  const formValues = filterForm.watch();
+  const filters = useMemo(
+    () => ({
+      actionType: formValues.actionType?.trim() || undefined,
+      entityType: formValues.entityType && formValues.entityType !== '__all__' ? formValues.entityType : undefined,
+      startDate: formValues.startDate?.trim() || undefined,
+      endDate: formValues.endDate?.trim() || undefined,
+    }),
+    [formValues.actionType, formValues.entityType, formValues.startDate, formValues.endDate]
+  );
 
   const { data: auditLogs = [], isLoading: logsLoading } = useSaccoAuditLogs(
     saccoId,
@@ -137,76 +164,107 @@ export default function SaccoAuditLogsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="action-type">Action Type</Label>
-                    <Input
-                      id="action-type"
-                      placeholder="e.g., approve, suspend"
-                      value={filters.actionType || ''}
-                      onChange={(e) =>
-                        setFilters({ ...filters, actionType: e.target.value || undefined })
-                      }
-                      className="min-h-[44px]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="entity-type">Entity Type</Label>
-                    <Select
-                      value={filters.entityType ?? '__all__'}
-                      onValueChange={(v) =>
-                        setFilters({ ...filters, entityType: v === '__all__' ? undefined : v })
-                      }
-                    >
-                      <SelectTrigger id="entity-type" className="min-h-[44px]">
-                        <SelectValue placeholder="All entities" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All entities</SelectItem>
-                        <SelectItem value="rider">Riders</SelectItem>
-                        <SelectItem value="sacco">Saccos</SelectItem>
-                        <SelectItem value="stage">Stages</SelectItem>
-                        <SelectItem value="user_role">User Roles</SelectItem>
-                        <SelectItem value="incident">Incidents</SelectItem>
-                        <SelectItem value="disciplinary_action">Disciplinary Actions</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="start-date">Start Date</Label>
-                    <Input
-                      id="start-date"
-                      type="date"
-                      value={filters.startDate || ''}
-                      onChange={(e) =>
-                        setFilters({ ...filters, startDate: e.target.value || undefined })
-                      }
-                      className="min-h-[44px]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="end-date">End Date</Label>
-                    <Input
-                      id="end-date"
-                      type="date"
-                      value={filters.endDate || ''}
-                      onChange={(e) =>
-                        setFilters({ ...filters, endDate: e.target.value || undefined })
-                      }
-                      className="min-h-[44px]"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setFilters({})}
-                    disabled={!filters.actionType && !filters.entityType && !filters.startDate && !filters.endDate}
-                    className="min-h-[44px] touch-manipulation"
-                  >
-                    Clear Filters
-                  </Button>
-                </div>
+                <Form {...filterForm}>
+                  <form className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <FormField
+                        control={filterForm.control}
+                        name="actionType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Action Type</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., approve, suspend"
+                                className="min-h-[44px]"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={filterForm.control}
+                        name="entityType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Entity Type</FormLabel>
+                            <Select
+                              value={field.value || '__all__'}
+                              onValueChange={(v) => field.onChange(v === '__all__' ? '' : v)}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue placeholder="All entities" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="__all__">All entities</SelectItem>
+                                <SelectItem value="rider">Riders</SelectItem>
+                                <SelectItem value="sacco">Saccos</SelectItem>
+                                <SelectItem value="stage">Stages</SelectItem>
+                                <SelectItem value="user_role">User Roles</SelectItem>
+                                <SelectItem value="incident">Incidents</SelectItem>
+                                <SelectItem value="disciplinary_action">Disciplinary Actions</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={filterForm.control}
+                        name="startDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Start Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" className="min-h-[44px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={filterForm.control}
+                        name="endDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>End Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" className="min-h-[44px]" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          filterForm.reset({
+                            actionType: '',
+                            entityType: '',
+                            startDate: '',
+                            endDate: '',
+                          })
+                        }
+                        disabled={
+                          !formValues.actionType &&
+                          !formValues.entityType &&
+                          !formValues.startDate &&
+                          !formValues.endDate
+                        }
+                        className="min-h-[44px] touch-manipulation"
+                      >
+                        Clear Filters
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
               </CardContent>
             </Card>
 

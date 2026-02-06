@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { generateRiderQRCode } from '@/lib/qrCode';
@@ -43,31 +42,7 @@ import {
 } from 'lucide-react';
 import { RegistrationTable } from '@/components/registration/RegistrationTable';
 import { RiderDetailDialog } from '@/components/registration/RiderDetailDialog';
-import {
-  riderNameSchema,
-  riderPhoneSchema,
-  riderDateOfBirthSchema,
-  riderLicenseExpirySchema,
-  riderLicenseNumberSchema,
-  riderIdNumberSchema,
-  riderAddressSchema,
-} from '@/lib/riderValidation';
-
-const createRegistrationSchema = (hasSaccos: boolean) => z.object({
-  full_name: riderNameSchema,
-  id_number: riderIdNumberSchema,
-  phone: riderPhoneSchema,
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  date_of_birth: riderDateOfBirthSchema,
-  address: riderAddressSchema,
-  license_number: riderLicenseNumberSchema,
-  license_expiry: riderLicenseExpirySchema,
-  sacco_id: hasSaccos ? z.string().min(1, 'Sacco is required') : z.string().optional(),
-  stage_id: z.string().optional(),
-  status: z.enum(['pending', 'approved']),
-});
-
-type RegistrationFormValues = z.infer<ReturnType<typeof createRegistrationSchema>>;
+import { registrationSupportFormSchema, type RegistrationSupportFormValues } from '@/lib/zod';
 
 interface DuplicateCheck {
   id_number: boolean;
@@ -78,7 +53,7 @@ interface DuplicateCheck {
 // Step 1: Personal & Contact + DOB | Step 2: ID + DL, expiry + address | Step 3: Sacco, Stage + Initial Status
 const REGISTRATION_WIZARD_STEP_GROUPS: {
   label: string;
-  fields: { name: keyof RegistrationFormValues; label: string; placeholder?: string; description?: string }[];
+  fields: { name: keyof RegistrationSupportFormValues; label: string; placeholder?: string; description?: string }[];
 }[] = [
   {
     label: 'Personal & Contact',
@@ -207,9 +182,9 @@ export default function RegistrationSupportPage() {
     enabled: !!saccoId && !!countyId,
   });
 
-  const registrationSchema = useMemo(() => createRegistrationSchema(saccos.length > 0), [saccos.length]);
+  const registrationSchema = useMemo(() => registrationSupportFormSchema(saccos.length > 0), [saccos.length]);
 
-  const form = useForm<RegistrationFormValues>({
+  const form = useForm<RegistrationSupportFormValues>({
     resolver: zodResolver(registrationSchema),
     defaultValues: {
       full_name: '',
@@ -310,7 +285,7 @@ export default function RegistrationSupportPage() {
   }, [wizardStep]);
 
   const registrationMutation = useMutation({
-    mutationFn: async (values: RegistrationFormValues) => {
+    mutationFn: async (values: RegistrationSupportFormValues) => {
       if (!countyId) {
         throw new Error('County is required');
       }
@@ -357,7 +332,7 @@ export default function RegistrationSupportPage() {
     },
   });
 
-  const onSubmit = (values: RegistrationFormValues) => {
+  const onSubmit = (values: RegistrationSupportFormValues) => {
     if (duplicateCheck?.existingRider) {
       toast.error('Duplicate registration detected. Please review the existing rider.');
       return;

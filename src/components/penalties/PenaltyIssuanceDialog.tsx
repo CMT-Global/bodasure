@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { useCreatePenalty } from '@/hooks/usePenalties';
 import { useRiders } from '@/hooks/useData';
 import {
@@ -31,16 +30,9 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-
-const penaltyFormSchema = z.object({
-  rider_id: z.string().min(1, 'Rider is required'),
-  penalty_type: z.string().min(1, 'Penalty type is required'),
-  description: z.string().optional(),
-  amount: z.number().min(0, 'Amount must be positive'),
-  due_date: z.string().optional(),
-});
-
-type PenaltyFormValues = z.infer<typeof penaltyFormSchema>;
+import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
+import { penaltyIssuanceFormSchema, type PenaltyIssuanceFormValues } from '@/lib/zod';
 
 interface PenaltyIssuanceDialogProps {
   open: boolean;
@@ -65,8 +57,8 @@ export function PenaltyIssuanceDialog({
   const createPenalty = useCreatePenalty();
   const [amountInput, setAmountInput] = useState<string>('');
 
-  const form = useForm<PenaltyFormValues>({
-    resolver: zodResolver(penaltyFormSchema),
+  const form = useForm<PenaltyIssuanceFormValues>({
+    resolver: zodResolver(penaltyIssuanceFormSchema),
     defaultValues: {
       rider_id: preselectedRiderId || '',
       penalty_type: '',
@@ -95,7 +87,7 @@ export function PenaltyIssuanceDialog({
     }
   }, [open, form]);
 
-  const onSubmit = async (values: PenaltyFormValues) => {
+  const onSubmit = async (values: PenaltyIssuanceFormValues) => {
     try {
       await createPenalty.mutateAsync({
         county_id: countyId,
@@ -253,6 +245,7 @@ export function PenaltyIssuanceDialog({
                   <FormControl>
                     <Textarea
                       placeholder="Additional details about the violation..."
+                      className={cn(isOverCharLimit(field.value ?? '') && 'border-destructive')}
                       {...field}
                     />
                   </FormControl>
@@ -269,7 +262,7 @@ export function PenaltyIssuanceDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createPenalty.isPending}>
+              <Button type="submit" disabled={createPenalty.isPending || isOverCharLimit(form.watch('description') ?? '')}>
                 {createPenalty.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}

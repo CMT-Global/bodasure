@@ -36,6 +36,13 @@ export const SUPPORT_CATEGORIES: { value: SupportTicketCategory; label: string }
   { value: 'technical_issue', label: 'Technical issue' },
 ];
 
+export const SUPPORT_TICKET_STATUS_STYLES: Record<SupportTicketStatus, string> = {
+  open: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+  in_progress: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
+  resolved: 'bg-green-500/15 text-green-700 dark:text-green-400',
+  closed: 'bg-muted text-muted-foreground',
+};
+
 export function useMySupportTickets(enabled = true) {
   return useQuery({
     queryKey: ['support-tickets', 'mine'],

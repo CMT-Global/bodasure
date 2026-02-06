@@ -7,6 +7,7 @@ import {
   useMySupportTickets,
   useCreateSupportTicket,
   SUPPORT_CATEGORIES,
+  SUPPORT_TICKET_STATUS_STYLES,
   type SupportTicketCategory,
   type SupportTicket,
 } from '@/hooks/useSupportTickets';
@@ -28,6 +29,8 @@ import { AlertCircle, HelpCircle, Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
+import { supportTicketFormSchema } from '@/lib/zod';
 
 function SupportHelpContent() {
   const { user, profile, roles } = useAuth();
@@ -38,33 +41,44 @@ function SupportHelpContent() {
   const { data: tickets = [], isLoading: ticketsLoading, error: ticketsError } = useMySupportTickets(!!user);
   const createTicket = useCreateSupportTicket();
 
-  const DESCRIPTION_MAX_WORDS = 300;
-
   const [category, setCategory] = useState<SupportTicketCategory | ''>('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [penaltyId, setPenaltyId] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<{
+    category?: string;
+    subject?: string;
+    description?: string;
+  }>({});
 
-  const descriptionWordCount = description.trim() ? description.trim().split(/\s+/).filter(Boolean).length : 0;
-  const descriptionOverLimit = descriptionWordCount > DESCRIPTION_MAX_WORDS;
+  const overCharLimit = isOverCharLimit(description);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!category || !subject.trim() || !description.trim()) {
-      toast.error('Please select a category, enter a subject, and describe the issue.');
-      return;
-    }
-    if (descriptionOverLimit) {
-      toast.error(`Description must be ${DESCRIPTION_MAX_WORDS} words or fewer.`);
+    setFormErrors({});
+    const payload = {
+      category: category || undefined,
+      subject: subject.trim(),
+      description: description.trim(),
+      penalty_id: category === 'penalty_dispute' && penaltyId ? penaltyId : undefined,
+    };
+    const result = supportTicketFormSchema.safeParse(payload);
+    if (!result.success) {
+      const issues = result.error.flatten().fieldErrors;
+      setFormErrors({
+        category: issues.category?.[0],
+        subject: issues.subject?.[0],
+        description: issues.description?.[0],
+      });
       return;
     }
     createTicket.mutate(
       {
         county_id: countyId,
-        category: category as SupportTicketCategory,
-        subject: subject.trim(),
-        description: description.trim(),
-        penalty_id: category === 'penalty_dispute' ? penaltyId : null,
+        category: result.data.category as SupportTicketCategory,
+        subject: result.data.subject,
+        description: result.data.description,
+        penalty_id: result.data.category === 'penalty_dispute' && result.data.penalty_id ? result.data.penalty_id : null,
       },
       {
         onSuccess: () => {
@@ -73,6 +87,7 @@ function SupportHelpContent() {
           setSubject('');
           setDescription('');
           setPenaltyId(null);
+          setFormErrors({});
         },
         onError: (err: Error) => {
           toast.error(err.message || 'Failed to submit ticket.');
@@ -123,8 +138,14 @@ function SupportHelpContent() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as SupportTicketCategory | '')}>
-                <SelectTrigger id="category" className="min-h-[44px]">
+              <Select
+                value={category}
+                onValueChange={(v) => {
+                  setCategory(v as SupportTicketCategory | '');
+                  if (formErrors.category) setFormErrors((e) => ({ ...e, category: undefined }));
+                }}
+              >
+                <SelectTrigger id="category" className={cn('min-h-[44px]', formErrors.category && 'border-destructive')}>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -135,6 +156,9 @@ function SupportHelpContent() {
                   ))}
                 </SelectContent>
               </Select>
+              {formErrors.category && (
+                <p className="text-xs text-destructive">{formErrors.category}</p>
+              )}
             </div>
 
             {category === 'penalty_dispute' && rider && penalties.length > 0 && (
@@ -162,29 +186,41 @@ function SupportHelpContent() {
               <Input
                 id="subject"
                 value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                onChange={(e) => {
+                  setSubject(e.target.value);
+                  if (formErrors.subject) setFormErrors((e) => ({ ...e, subject: undefined }));
+                }}
                 placeholder="Brief summary of the issue"
-                className="min-h-[44px]"
+                className={cn('min-h-[44px]', formErrors.subject && 'border-destructive')}
                 maxLength={200}
               />
+              {formErrors.subject && (
+                <p className="text-xs text-destructive">{formErrors.subject}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (max {DESCRIPTION_MAX_WORDS} words)</Label>
+              <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  if (formErrors.description) setFormErrors((e) => ({ ...e, description: undefined }));
+                }}
                 placeholder="Provide details so we can help you quickly."
                 rows={4}
-                className={cn('resize-y min-h-[100px]', descriptionOverLimit && 'border-destructive focus-visible:ring-destructive')}
+                className={cn(
+                  'resize-y min-h-[100px]',
+                  (overCharLimit || formErrors.description) && 'border-destructive focus-visible:ring-destructive'
+                )}
               />
-              <p className={cn('text-xs', descriptionOverLimit ? 'text-destructive' : 'text-muted-foreground')}>
-                {descriptionWordCount} / {DESCRIPTION_MAX_WORDS} words
-              </p>
+              {formErrors.description && (
+                <p className="text-xs text-destructive">{formErrors.description}</p>
+              )}
             </div>
 
-            <Button type="submit" disabled={createTicket.isPending || descriptionOverLimit} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
+            <Button type="submit" disabled={createTicket.isPending || overCharLimit} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">
               {createTicket.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               ) : (
@@ -242,13 +278,7 @@ const DESCRIPTION_PREVIEW_CHARS = 150;
 function TicketRow({ ticket }: { ticket: SupportTicket }) {
   const [expanded, setExpanded] = useState(false);
   const cat = SUPPORT_CATEGORIES.find((c) => c.value === ticket.category)?.label ?? ticket.category;
-  const statusColors: Record<string, string> = {
-    open: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-    in_progress: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-    resolved: 'bg-green-500/15 text-green-700 dark:text-green-400',
-    closed: 'bg-muted text-muted-foreground',
-  };
-  const sc = statusColors[ticket.status] ?? 'bg-muted text-muted-foreground';
+  const sc = SUPPORT_TICKET_STATUS_STYLES[ticket.status] ?? 'bg-muted text-muted-foreground';
   const showExpand = ticket.description.length > DESCRIPTION_PREVIEW_CHARS;
   const displayDescription = showExpand && !expanded
     ? `${ticket.description.slice(0, DESCRIPTION_PREVIEW_CHARS).trim()}…`

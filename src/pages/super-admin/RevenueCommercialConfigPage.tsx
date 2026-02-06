@@ -25,6 +25,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Map, Loader2, Save, DollarSign, Percent, Users, Eye } from 'lucide-react';
+import { toast } from 'sonner';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 export default function RevenueCommercialConfigPage() {
   const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
@@ -98,6 +101,14 @@ export default function RevenueCommercialConfigPage() {
 
   const handleSaveRevenue = () => {
     if (!selectedCountyId) return;
+    if (isOverCharLimit(countyRevenueModel.description ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
+    if (isOverCharLimit(platformFeeModel.notes ?? '')) {
+      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+      return;
+    }
     updateMutation.mutate(
       {
         countyId: selectedCountyId,
@@ -249,6 +260,7 @@ export default function RevenueCommercialConfigPage() {
                       onChange={e => setCountyRevenueModel(prev => ({ ...prev, description: e.target.value || undefined }))}
                       placeholder="e.g. Monthly county levy per rider"
                       rows={2}
+                      className={cn(isOverCharLimit(countyRevenueModel.description ?? '') && 'border-destructive')}
                     />
                   </div>
                 </CardContent>
@@ -342,6 +354,7 @@ export default function RevenueCommercialConfigPage() {
                       onChange={e => setPlatformFeeModel(prev => ({ ...prev, notes: e.target.value || undefined }))}
                       placeholder="e.g. Reviewed quarterly"
                       rows={2}
+                      className={cn(isOverCharLimit(platformFeeModel.notes ?? '') && 'border-destructive')}
                     />
                   </div>
                 </CardContent>
@@ -516,7 +529,10 @@ export default function RevenueCommercialConfigPage() {
             </TabsContent>
 
             <div className="flex justify-end">
-              <Button onClick={handleSaveRevenue} disabled={updateMutation.isPending}>
+              <Button
+              onClick={handleSaveRevenue}
+              disabled={updateMutation.isPending || isOverCharLimit(countyRevenueModel.description ?? '') || isOverCharLimit(platformFeeModel.notes ?? '')}
+            >
                 {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Save revenue & commercial config
               </Button>

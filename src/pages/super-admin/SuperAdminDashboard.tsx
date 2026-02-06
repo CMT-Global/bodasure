@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SuperAdminLayout } from '@/components/layout/SuperAdminLayout';
 import { SUPER_ADMIN_PORTAL } from '@/config/portalRoles';
+import { superAdminFinanceDateRangeSchema } from '@/lib/zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,11 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 
 const COUNTY_ALL = '_all';
+const DATE_MIN = '2020-01-01';
+
+function getTodayISO() {
+  return format(new Date(), 'yyyy-MM-dd');
+}
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(n);
@@ -77,8 +83,28 @@ export default function SuperAdminDashboard() {
     d.setMonth(d.getMonth() - 1);
     return format(d, 'yyyy-MM-dd');
   });
-  const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(() => getTodayISO());
   const [countyFilter, setCountyFilter] = useState<string>(COUNTY_ALL);
+
+  const validation = useMemo(
+    () => superAdminFinanceDateRangeSchema.safeParse({ startDate, endDate }),
+    [startDate, endDate]
+  );
+  const dateRangeErrors: { startDate?: string; endDate?: string } = {};
+  if (!validation.success && validation.error.flatten()) {
+    const field = validation.error.flatten().fieldErrors;
+    if (field.startDate?.[0]) dateRangeErrors.startDate = field.startDate[0];
+    if (field.endDate?.[0]) dateRangeErrors.endDate = field.endDate[0];
+  }
+  const isDateRangeValid = validation.success;
+  const effectiveStartDate = isDateRangeValid
+    ? validation.data.startDate
+    : (() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        return format(d, 'yyyy-MM-dd');
+      })();
+  const effectiveEndDate = isDateRangeValid ? validation.data.endDate : getTodayISO();
 
   const { data: counties = [], isLoading: countiesLoading } = useAllCounties();
   const countyIds = useMemo(() => counties.map((c) => c.id), [counties]);
@@ -86,13 +112,13 @@ export default function SuperAdminDashboard() {
 
   const { data: platformStats, isLoading: statsLoading } = useDashboardStats(selectedCountyId);
   const { data: revenueByCounty = [], isLoading: revenueByCountyLoading } = useRevenueByCounty(
-    startDate,
-    endDate
+    effectiveStartDate,
+    effectiveEndDate
   );
   const { data: revenueByDateRange = [] } = useRevenueByDateRange(
     selectedCountyId || undefined,
-    startDate,
-    endDate
+    effectiveStartDate,
+    effectiveEndDate
   );
   const { data: monthlyRevenue = [], isLoading: monthlyLoading } = useMonthlyRevenue(
     selectedCountyId,
@@ -157,7 +183,7 @@ export default function SuperAdminDashboard() {
       { metric: 'Total Riders', value: totalRiders },
       { metric: 'Total Active Permits', value: totalActivePermits },
       { metric: 'Total Revenue (filtered period)', value: formatCurrency(totalRevenueInRange) },
-      { metric: 'Date range', value: `${startDate} to ${endDate}` },
+      { metric: 'Date range', value: `${effectiveStartDate} to ${effectiveEndDate}` },
       { metric: 'County filter', value: countyFilter === COUNTY_ALL ? 'All' : counties.find((c) => c.id === countyFilter)?.name ?? countyFilter },
     ];
     exportToCSV(summary, 'super_admin_summary');
@@ -210,18 +236,29 @@ export default function SuperAdminDashboard() {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Input
                   type="date"
+                  min={DATE_MIN}
+                  max={getTodayISO()}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="min-h-[44px]"
+                  className={dateRangeErrors.startDate ? 'min-h-[44px] border-destructive' : 'min-h-[44px]'}
+                  aria-invalid={!!dateRangeErrors.startDate}
                 />
                 <span className="text-muted-foreground hidden sm:inline shrink-0">to</span>
                 <Input
                   type="date"
+                  min={DATE_MIN}
+                  max={getTodayISO()}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="min-h-[44px]"
+                  className={dateRangeErrors.endDate ? 'min-h-[44px] border-destructive' : 'min-h-[44px]'}
+                  aria-invalid={!!dateRangeErrors.endDate}
                 />
               </div>
+              {(dateRangeErrors.startDate || dateRangeErrors.endDate) && (
+                <p className="text-sm text-destructive">
+                  {dateRangeErrors.startDate || dateRangeErrors.endDate}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-2 min-w-0">
               <Label>County</Label>
