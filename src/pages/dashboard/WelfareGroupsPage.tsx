@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -25,6 +27,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -37,6 +47,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { welfareGroupFormSchema, type WelfareGroupFormValues } from '@/lib/zod';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -306,6 +317,17 @@ export default function WelfareGroupsPage() {
   );
 }
 
+function getWelfareGroupDefaultValues(group: WelfareGroup | null): WelfareGroupFormValues {
+  return {
+    name: group?.name || '',
+    registration_number: group?.registration_number || '',
+    contact_email: group?.contact_email || '',
+    contact_phone: group?.contact_phone || '',
+    address: group?.address || '',
+    status: (group?.status as WelfareGroupFormValues['status']) || 'pending',
+  };
+}
+
 function WelfareGroupFormDialog({
   open,
   onOpenChange,
@@ -319,18 +341,28 @@ function WelfareGroupFormDialog({
 }) {
   const queryClient = useQueryClient();
   const isEditing = !!group;
-  const [formData, setFormData] = useState({
-    name: group?.name || '',
-    registration_number: group?.registration_number || '',
-    contact_email: group?.contact_email || '',
-    contact_phone: group?.contact_phone || '',
-    address: group?.address || '',
-    status: (group?.status || 'pending') as 'pending' | 'approved' | 'rejected' | 'suspended',
+
+  const form = useForm<WelfareGroupFormValues>({
+    resolver: zodResolver(welfareGroupFormSchema),
+    defaultValues: getWelfareGroupDefaultValues(group),
   });
 
+  useEffect(() => {
+    if (!open) return;
+    form.reset(getWelfareGroupDefaultValues(group));
+  }, [open, group]);
+
   const mutation = useMutation({
-    mutationFn: async () => {
-      const payload = { ...formData, county_id: countyId };
+    mutationFn: async (values: WelfareGroupFormValues) => {
+      const payload = {
+        name: values.name.trim(),
+        registration_number: values.registration_number?.trim() || null,
+        contact_email: values.contact_email?.trim() || null,
+        contact_phone: values.contact_phone?.trim() || null,
+        address: values.address?.trim() || null,
+        status: values.status,
+        county_id: countyId,
+      };
       if (isEditing && group) {
         const { error } = await supabase.from('welfare_groups').update(payload).eq('id', group.id);
         if (error) throw error;
@@ -343,20 +375,12 @@ function WelfareGroupFormDialog({
       queryClient.invalidateQueries({ queryKey: ['welfare-groups'] });
       toast.success(isEditing ? 'Welfare group updated' : 'Welfare group added');
       onOpenChange(false);
+      form.reset();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  useEffect(() => {
-    setFormData({
-      name: group?.name || '',
-      registration_number: group?.registration_number || '',
-      contact_email: group?.contact_email || '',
-      contact_phone: group?.contact_phone || '',
-      address: group?.address || '',
-      status: (group?.status || 'pending') as 'pending' | 'approved' | 'rejected' | 'suspended',
-    });
-  }, [group]);
+  const onSubmit = (values: WelfareGroupFormValues) => mutation.mutate(values);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -365,32 +389,105 @@ function WelfareGroupFormDialog({
           <DialogTitle>{isEditing ? 'Edit Welfare Group' : 'Add Welfare Group'}</DialogTitle>
           <DialogDescription>{isEditing ? 'Update welfare group information' : 'Register a new welfare group'}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div><Label>Name *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
-          <div><Label>Registration Number</Label><Input value={formData.registration_number} onChange={(e) => setFormData({ ...formData, registration_number: e.target.value })} /></div>
-          <div><Label>Email</Label><Input type="email" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} /></div>
-          <div><Label>Phone</Label><Input value={formData.contact_phone} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} /></div>
-          <div><Label>Address</Label><Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
-          <div>
-            <Label>Status</Label>
-            <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as WelfareGroup['status'] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !formData.name}>
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? 'Update' : 'Add'}
-          </Button>
-        </DialogFooter>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="registration_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Registration Number</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditing ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

@@ -337,7 +337,7 @@ export default function PaymentsPage() {
           isLoading={isLoading}
         />
 
-        {/* Payment Dialog */}
+        {/* Payment Dialog: validation from @/lib/zod (permitPaymentFormSchema) */}
         <PaymentDialog
           open={isPaymentOpen}
           onOpenChange={setIsPaymentOpen}

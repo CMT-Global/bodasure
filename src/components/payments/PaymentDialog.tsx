@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -28,37 +27,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-
-/** M-Pesa: optional; digits only; 5 (local) or 6–15 (with country code, no +). */
-const mpesaPhoneMessage = 'Use 5 digits (local) or 6–15 digits (with country code, no +).';
-const validateMpesaPhone = (value: string): string | null => {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 0) return null;
-  if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
-    return mpesaPhoneMessage;
-  }
-  return null;
-};
-
-// Base schema - county_id will be conditionally required
-const createPaymentFormSchema = (needsCountySelection: boolean) => z.object({
-  rider_id: z.string().min(1, 'Please select a rider'),
-  motorbike_id: z.string().min(1, 'Please select a motorbike'),
-  permit_type_id: z.string().min(1, 'Please select a permit type'),
-  email: z.string().email('Invalid email'),
-  phone: z.string().optional(),
-  payment_method: z.enum(['card', 'mobile_money']),
-  county_id: needsCountySelection 
-    ? z.string().min(1, 'County is required')
-    : z.string().optional(),
-}).superRefine((data, ctx) => {
-  if (data.payment_method === 'mobile_money' && data.phone != null && data.phone.trim() !== '') {
-    const err = validateMpesaPhone(data.phone);
-    if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['phone'], message: err });
-  }
-});
-
-type PaymentFormValues = z.infer<ReturnType<typeof createPaymentFormSchema>>;
+import { permitPaymentFormSchema, type PermitPaymentFormValues } from '@/lib/zod';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -84,9 +53,14 @@ export function PaymentDialog({
   
   // Use selected county or provided countyId
   const effectiveCountyId = selectedCountyId || countyId;
-  
-  const form = useForm<PaymentFormValues>({
-    resolver: zodResolver(createPaymentFormSchema(needsCountySelection)),
+
+  const paymentFormSchema = useMemo(
+    () => permitPaymentFormSchema(needsCountySelection),
+    [needsCountySelection]
+  );
+
+  const form = useForm<PermitPaymentFormValues>({
+    resolver: zodResolver(paymentFormSchema),
     defaultValues: {
       rider_id: preselectedRiderId || '',
       motorbike_id: preselectedMotorbikeId || '',
@@ -124,7 +98,7 @@ export function PaymentDialog({
   const selectedType = permitTypes.find(pt => pt.id === form.watch('permit_type_id'));
   const paymentMethod = form.watch('payment_method');
 
-  const onSubmit = async (values: PaymentFormValues) => {
+  const onSubmit = async (values: PermitPaymentFormValues) => {
     if (!selectedType) return;
 
     // Determine the county_id to use

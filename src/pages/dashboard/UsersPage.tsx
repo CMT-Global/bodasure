@@ -1,10 +1,20 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -51,7 +61,16 @@ import {
 import { Plus, MoreHorizontal, Edit, Ban, Key, Eye, Loader2, UserPlus, Shield, Activity, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import {
+  countyUserCreateFormSchema,
+  countyUserEditFormSchema,
+  countyUserRolesFormSchema,
+  countyUserResetPasswordFormSchema,
+  type CountyUserCreateFormValues,
+  type CountyUserEditFormValues,
+  type CountyUserRolesFormValues,
+  type CountyUserResetPasswordFormValues,
+} from '@/lib/zod';
 
 // Available roles for county users
 const COUNTY_ROLES = [
@@ -90,18 +109,24 @@ export default function UsersPage() {
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<CountyUser | null>(null);
 
-  // Form states
-  const [userForm, setUserForm] = useState({
-    email: '',
-    password: '',
-    fullName: '',
-    phone: '',
-    roles: [] as string[],
+  const createUserForm = useForm<CountyUserCreateFormValues>({
+    resolver: zodResolver(countyUserCreateFormSchema),
+    defaultValues: { full_name: '', email: '', phone: '', password: '', roles: [] },
   });
 
-  const [passwordForm, setPasswordForm] = useState({
-    newPassword: '',
-    confirmPassword: '',
+  const editUserForm = useForm<CountyUserEditFormValues>({
+    resolver: zodResolver(countyUserEditFormSchema),
+    defaultValues: { full_name: '', phone: '' },
+  });
+
+  const rolesForm = useForm<CountyUserRolesFormValues>({
+    resolver: zodResolver(countyUserRolesFormSchema),
+    defaultValues: { roles: [] },
+  });
+
+  const resetPasswordForm = useForm<CountyUserResetPasswordFormValues>({
+    resolver: zodResolver(countyUserResetPasswordFormSchema),
+    defaultValues: { new_password: '', confirm_password: '' },
   });
 
   // Filter states
@@ -133,53 +158,41 @@ export default function UsersPage() {
   }, [users, statusFilter, roleFilter]);
 
   // Create user
-  const handleCreateUser = async () => {
+  const handleCreateUser = async (values: CountyUserCreateFormValues) => {
     if (!countyId) {
       toast.error('County ID is required');
       return;
     }
-    if (!userForm.email || !userForm.password || !userForm.fullName) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    if (userForm.roles.length === 0) {
-      toast.error('Please assign at least one role');
-      return;
-    }
-
     await createUser.mutateAsync({
-      email: userForm.email,
-      password: userForm.password,
-      fullName: userForm.fullName,
-      phone: userForm.phone || undefined,
+      email: values.email,
+      password: values.password,
+      fullName: values.full_name,
+      phone: values.phone || undefined,
       countyId,
-      roles: userForm.roles,
+      roles: values.roles,
     });
-
     setIsCreateDialogOpen(false);
-    setUserForm({ email: '', password: '', fullName: '', phone: '', roles: [] });
+    createUserForm.reset();
   };
 
   // Update user
-  const handleUpdateUser = async () => {
+  const handleUpdateUser = async (values: CountyUserEditFormValues) => {
     if (!selectedUser) return;
-
     await updateUser.mutateAsync({
       userId: selectedUser.id,
-      fullName: userForm.fullName,
-      phone: userForm.phone || undefined,
+      fullName: values.full_name,
+      phone: values.phone || undefined,
     });
-
     setIsEditDialogOpen(false);
     setSelectedUser(null);
   };
 
   // Assign/update roles (including removing roles when unchecked)
-  const handleAssignRoles = async () => {
+  const handleAssignRoles = async (values: CountyUserRolesFormValues) => {
     if (!selectedUser || !countyId) return;
     await assignRoles.mutateAsync({
       userId: selectedUser.id,
-      roles: userForm.roles,
+      roles: values.roles,
       countyId,
     });
     setIsRolesDialogOpen(false);
@@ -203,25 +216,15 @@ export default function UsersPage() {
   };
 
   // Reset password
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (values: CountyUserResetPasswordFormValues) => {
     if (!selectedUser) return;
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    if (passwordForm.newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
-
     await resetPassword.mutateAsync({
       userId: selectedUser.id,
       email: selectedUser.email,
-      newPassword: passwordForm.newPassword,
+      newPassword: values.new_password,
     });
-
     setIsPasswordDialogOpen(false);
-    setPasswordForm({ newPassword: '', confirmPassword: '' });
+    resetPasswordForm.reset();
     setSelectedUser(null);
   };
 
@@ -241,32 +244,20 @@ export default function UsersPage() {
   // Open dialogs
   const openEditDialog = (user: CountyUser) => {
     setSelectedUser(user);
-    setUserForm({
-      email: user.email,
-      password: '',
-      fullName: user.full_name || '',
-      phone: user.phone || '',
-      roles: [],
-    });
+    editUserForm.reset({ full_name: user.full_name || '', phone: user.phone || '' });
     setIsEditDialogOpen(true);
   };
 
   const openRolesDialog = (user: CountyUser) => {
     setSelectedUser(user);
     const countyRoles = user.roles.filter(r => r.county_id === countyId).map(r => r.role);
-    setUserForm({
-      email: user.email,
-      password: '',
-      fullName: user.full_name || '',
-      phone: user.phone || '',
-      roles: countyRoles,
-    });
+    rolesForm.reset({ roles: countyRoles });
     setIsRolesDialogOpen(true);
   };
 
   const openPasswordDialog = (user: CountyUser) => {
     setSelectedUser(user);
-    setPasswordForm({ newPassword: '', confirmPassword: '' });
+    resetPasswordForm.reset({ new_password: '', confirm_password: '' });
     setIsPasswordDialogOpen(true);
   };
 
@@ -562,84 +553,107 @@ export default function UsersPage() {
         </Tabs>
 
         {/* Create User Dialog */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => { setIsCreateDialogOpen(open); if (open) createUserForm.reset(); }}>
           <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create County User</DialogTitle>
               <DialogDescription>Create a new user account for your county</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Full Name *</Label>
-                <Input
-                  value={userForm.fullName}
-                  onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-                  placeholder="John Doe"
-                  className="min-h-[44px] text-base sm:text-sm"
+            <Form {...createUserForm}>
+              <form onSubmit={createUserForm.handleSubmit(handleCreateUser)} className="space-y-4">
+                <FormField
+                  control={createUserForm.control}
+                  name="full_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Email *</Label>
-                <Input
-                  type="email"
-                  value={userForm.email}
-                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  placeholder="user@example.com"
-                  className="min-h-[44px] text-base sm:text-sm"
+                <FormField
+                  control={createUserForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email *</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="user@example.com" className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={userForm.phone}
-                  onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
-                  placeholder="+254712345678"
-                  className="min-h-[44px] text-base sm:text-sm"
+                <FormField
+                  control={createUserForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input placeholder="+254712345678" className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Password *</Label>
-                <Input
-                  type="password"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  placeholder="Minimum 6 characters"
-                  className="min-h-[44px] text-base sm:text-sm"
+                <FormField
+                  control={createUserForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password *</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Minimum 6 characters" className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Roles *</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-                  {COUNTY_ROLES.map((role) => (
-                    <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">
-                      <input
-                        type="checkbox"
-                        id={role.value}
-                        checked={userForm.roles.includes(role.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setUserForm({ ...userForm, roles: [...userForm.roles, role.value] });
-                          } else {
-                            setUserForm({ ...userForm, roles: userForm.roles.filter(r => r !== role.value) });
-                          }
-                        }}
-                        className="rounded border-gray-300 w-5 h-5"
-                      />
-                      <Label htmlFor={role.value} className="text-sm font-normal cursor-pointer flex-1">
-                        {role.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleCreateUser} disabled={createUser.isPending} className="w-full sm:w-auto min-h-[44px]">
-                {createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create User
-              </Button>
-            </DialogFooter>
+                <FormField
+                  control={createUserForm.control}
+                  name="roles"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Roles *</FormLabel>
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                        {COUNTY_ROLES.map((role) => (
+                          <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">
+                            <input
+                              type="checkbox"
+                              id={role.value}
+                              checked={field.value.includes(role.value)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  field.onChange([...field.value, role.value]);
+                                } else {
+                                  field.onChange(field.value.filter((r) => r !== role.value));
+                                }
+                              }}
+                              className="rounded border-gray-300 w-5 h-5"
+                            />
+                            <Label htmlFor={role.value} className="text-sm font-normal cursor-pointer flex-1">
+                              {role.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" disabled={createUser.isPending} className="w-full sm:w-auto min-h-[44px]">
+                    {createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create User
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 
@@ -650,31 +664,43 @@ export default function UsersPage() {
               <DialogTitle>Edit User</DialogTitle>
               <DialogDescription>Update user information</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Full Name</Label>
-                <Input
-                  value={userForm.fullName}
-                  onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-                  className="min-h-[44px] text-base sm:text-sm"
+            <Form {...editUserForm}>
+              <form onSubmit={editUserForm.handleSubmit(handleUpdateUser)} className="space-y-4">
+                <FormField
+                  control={editUserForm.control}
+                  name="full_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={userForm.phone}
-                  onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
-                  className="min-h-[44px] text-base sm:text-sm"
+                <FormField
+                  control={editUserForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleUpdateUser} disabled={updateUser.isPending} className="w-full sm:w-auto min-h-[44px]">
-                {updateUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Update
-              </Button>
-            </DialogFooter>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" disabled={updateUser.isPending} className="w-full sm:w-auto min-h-[44px]">
+                    {updateUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 
@@ -687,38 +713,49 @@ export default function UsersPage() {
                 Add or remove roles for {selectedUser?.full_name || selectedUser?.email}. Check roles to add, uncheck to remove.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2">
-              <Label>Roles</Label>
-              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                {COUNTY_ROLES.map((role) => (
-                  <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">
-                    <input
-                      type="checkbox"
-                      id={`role-${role.value}`}
-                      checked={userForm.roles.includes(role.value)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setUserForm({ ...userForm, roles: [...userForm.roles, role.value] });
-                        } else {
-                          setUserForm({ ...userForm, roles: userForm.roles.filter(r => r !== role.value) });
-                        }
-                      }}
-                      className="rounded border-gray-300 w-5 h-5"
-                    />
-                    <Label htmlFor={`role-${role.value}`} className="text-sm font-normal cursor-pointer flex-1">
-                      {role.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setIsRolesDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleAssignRoles} disabled={assignRoles.isPending} className="w-full sm:w-auto min-h-[44px]">
-                {assignRoles.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Update Roles
-              </Button>
-            </DialogFooter>
+            <Form {...rolesForm}>
+              <form onSubmit={rolesForm.handleSubmit(handleAssignRoles)} className="space-y-2">
+                <FormField
+                  control={rolesForm.control}
+                  name="roles"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Roles</FormLabel>
+                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                        {COUNTY_ROLES.map((role) => (
+                          <div key={role.value} className="flex items-center space-x-2 min-h-[44px]">
+                            <input
+                              type="checkbox"
+                              id={`role-${role.value}`}
+                              checked={field.value.includes(role.value)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  field.onChange([...field.value, role.value]);
+                                } else {
+                                  field.onChange(field.value.filter((r) => r !== role.value));
+                                }
+                              }}
+                              className="rounded border-gray-300 w-5 h-5"
+                            />
+                            <Label htmlFor={`role-${role.value}`} className="text-sm font-normal cursor-pointer flex-1">
+                              {role.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsRolesDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" disabled={assignRoles.isPending} className="w-full sm:w-auto min-h-[44px]">
+                    {assignRoles.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Roles
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 
@@ -729,38 +766,46 @@ export default function UsersPage() {
               <DialogTitle>Reset Password</DialogTitle>
               <DialogDescription>Reset password for {selectedUser?.full_name || selectedUser?.email}</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>New Password *</Label>
-                <Input
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  placeholder="Minimum 6 characters"
-                  className="min-h-[44px] text-base sm:text-sm"
+            <Form {...resetPasswordForm}>
+              <form onSubmit={resetPasswordForm.handleSubmit(handleResetPassword)} className="space-y-4">
+                <FormField
+                  control={resetPasswordForm.control}
+                  name="new_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New Password *</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Minimum 6 characters" className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Confirm Password *</Label>
-                <Input
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                  placeholder="Confirm new password"
-                  className="min-h-[44px] text-base sm:text-sm"
+                <FormField
+                  control={resetPasswordForm.control}
+                  name="confirm_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm Password *</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Confirm new password" className="min-h-[44px] text-base sm:text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Note: If direct password reset is not available, a password reset email will be sent to the user.
-              </p>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
-              <Button onClick={handleResetPassword} disabled={resetPassword.isPending} className="w-full sm:w-auto min-h-[44px]">
-                {resetPassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Reset Password
-              </Button>
-            </DialogFooter>
+                <p className="text-xs text-muted-foreground">
+                  Note: If direct password reset is not available, a password reset email will be sent to the user.
+                </p>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+                  <Button type="submit" disabled={resetPassword.isPending} className="w-full sm:w-auto min-h-[44px]">
+                    {resetPassword.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Reset Password
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
 

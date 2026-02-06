@@ -196,6 +196,14 @@ export interface RiderOwnerDashboardData {
   lastPayment: { paid_at: string | null; amount: number } | null;
 }
 
+/** Rider snippet for owned-bike cards and rider-details popup (owner view). */
+export interface RiderOwnerProfileBikeRider {
+  full_name: string;
+  phone?: string | null;
+  qr_code?: string | null;
+  id_number?: string | null;
+}
+
 /** Profile & Registration: rider + county, bikes with make/model, owner + owned bikes when applicable */
 export interface RiderOwnerProfileBike {
   id: string;
@@ -206,7 +214,7 @@ export interface RiderOwnerProfileBike {
   color: string | null;
   chassis_number: string | null;
   engine_number: string | null;
-  rider?: { full_name: string } | null;
+  rider?: RiderOwnerProfileBikeRider | null;
 }
 
 export interface RiderOwnerProfileData {
@@ -511,19 +519,22 @@ export function useRiderOwnerProfile(userId: string | undefined) {
       if (owner) {
         const { data: bikes } = await supabase
           .from('motorbikes')
-          .select('id, registration_number, make, model, year, color, chassis_number, engine_number, rider:riders(full_name)')
+          .select('id, registration_number, make, model, year, color, chassis_number, engine_number, rider:riders(full_name, phone, qr_code, id_number)')
           .eq('owner_id', owner.id);
-        ownedBikes = (bikes || []).map((m: Record<string, unknown>) => ({
-          id: m.id as string,
-          registration_number: m.registration_number as string,
-          make: (m.make as string | null) ?? null,
-          model: (m.model as string | null) ?? null,
-          year: (m.year as number | null) ?? null,
-          color: (m.color as string | null) ?? null,
-          chassis_number: (m.chassis_number as string | null) ?? null,
-          engine_number: (m.engine_number as string | null) ?? null,
-          rider: (m.rider as { full_name: string } | null) ?? null,
-        }));
+        ownedBikes = (bikes || []).map((m: Record<string, unknown>) => {
+          const r = m.rider as { full_name: string; phone?: string | null; qr_code?: string | null; id_number?: string | null } | null;
+          return {
+            id: m.id as string,
+            registration_number: m.registration_number as string,
+            make: (m.make as string | null) ?? null,
+            model: (m.model as string | null) ?? null,
+            year: (m.year as number | null) ?? null,
+            color: (m.color as string | null) ?? null,
+            chassis_number: (m.chassis_number as string | null) ?? null,
+            engine_number: (m.engine_number as string | null) ?? null,
+            rider: r ? { full_name: r.full_name, phone: r.phone ?? null, qr_code: r.qr_code ?? null, id_number: r.id_number ?? null } : null,
+          };
+        });
       }
 
       return { rider, motorbikes, owner, ownedBikes };
@@ -767,8 +778,57 @@ export interface DisciplineIncidentRow {
   attachments?: string[];
 }
 
+// Table sacco_discipline_incidents is not in generated Supabase types; use typed from() assertion.
+type SaccoDisciplineIncidentsClient = typeof supabase & {
+  from(table: 'sacco_discipline_incidents'): ReturnType<typeof supabase.from>;
+};
+
+const SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT = `
+  id,
+  type,
+  rider_id,
+  title,
+  description,
+  notes,
+  status,
+  severity,
+  submitted_to_county,
+  county_submission_date,
+  created_by,
+  created_at,
+  updated_at
+`.trim();
+
+async function fetchDisciplineIncidentsFromDb(
+  db: SaccoDisciplineIncidentsClient,
+  options: { saccoId: string; countyId: string } | { countyId: string; forCountyView: true }
+) {
+  const isCountyView = 'forCountyView' in options && options.forCountyView;
+  const countyId = options.countyId;
+  const select = isCountyView
+    ? `${SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT},
+  sacco_id,
+  riders(full_name, phone),
+  sacco:saccos(name)`
+    : `${SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT},
+  riders(full_name, phone)`;
+
+  let query = db
+    .from('sacco_discipline_incidents')
+    .select(select)
+    .eq('county_id', countyId)
+    .order('created_at', { ascending: false });
+
+  if ('saccoId' in options) {
+    query = query.eq('sacco_id', options.saccoId);
+  } else {
+    query = query.eq('submitted_to_county', true);
+  }
+
+  return query;
+}
+
 // Fetch discipline incidents for a sacco (persisted in DB)
-// Table sacco_discipline_incidents may not be in generated Supabase types; use typed Row.
 export function useDisciplineIncidents(saccoId: string | undefined, countyId: string | undefined) {
   return useQuery({
     queryKey: ['discipline-incidents', saccoId, countyId],
@@ -793,28 +853,8 @@ export function useDisciplineIncidents(saccoId: string | undefined, countyId: st
         riders?: RiderRef;
         rider?: RiderRef;
       };
-      const db = supabase as any;
-      const { data, error } = await db
-        .from('sacco_discipline_incidents')
-        .select(`
-          id,
-          type,
-          rider_id,
-          title,
-          description,
-          notes,
-          status,
-          severity,
-          submitted_to_county,
-          county_submission_date,
-          created_by,
-          created_at,
-          updated_at,
-          riders(full_name, phone)
-        `)
-        .eq('sacco_id', saccoId)
-        .eq('county_id', countyId)
-        .order('created_at', { ascending: false });
+      const db = supabase as SaccoDisciplineIncidentsClient;
+      const { data, error } = await fetchDisciplineIncidentsFromDb(db, { saccoId, countyId });
 
       if (error) throw error;
       if (!data || data.length === 0) return [] as DisciplineIncidentRow[];
@@ -876,30 +916,8 @@ export function useCountyDisciplineIncidents(countyId: string | undefined) {
         rider?: RiderRef;
         sacco?: SaccoRef;
       };
-      const db = supabase as any;
-      const { data, error } = await db
-        .from('sacco_discipline_incidents')
-        .select(`
-          id,
-          type,
-          rider_id,
-          sacco_id,
-          title,
-          description,
-          notes,
-          status,
-          severity,
-          submitted_to_county,
-          county_submission_date,
-          created_by,
-          created_at,
-          updated_at,
-          riders(full_name, phone),
-          sacco:saccos(name)
-        `)
-        .eq('county_id', countyId)
-        .eq('submitted_to_county', true)
-        .order('created_at', { ascending: false });
+      const db = supabase as SaccoDisciplineIncidentsClient;
+      const { data, error } = await fetchDisciplineIncidentsFromDb(db, { countyId, forCountyView: true });
 
       if (error) throw error;
       if (!data || data.length === 0) return [] as CountyDisciplineIncidentRow[];

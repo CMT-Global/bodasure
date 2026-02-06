@@ -196,17 +196,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Fetch roles
-      const { data: rolesData, error: rolesError } = await supabase
+      let rolesData: UserRole[] | null = null;
+      const { data: rolesDataRes, error: rolesError } = await supabase
         .from('user_roles')
         .select('id, role, county_id')
         .eq('user_id', userId);
-      
+
       if (rolesError) {
         console.error('Error fetching roles:', rolesError);
         setRoles([]);
       } else {
-        setRoles(rolesData || []);
+        rolesData = (rolesDataRes || []) as UserRole[];
+        setRoles(rolesData);
         console.log('Loaded roles:', rolesData);
+      }
+
+      // If user has no rider/owner role, try to claim an existing rider/owner record by email (link + auto-grant role)
+      const hasRiderOrOwner = rolesData?.some((r) => r.role === 'rider' || r.role === 'owner');
+      if (!hasRiderOrOwner && profileData) {
+        const { data: claimResult } = await supabase.rpc('claim_rider_or_owner_by_email');
+        const result = claimResult as { ok?: boolean } | null;
+        if (result?.ok) {
+          const { data: newRoles } = await supabase
+            .from('user_roles')
+            .select('id, role, county_id')
+            .eq('user_id', userId);
+          if (newRoles?.length) {
+            setRoles(newRoles as UserRole[]);
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching user data:', error);

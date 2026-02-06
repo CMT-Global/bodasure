@@ -2,6 +2,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+/** Message shown when M-Pesa phone format is invalid. */
+export const MPESA_PHONE_MESSAGE =
+  'Use 5 digits (local) or 6–15 digits (with country code, no +).';
+
+/**
+ * Validates M-Pesa phone: optional; digits only; 5 (local) or 6–15 (with country code, no +).
+ * @returns Error message if invalid, null if valid or empty (empty is allowed).
+ */
+export function validateMpesaPhone(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return null;
+  if (digits.length !== 5 && (digits.length < 6 || digits.length > 15)) {
+    return MPESA_PHONE_MESSAGE;
+  }
+  return null;
+}
+
 export interface PermitType {
   id: string;
   name: string;

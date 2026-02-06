@@ -1,8 +1,18 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
 import { useSaccos, useSaccoMembers, useStages } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -32,8 +42,8 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
 import { supabase } from '@/integrations/supabase/client';
+import { saccoSendMessageFormSchema, TEXTAREA_MAX_CHARS, type SaccoSendMessageFormValues } from '@/lib/zod';
 
 export default function CommunicationToolsPage() {
   const queryClient = useQueryClient();
@@ -102,12 +112,20 @@ export default function CommunicationToolsPage() {
     },
   ]);
 
-  // State for sending messages
-  const [messageType, setMessageType] = useState<'all' | 'stage' | 'non-compliant'>('all');
-  const [selectedStage, setSelectedStage] = useState<string>('');
-  const [messageSubject, setMessageSubject] = useState('');
-  const [messageContent, setMessageContent] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  const messageForm = useForm<SaccoSendMessageFormValues>({
+    resolver: zodResolver(saccoSendMessageFormSchema),
+    defaultValues: {
+      recipient_type: 'all',
+      stage_id: '',
+      subject: '',
+      body: '',
+    },
+  });
+
+  const messageType = messageForm.watch('recipient_type');
+  const selectedStage = messageForm.watch('stage_id');
 
   const nonCompliantMembers = useMemo(() => {
     return members.filter((m) => m.compliance_status === 'non_compliant');
@@ -121,21 +139,7 @@ export default function CommunicationToolsPage() {
     return nonCompliantMembers.length;
   };
 
-  const handleSendMessage = async () => {
-    if (!messageSubject.trim() || !messageContent.trim()) {
-      toast.error('Please fill in both subject and message');
-      return;
-    }
-    if (isOverCharLimit(messageContent)) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
-      return;
-    }
-
-    if (messageType === 'stage' && !selectedStage) {
-      toast.error('Please select a stage');
-      return;
-    }
-
+  const handleSendMessage = async (values: SaccoSendMessageFormValues) => {
     if (!saccoId || !countyId) {
       toast.error('Sacco or county not selected');
       return;
@@ -151,10 +155,10 @@ export default function CommunicationToolsPage() {
         throw new Error('Not authenticated');
       }
 
-      const recipients = messageType === 'all'
+      const recipients = values.recipient_type === 'all'
         ? members
-        : messageType === 'stage'
-        ? members.filter((m) => m.stage_id === selectedStage)
+        : values.recipient_type === 'stage'
+        ? members.filter((m) => m.stage_id === values.stage_id)
         : nonCompliantMembers;
 
       const recipientCount = recipients.length;
@@ -162,32 +166,29 @@ export default function CommunicationToolsPage() {
         .map((m) => m.user_id)
         .filter((id): id is string => !!id);
 
-      // 1. Always save to Supabase (sacco_sent_messages)
       const { error: msgError } = await supabase.from('sacco_sent_messages').insert({
         county_id: countyId,
         sacco_id: saccoId,
         sender_id: currentUser.id,
-        subject: messageSubject.trim(),
-        body: messageContent.trim(),
-        recipient_type: messageType,
-        stage_id: messageType === 'stage' ? selectedStage || null : null,
+        subject: values.subject.trim(),
+        body: values.body.trim(),
+        recipient_type: values.recipient_type,
+        stage_id: values.recipient_type === 'stage' ? values.stage_id || null : null,
         recipient_count: recipientCount,
       });
       if (msgError) throw msgError;
 
-      // 2. Create in-app notifications for each recipient with user_id
       const notificationsToInsert: { user_id: string; title: string; body: string }[] = recipientUserIds.map(
         (user_id) => ({
           user_id,
-          title: messageSubject.trim(),
-          body: messageContent.trim(),
+          title: values.subject.trim(),
+          body: values.body.trim(),
         })
       );
 
-      // 3. Always notify the sender so they see the message in the app
       notificationsToInsert.push({
         user_id: currentUser.id,
-        title: `Message sent: ${messageSubject.trim()}`,
+        title: `Message sent: ${values.subject.trim()}`,
         body: `Your message was sent to ${recipientCount} member${recipientCount !== 1 ? 's' : ''}.${recipientUserIds.length < recipientCount && recipientCount > 0 ? ` ${recipientUserIds.length} received in-app notification.` : ''}`,
       });
 
@@ -211,9 +212,7 @@ export default function CommunicationToolsPage() {
       return;
     }
 
-    setMessageSubject('');
-    setMessageContent('');
-    setSelectedStage('');
+    messageForm.reset();
     setIsSending(false);
   };
 
@@ -422,101 +421,132 @@ export default function CommunicationToolsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {/* Message Type Selection */}
-                  <div className="space-y-2">
-                    <Label>Recipient Type</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <Button
-                        variant={messageType === 'all' ? 'default' : 'outline'}
-                        className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
-                        onClick={() => {
-                          setMessageType('all');
-                          setSelectedStage('');
-                        }}
-                      >
-                        <Users className="h-5 w-5" />
-                        <div className="text-left">
-                          <div className="font-semibold">All Members</div>
-                          <div className="text-xs text-muted-foreground">
-                            {members.length} member{members.length !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </Button>
-                      <Button
-                        variant={messageType === 'stage' ? 'default' : 'outline'}
-                        className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
-                        onClick={() => setMessageType('stage')}
-                      >
-                        <MapPin className="h-5 w-5" />
-                        <div className="text-left">
-                          <div className="font-semibold">Stage-Specific</div>
-                          <div className="text-xs text-muted-foreground">Select a stage</div>
-                        </div>
-                      </Button>
-                      <Button
-                        variant={messageType === 'non-compliant' ? 'default' : 'outline'}
-                        className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
-                        onClick={() => {
-                          setMessageType('non-compliant');
-                          setSelectedStage('');
-                        }}
-                      >
-                        <Shield className="h-5 w-5" />
-                        <div className="text-left">
-                          <div className="font-semibold">Non-Compliant</div>
-                          <div className="text-xs text-muted-foreground">
-                            {nonCompliantMembers.length} member{nonCompliantMembers.length !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </Button>
-                    </div>
-                  </div>
+                <Form {...messageForm}>
+                  <form onSubmit={messageForm.handleSubmit(handleSendMessage)} className="space-y-6">
+                    {/* Message Type Selection */}
+                    <FormField
+                      control={messageForm.control}
+                      name="recipient_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Recipient Type</FormLabel>
+                          <FormControl>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <Button
+                                type="button"
+                                variant={field.value === 'all' ? 'default' : 'outline'}
+                                className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
+                                onClick={() => {
+                                  field.onChange('all');
+                                  messageForm.setValue('stage_id', '');
+                                }}
+                              >
+                                <Users className="h-5 w-5" />
+                                <div className="text-left">
+                                  <div className="font-semibold">All Members</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {members.length} member{members.length !== 1 ? 's' : ''}
+                                  </div>
+                                </div>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={field.value === 'stage' ? 'default' : 'outline'}
+                                className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
+                                onClick={() => field.onChange('stage')}
+                              >
+                                <MapPin className="h-5 w-5" />
+                                <div className="text-left">
+                                  <div className="font-semibold">Stage-Specific</div>
+                                  <div className="text-xs text-muted-foreground">Select a stage</div>
+                                </div>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={field.value === 'non-compliant' ? 'default' : 'outline'}
+                                className="h-auto min-h-[44px] py-4 flex flex-col items-start gap-2 touch-manipulation"
+                                onClick={() => {
+                                  field.onChange('non-compliant');
+                                  messageForm.setValue('stage_id', '');
+                                }}
+                              >
+                                <Shield className="h-5 w-5" />
+                                <div className="text-left">
+                                  <div className="font-semibold">Non-Compliant</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {nonCompliantMembers.length} member{nonCompliantMembers.length !== 1 ? 's' : ''}
+                                  </div>
+                                </div>
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  {/* Stage Selection (if stage-specific) */}
-                  {messageType === 'stage' && (
-                    <div className="space-y-2">
-                      <Label>Select Stage</Label>
-                      <Select value={selectedStage} onValueChange={setSelectedStage}>
-                        <SelectTrigger className="min-h-[44px]">
-                          <SelectValue placeholder="Select a stage" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {stages.map((stage) => (
-                            <SelectItem key={stage.id} value={stage.id} className="min-h-[44px]">
-                              {stage.name} ({members.filter((m) => m.stage_id === stage.id).length} members)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <Separator />
-
-                  {/* Message Form */}
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Subject</Label>
-                      <Input
-                        id="subject"
-                        placeholder="Enter message subject"
-                        value={messageSubject}
-                        onChange={(e) => setMessageSubject(e.target.value)}
-                        className="min-h-[44px]"
+                    {/* Stage Selection (if stage-specific) */}
+                    {messageType === 'stage' && (
+                      <FormField
+                        control={messageForm.control}
+                        name="stage_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Select Stage</FormLabel>
+                            <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="min-h-[44px]">
+                                  <SelectValue placeholder="Select a stage" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {stages.map((stage) => (
+                                  <SelectItem key={stage.id} value={stage.id} className="min-h-[44px]">
+                                    {stage.name} ({members.filter((m) => m.stage_id === stage.id).length} members)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="message">Message</Label>
-                      <Textarea
-                        id="message"
-                        placeholder="Enter your message"
-                        value={messageContent}
-                        onChange={(e) => setMessageContent(e.target.value)}
-                        rows={6}
-                        className={cn('resize-none', isOverCharLimit(messageContent) && 'border-destructive')}
-                      />
-                    </div>
+                    )}
+
+                    <Separator />
+
+                    {/* Message Form */}
+                    <FormField
+                      control={messageForm.control}
+                      name="subject"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Subject</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter message subject" className="min-h-[44px]" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={messageForm.control}
+                      name="body"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Message</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Enter your message"
+                              rows={6}
+                              className={cn('resize-none', (field.value?.length ?? 0) > TEXTAREA_MAX_CHARS && 'border-destructive')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-muted-foreground">
                         Will be sent to{' '}
@@ -525,8 +555,8 @@ export default function CommunicationToolsPage() {
                         </span>
                       </div>
                       <Button
-                        onClick={handleSendMessage}
-                        disabled={isSending || !messageSubject.trim() || !messageContent.trim() || (messageType === 'stage' && !selectedStage) || isOverCharLimit(messageContent)}
+                        type="submit"
+                        disabled={isSending || (messageForm.watch('body')?.length ?? 0) > TEXTAREA_MAX_CHARS}
                         className="min-h-[44px] gap-2"
                       >
                         {isSending ? (
@@ -542,22 +572,22 @@ export default function CommunicationToolsPage() {
                         )}
                       </Button>
                     </div>
-                  </div>
 
-                  {/* In-App Notifications Info */}
-                  <div className="rounded-lg border border-border bg-muted/50 p-4">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-sm mb-1">In-App Notifications</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Messages will be delivered as in-app notifications. SMS notifications are
-                          optional and can be enabled later.
-                        </p>
+                    {/* In-App Notifications Info */}
+                    <div className="rounded-lg border border-border bg-muted/50 p-4">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-sm mb-1">In-App Notifications</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Messages will be delivered as in-app notifications. SMS notifications are
+                            optional and can be enabled later.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </form>
+                </Form>
               </CardContent>
             </Card>
           </div>

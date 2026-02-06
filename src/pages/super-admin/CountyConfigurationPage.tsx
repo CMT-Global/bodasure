@@ -28,8 +28,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Map, Loader2, Save, History, FileCheck, Scale, ShieldCheck, ChevronRight, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import {
+  countyPermitConfigFormSchema,
+  countyPenaltyConfigFormSchema,
+  countyComplianceRulesFormSchema,
+  getZodErrorsByPath,
+} from '@/lib/zod';
 
 export default function CountyConfigurationPage() {
   const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
@@ -52,11 +58,17 @@ export default function CountyConfigurationPage() {
   const [permitConfig, setPermitConfig] = useState<CountyPermitConfig>(config.permitConfig);
   const [penaltyConfig, setPenaltyConfig] = useState<CountyPenaltyConfig>(config.penaltyConfig);
   const [complianceRules, setComplianceRules] = useState<CountyComplianceRules>(config.complianceRules);
+  const [permitErrors, setPermitErrors] = useState<Record<string, string>>({});
+  const [penaltyErrors, setPenaltyErrors] = useState<Record<string, string>>({});
+  const [complianceErrors, setComplianceErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setPermitConfig(config.permitConfig);
     setPenaltyConfig(config.penaltyConfig);
     setComplianceRules(config.complianceRules);
+    setPermitErrors({});
+    setPenaltyErrors({});
+    setComplianceErrors({});
   }, [config]);
 
   const updateMutation = useUpdateCountyConfig();
@@ -77,10 +89,6 @@ export default function CountyConfigurationPage() {
 
   const handleSavePermit = () => {
     if (!selectedCountyId) return;
-    if (isOverCharLimit(permitConfig.validityRulesNote ?? '')) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
-      return;
-    }
     const sanitized: CountyPermitConfig = {
       ...permitConfig,
       gracePeriodDays: permitConfig.gracePeriodDays ?? 0,
@@ -90,6 +98,13 @@ export default function CountyConfigurationPage() {
         validityDays: pt.validityDays ?? 0,
       })),
     };
+    const result = countyPermitConfigFormSchema.safeParse(sanitized);
+    if (!result.success) {
+      setPermitErrors(getZodErrorsByPath(result.error.issues));
+      toast.error('Please fix the validation errors before saving.');
+      return;
+    }
+    setPermitErrors({});
     updateMutation.mutate(
       { countyId: selectedCountyId, config: { permitConfig: sanitized }, section: 'permitConfig' },
       { onError: () => {} }
@@ -97,16 +112,6 @@ export default function CountyConfigurationPage() {
   };
   const handleSavePenalty = () => {
     if (!selectedCountyId) return;
-    for (const cat of penaltyConfig.categories) {
-      if (isOverCharLimit(cat.description ?? '')) {
-        toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
-        return;
-      }
-    }
-    if (isOverCharLimit(penaltyConfig.autoPenaltyRulesNote ?? '')) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
-      return;
-    }
     const sanitized: CountyPenaltyConfig = {
       ...penaltyConfig,
       categories: penaltyConfig.categories.map(c => ({ ...c, amountCents: c.amountCents ?? 0 })),
@@ -120,6 +125,13 @@ export default function CountyConfigurationPage() {
         maxWaiverAmountCents: penaltyConfig.waiverRules.maxWaiverAmountCents ?? undefined,
       },
     };
+    const result = countyPenaltyConfigFormSchema.safeParse(sanitized);
+    if (!result.success) {
+      setPenaltyErrors(getZodErrorsByPath(result.error.issues));
+      toast.error('Please fix the validation errors before saving.');
+      return;
+    }
+    setPenaltyErrors({});
     updateMutation.mutate(
       { countyId: selectedCountyId, config: { penaltyConfig: sanitized }, section: 'penaltyConfig' },
       { onError: () => {} }
@@ -127,14 +139,13 @@ export default function CountyConfigurationPage() {
   };
   const handleSaveCompliance = () => {
     if (!selectedCountyId) return;
-    if (isOverCharLimit(complianceRules.nonCompliantDefinition)) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+    const result = countyComplianceRulesFormSchema.safeParse(complianceRules);
+    if (!result.success) {
+      setComplianceErrors(getZodErrorsByPath(result.error.issues));
+      toast.error('Please fix the validation errors before saving.');
       return;
     }
-    if (isOverCharLimit(complianceRules.complianceScoringLogic ?? '')) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
-      return;
-    }
+    setComplianceErrors({});
     updateMutation.mutate(
       { countyId: selectedCountyId, config: { complianceRules: complianceRules }, section: 'complianceRules' },
       { onError: () => {} }
@@ -266,6 +277,9 @@ export default function CountyConfigurationPage() {
                 <CardContent className="space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
                   <div className="space-y-2 min-w-0">
                     <Label>Permit types & fees</Label>
+                    {permitErrors.permitTypes && (
+                      <p className="text-xs text-destructive">{permitErrors.permitTypes}</p>
+                    )}
                     {permitConfig.permitTypes.length > 0 && (
                       <div className="hidden sm:grid gap-3 px-3 py-2.5 text-xs font-medium text-muted-foreground border rounded-t-lg bg-muted/50 grid-cols-[2fr_1fr_1fr_1fr_auto]">
                         <span>Name</span>
@@ -283,12 +297,17 @@ export default function CountyConfigurationPage() {
                         >
                           <div className="flex flex-col gap-1 sm:contents">
                             <span className="text-xs text-muted-foreground sm:hidden">Name</span>
-                            <Input
-                              className="w-full min-w-0"
-                              placeholder="e.g. Weekly, Monthly"
-                              value={pt.name}
-                              onChange={e => updatePermitType(i, { name: e.target.value })}
-                            />
+                            <div className="space-y-1">
+                              <Input
+                                className={cn('w-full min-w-0', permitErrors[`permitTypes.${i}.name`] && 'border-destructive')}
+                                placeholder="e.g. Weekly, Monthly"
+                                value={pt.name}
+                                onChange={e => updatePermitType(i, { name: e.target.value })}
+                              />
+                              {permitErrors[`permitTypes.${i}.name`] && (
+                                <p className="text-xs text-destructive">{permitErrors[`permitTypes.${i}.name`]}</p>
+                              )}
+                            </div>
                           </div>
                           <div className="flex flex-col gap-1 sm:contents">
                             <span className="text-xs text-muted-foreground sm:hidden">Type</span>
@@ -309,23 +328,33 @@ export default function CountyConfigurationPage() {
                           </div>
                           <div className="flex flex-col gap-1 sm:contents">
                             <span className="text-xs text-muted-foreground sm:hidden">Fee (KES)</span>
-                            <Input
-                              type="number"
-                              className="w-full min-w-0"
-                              placeholder="0"
-                              value={pt.feeCents != null ? pt.feeCents / 100 : ''}
-                              onChange={e => updatePermitType(i, { feeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PermitTypeConfig>)}
-                            />
+                            <div className="space-y-1">
+                              <Input
+                                type="number"
+                                className={cn('w-full min-w-0', permitErrors[`permitTypes.${i}.feeCents`] && 'border-destructive')}
+                                placeholder="0"
+                                value={pt.feeCents != null ? pt.feeCents / 100 : ''}
+                                onChange={e => updatePermitType(i, { feeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PermitTypeConfig>)}
+                              />
+                              {permitErrors[`permitTypes.${i}.feeCents`] && (
+                                <p className="text-xs text-destructive">{permitErrors[`permitTypes.${i}.feeCents`]}</p>
+                              )}
+                            </div>
                           </div>
                           <div className="flex flex-col gap-1 sm:contents">
                             <span className="text-xs text-muted-foreground sm:hidden">Validity (days)</span>
-                            <Input
-                              type="number"
-                              className="w-full min-w-0"
-                              placeholder="0"
-                              value={pt.validityDays ?? ''}
-                              onChange={e => updatePermitType(i, { validityDays: e.target.value === '' ? undefined : Number(e.target.value) } as Partial<PermitTypeConfig>)}
-                            />
+                            <div className="space-y-1">
+                              <Input
+                                type="number"
+                                className={cn('w-full min-w-0', permitErrors[`permitTypes.${i}.validityDays`] && 'border-destructive')}
+                                placeholder="0"
+                                value={pt.validityDays ?? ''}
+                                onChange={e => updatePermitType(i, { validityDays: e.target.value === '' ? undefined : Number(e.target.value) } as Partial<PermitTypeConfig>)}
+                              />
+                              {permitErrors[`permitTypes.${i}.validityDays`] && (
+                                <p className="text-xs text-destructive">{permitErrors[`permitTypes.${i}.validityDays`]}</p>
+                              )}
+                            </div>
                           </div>
                           <div className="flex justify-end sm:contents">
                             <Button type="button" variant="ghost" size="sm" onClick={() => removePermitType(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation">
@@ -342,13 +371,18 @@ export default function CountyConfigurationPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Grace period (days)</Label>
-                    <Input
-                      type="number"
-                      className="min-h-[44px]"
-                      placeholder="0"
-                      value={permitConfig.gracePeriodDays ?? ''}
-                      onChange={e => setPermitConfig(prev => ({ ...prev, gracePeriodDays: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                    />
+                    <div className="space-y-1">
+                      <Input
+                        type="number"
+                        className={cn('min-h-[44px]', permitErrors.gracePeriodDays && 'border-destructive')}
+                        placeholder="0"
+                        value={permitConfig.gracePeriodDays ?? ''}
+                        onChange={e => setPermitConfig(prev => ({ ...prev, gracePeriodDays: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                      />
+                      {permitErrors.gracePeriodDays && (
+                        <p className="text-xs text-destructive">{permitErrors.gracePeriodDays}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 min-h-[44px]">
                     <Switch
@@ -359,15 +393,27 @@ export default function CountyConfigurationPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Validity rules note (optional)</Label>
-                    <Textarea
-                      value={permitConfig.validityRulesNote ?? ''}
-                      onChange={e => setPermitConfig(prev => ({ ...prev, validityRulesNote: e.target.value || undefined }))}
-                      placeholder="e.g. Applied prospectively to new and renewed permits."
-                      rows={2}
-                      className={cn(isOverCharLimit(permitConfig.validityRulesNote ?? '') && 'border-destructive')}
-                    />
+                    <div className="space-y-1">
+                      <Textarea
+                        value={permitConfig.validityRulesNote ?? ''}
+                        onChange={e => setPermitConfig(prev => ({ ...prev, validityRulesNote: e.target.value || undefined }))}
+                        placeholder="e.g. Applied prospectively to new and renewed permits."
+                        rows={2}
+                        className={cn(
+                          (isOverCharLimit(permitConfig.validityRulesNote ?? '') || permitErrors.validityRulesNote) && 'border-destructive'
+                        )}
+                      />
+                      {permitErrors.validityRulesNote &&
+                        permitErrors.validityRulesNote !== `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.` && (
+                          <p className="text-xs text-destructive">{permitErrors.validityRulesNote}</p>
+                        )}
+                    </div>
                   </div>
-                  <Button onClick={handleSavePermit} disabled={updateMutation.isPending || isOverCharLimit(permitConfig.validityRulesNote ?? '')} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
+                  <Button
+                    onClick={handleSavePermit}
+                    disabled={updateMutation.isPending || isOverCharLimit(permitConfig.validityRulesNote ?? '')}
+                    className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+                  >
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save permit config
                   </Button>
@@ -385,30 +431,47 @@ export default function CountyConfigurationPage() {
                   <div className="grid gap-2">
                     <Label>Penalty categories & amounts</Label>
                     {penaltyConfig.categories.map((cat, i) => (
-                      <div key={cat.id} className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-2 sm:items-center rounded-lg border p-3">
-                        <Input
-                          className="flex-1 min-w-0"
-                          placeholder="Category name"
-                          value={cat.name}
-                          onChange={e => updatePenaltyCategory(i, { name: e.target.value })}
-                        />
+                      <div key={cat.id} className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-2 sm:items-start rounded-lg border p-3">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <Input
+                            className={cn('w-full', penaltyErrors[`categories.${i}.name`] && 'border-destructive')}
+                            placeholder="Category name"
+                            value={cat.name}
+                            onChange={e => updatePenaltyCategory(i, { name: e.target.value })}
+                          />
+                          {penaltyErrors[`categories.${i}.name`] && (
+                            <p className="text-xs text-destructive">{penaltyErrors[`categories.${i}.name`]}</p>
+                          )}
+                        </div>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                           <Label className="text-muted-foreground text-sm">Amount (KES):</Label>
-                          <Input
-                            type="number"
-                            className="w-full sm:w-28 min-h-[44px] sm:min-h-0"
-                            placeholder="0"
-                            value={cat.amountCents != null ? cat.amountCents / 100 : ''}
-                            onChange={e => updatePenaltyCategory(i, { amountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PenaltyCategoryConfig>)}
-                          />
+                          <div className="space-y-1">
+                            <Input
+                              type="number"
+                              className={cn('w-full sm:w-28 min-h-[44px] sm:min-h-0', penaltyErrors[`categories.${i}.amountCents`] && 'border-destructive')}
+                              placeholder="0"
+                              value={cat.amountCents != null ? cat.amountCents / 100 : ''}
+                              onChange={e => updatePenaltyCategory(i, { amountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } as Partial<PenaltyCategoryConfig>)}
+                            />
+                            {penaltyErrors[`categories.${i}.amountCents`] && (
+                              <p className="text-xs text-destructive">{penaltyErrors[`categories.${i}.amountCents`]}</p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0 space-y-1">
                           <Input
-                            className={cn('w-full', isOverCharLimit(cat.description ?? '') && 'border-destructive')}
+                            className={cn(
+                              'w-full',
+                              (isOverCharLimit(cat.description ?? '') || penaltyErrors[`categories.${i}.description`]) && 'border-destructive'
+                            )}
                             placeholder="Description (optional)"
                             value={cat.description ?? ''}
                             onChange={e => updatePenaltyCategory(i, { description: e.target.value || undefined })}
                           />
+                          {penaltyErrors[`categories.${i}.description`] &&
+                            penaltyErrors[`categories.${i}.description`] !== `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.` && (
+                              <p className="text-xs text-destructive">{penaltyErrors[`categories.${i}.description`]}</p>
+                            )}
                         </div>
                         <Button type="button" variant="ghost" size="sm" onClick={() => removePenaltyCategory(i)} className="min-h-[44px] sm:min-h-0 touch-manipulation w-full sm:w-auto">
                           Remove
@@ -428,36 +491,54 @@ export default function CountyConfigurationPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Auto-penalty rules note (optional)</Label>
-                    <Textarea
-                      value={penaltyConfig.autoPenaltyRulesNote ?? ''}
-                      onChange={e => setPenaltyConfig(prev => ({ ...prev, autoPenaltyRulesNote: e.target.value || undefined }))}
-                      placeholder="When to apply penalties automatically."
-                      rows={2}
-                      className={cn(isOverCharLimit(penaltyConfig.autoPenaltyRulesNote ?? '') && 'border-destructive')}
-                    />
+                    <div className="space-y-1">
+                      <Textarea
+                        value={penaltyConfig.autoPenaltyRulesNote ?? ''}
+                        onChange={e => setPenaltyConfig(prev => ({ ...prev, autoPenaltyRulesNote: e.target.value || undefined }))}
+                        placeholder="When to apply penalties automatically."
+                        rows={2}
+                        className={cn(
+                          (isOverCharLimit(penaltyConfig.autoPenaltyRulesNote ?? '') || penaltyErrors.autoPenaltyRulesNote) && 'border-destructive'
+                        )}
+                      />
+                      {penaltyErrors.autoPenaltyRulesNote &&
+                        penaltyErrors.autoPenaltyRulesNote !== `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.` && (
+                          <p className="text-xs text-destructive">{penaltyErrors.autoPenaltyRulesNote}</p>
+                        )}
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label>Escalation logic (repeat offenders)</Label>
                     {penaltyConfig.escalationLogic.map((rule, i) => (
-                      <div key={i} className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-2 sm:items-center rounded-lg border p-3">
+                      <div key={i} className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-2 sm:items-start rounded-lg border p-3">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                           <Label className="text-muted-foreground text-sm">After</Label>
-                          <Input
-                            type="number"
-                            className="w-full sm:w-20 min-h-[44px] sm:min-h-0"
-                            value={rule.repeatCount}
-                            onChange={e => updateEscalationRule(i, { repeatCount: Number(e.target.value) || 0 })}
-                          />
+                          <div className="space-y-1">
+                            <Input
+                              type="number"
+                              className={cn('w-full sm:w-20 min-h-[44px] sm:min-h-0', penaltyErrors[`escalationLogic.${i}.repeatCount`] && 'border-destructive')}
+                              value={rule.repeatCount}
+                              onChange={e => updateEscalationRule(i, { repeatCount: Number(e.target.value) || 0 })}
+                            />
+                            {penaltyErrors[`escalationLogic.${i}.repeatCount`] && (
+                              <p className="text-xs text-destructive">{penaltyErrors[`escalationLogic.${i}.repeatCount`]}</p>
+                            )}
+                          </div>
                         </div>
                         <Label className="text-muted-foreground text-sm">offenses, multiply by</Label>
-                        <Input
-                          type="number"
-                          step="0.5"
-                          className="w-full sm:w-20 min-h-[44px] sm:min-h-0"
-                          placeholder="1"
-                          value={rule.multiplier ?? ''}
-                          onChange={e => updateEscalationRule(i, { multiplier: e.target.value === '' ? undefined : Number(e.target.value) })}
-                        />
+                        <div className="space-y-1">
+                          <Input
+                            type="number"
+                            step="0.5"
+                            className={cn('w-full sm:w-20 min-h-[44px] sm:min-h-0', penaltyErrors[`escalationLogic.${i}.multiplier`] && 'border-destructive')}
+                            placeholder="1"
+                            value={rule.multiplier ?? ''}
+                            onChange={e => updateEscalationRule(i, { multiplier: e.target.value === '' ? undefined : Number(e.target.value) })}
+                          />
+                          {penaltyErrors[`escalationLogic.${i}.multiplier`] && (
+                            <p className="text-xs text-destructive">{penaltyErrors[`escalationLogic.${i}.multiplier`]}</p>
+                          )}
+                        </div>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                           <Label className="text-muted-foreground text-sm">Max (KES, optional):</Label>
                           <Input
@@ -552,34 +633,53 @@ export default function CountyConfigurationPage() {
                 <CardContent className="space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
                   <div className="grid gap-2">
                     <Label>What defines &quot;non-compliant&quot;</Label>
-                    <Textarea
-                      value={complianceRules.nonCompliantDefinition}
-                      onChange={e => setComplianceRules(prev => ({ ...prev, nonCompliantDefinition: e.target.value }))}
-                      placeholder="e.g. Rider with expired permit, unpaid penalty, or suspended status."
-                      rows={3}
-                      className={cn(isOverCharLimit(complianceRules.nonCompliantDefinition) && 'border-destructive')}
-                    />
+                    <div className="space-y-1">
+                      <Textarea
+                        value={complianceRules.nonCompliantDefinition}
+                        onChange={e => setComplianceRules(prev => ({ ...prev, nonCompliantDefinition: e.target.value }))}
+                        placeholder="e.g. Rider with expired permit, unpaid penalty, or suspended status."
+                        rows={3}
+                        className={cn(
+                          (isOverCharLimit(complianceRules.nonCompliantDefinition) || complianceErrors.nonCompliantDefinition) && 'border-destructive'
+                        )}
+                      />
+                      {complianceErrors.nonCompliantDefinition && (
+                        <p className="text-xs text-destructive">{complianceErrors.nonCompliantDefinition}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Suspension threshold (number of penalties)</Label>
-                      <Input
-                        type="number"
-                        value={complianceRules.suspensionThresholdPenalties}
-                        onChange={e =>
-                          setComplianceRules(prev => ({ ...prev, suspensionThresholdPenalties: Number(e.target.value) || 0 }))
-                        }
-                      />
+                      <div className="space-y-1">
+                        <Input
+                          type="number"
+                          className={cn(complianceErrors.suspensionThresholdPenalties && 'border-destructive')}
+                          value={complianceRules.suspensionThresholdPenalties}
+                          onChange={e =>
+                            setComplianceRules(prev => ({ ...prev, suspensionThresholdPenalties: Number(e.target.value) || 0 }))
+                          }
+                        />
+                        {complianceErrors.suspensionThresholdPenalties && (
+                          <p className="text-xs text-destructive">{complianceErrors.suspensionThresholdPenalties}</p>
+                        )}
+                      </div>
                     </div>
                     <div className="grid gap-2">
                       <Label>Blacklist threshold (number of penalties)</Label>
-                      <Input
-                        type="number"
-                        value={complianceRules.blacklistThresholdPenalties}
-                        onChange={e =>
-                          setComplianceRules(prev => ({ ...prev, blacklistThresholdPenalties: Number(e.target.value) || 0 }))
-                        }
-                      />
+                      <div className="space-y-1">
+                        <Input
+                          type="number"
+                          className={cn(complianceErrors.blacklistThresholdPenalties && 'border-destructive')}
+                          value={complianceRules.blacklistThresholdPenalties}
+                          onChange={e =>
+                            setComplianceRules(prev => ({ ...prev, blacklistThresholdPenalties: Number(e.target.value) || 0 }))
+                          }
+                        />
+                        {complianceErrors.blacklistThresholdPenalties && (
+                          <p className="text-xs text-destructive">{complianceErrors.blacklistThresholdPenalties}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -621,15 +721,31 @@ export default function CountyConfigurationPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Compliance scoring logic (optional)</Label>
-                    <Textarea
-                      value={complianceRules.complianceScoringLogic ?? ''}
-                      onChange={e => setComplianceRules(prev => ({ ...prev, complianceScoringLogic: e.target.value || undefined }))}
-                      placeholder="e.g. Score 0–100 based on permit validity, penalty history, and payments."
-                      rows={3}
-                      className={cn(isOverCharLimit(complianceRules.complianceScoringLogic ?? '') && 'border-destructive')}
-                    />
+                    <div className="space-y-1">
+                      <Textarea
+                        value={complianceRules.complianceScoringLogic ?? ''}
+                        onChange={e => setComplianceRules(prev => ({ ...prev, complianceScoringLogic: e.target.value || undefined }))}
+                        placeholder="e.g. Score 0–100 based on permit validity, penalty history, and payments."
+                        rows={3}
+                        className={cn(
+                          (isOverCharLimit(complianceRules.complianceScoringLogic ?? '') || complianceErrors.complianceScoringLogic) && 'border-destructive'
+                        )}
+                      />
+                      {complianceErrors.complianceScoringLogic &&
+                        complianceErrors.complianceScoringLogic !== `Maximum ${TEXTAREA_MAX_CHARS} characters allowed.` && (
+                          <p className="text-xs text-destructive">{complianceErrors.complianceScoringLogic}</p>
+                        )}
+                    </div>
                   </div>
-                  <Button onClick={handleSaveCompliance} disabled={updateMutation.isPending || isOverCharLimit(complianceRules.nonCompliantDefinition) || isOverCharLimit(complianceRules.complianceScoringLogic ?? '')} className="w-full sm:w-auto min-h-[44px] touch-manipulation">
+                  <Button
+                    onClick={handleSaveCompliance}
+                    disabled={
+                      updateMutation.isPending ||
+                      isOverCharLimit(complianceRules.nonCompliantDefinition) ||
+                      isOverCharLimit(complianceRules.complianceScoringLogic ?? '')
+                    }
+                    className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+                  >
                     {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save compliance rules
                   </Button>

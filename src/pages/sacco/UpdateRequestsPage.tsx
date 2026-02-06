@@ -43,7 +43,7 @@ import { AlertCircle, CheckCircle, XCircle, Loader2, FileEdit } from 'lucide-rea
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/utils/textareaCharLimit';
+import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 
 const REQUEST_TYPE_LABELS: Record<RiderUpdateRequestType, string> = {
   phone: 'Phone update',
