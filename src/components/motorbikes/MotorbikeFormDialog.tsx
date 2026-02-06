@@ -145,8 +145,8 @@ function getMotorbikeWizardStepGroups(needsCountySelection: boolean): WizardStep
     {
       label: 'Identification & Status',
       fields: [
-        { name: 'chassis_number', label: 'Chassis Number', placeholder: 'CH123456789', description: 'At least one of Chassis or Engine number is required' },
-        { name: 'engine_number', label: 'Engine Number', placeholder: 'EN123456789', description: 'At least one of Chassis or Engine number is required' },
+        { name: 'chassis_number', label: 'Chassis Number', placeholder: 'CHS-CG125-938475', description: 'At least one of Chassis or Engine is required. Alphanumeric and hyphens only.' },
+        { name: 'engine_number', label: 'Engine Number', placeholder: 'ENG-HND-125-847392', description: 'At least one of Chassis or Engine is required. Alphanumeric and hyphens only.' },
         { name: 'photo_url', label: 'Photo URL', placeholder: 'https://example.com/photo.jpg' },
         { name: 'status', label: 'Status', description: 'Set initial status' },
       ],

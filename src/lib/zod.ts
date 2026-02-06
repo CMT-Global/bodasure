@@ -253,7 +253,7 @@ export const motorbikeColorSchema = z
   )
   .transform((s) => (s === '' ? undefined : s));
 
-/** Chassis number: optional; if set, 5–30 alphanumeric */
+/** Chassis number: optional; if set, 5–30 chars, alphanumeric and hyphens */
 export const motorbikeChassisNumberSchema = z
   .string()
   .optional()
@@ -266,12 +266,12 @@ export const motorbikeChassisNumberSchema = z
           .string()
           .min(5, 'Must be at least 5 characters')
           .max(30, 'Must be at most 30 characters')
-          .refine((val) => /^[a-zA-Z0-9]+$/.test(val), { message: 'Alphanumeric only' }),
+          .refine((val) => /^[a-zA-Z0-9\-]+$/.test(val), { message: 'Alphanumeric and hyphens only' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));
 
-/** Engine number: optional; if set, 5–30 alphanumeric */
+/** Engine number: optional; if set, 5–30 chars, alphanumeric and hyphens */
 export const motorbikeEngineNumberSchema = z
   .string()
   .optional()
@@ -284,7 +284,7 @@ export const motorbikeEngineNumberSchema = z
           .string()
           .min(5, 'Must be at least 5 characters')
           .max(30, 'Must be at most 30 characters')
-          .refine((val) => /^[a-zA-Z0-9]+$/.test(val), { message: 'Alphanumeric only' }),
+          .refine((val) => /^[a-zA-Z0-9\-]+$/.test(val), { message: 'Alphanumeric and hyphens only' }),
       ])
   )
   .transform((s) => (s === '' ? undefined : s));

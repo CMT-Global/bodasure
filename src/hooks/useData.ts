@@ -196,6 +196,14 @@ export interface RiderOwnerDashboardData {
   lastPayment: { paid_at: string | null; amount: number } | null;
 }
 
+/** Rider snippet for owned-bike cards and rider-details popup (owner view). */
+export interface RiderOwnerProfileBikeRider {
+  full_name: string;
+  phone?: string | null;
+  qr_code?: string | null;
+  id_number?: string | null;
+}
+
 /** Profile & Registration: rider + county, bikes with make/model, owner + owned bikes when applicable */
 export interface RiderOwnerProfileBike {
   id: string;
@@ -206,7 +214,7 @@ export interface RiderOwnerProfileBike {
   color: string | null;
   chassis_number: string | null;
   engine_number: string | null;
-  rider?: { full_name: string } | null;
+  rider?: RiderOwnerProfileBikeRider | null;
 }
 
 export interface RiderOwnerProfileData {
@@ -511,19 +519,22 @@ export function useRiderOwnerProfile(userId: string | undefined) {
       if (owner) {
         const { data: bikes } = await supabase
           .from('motorbikes')
-          .select('id, registration_number, make, model, year, color, chassis_number, engine_number, rider:riders(full_name)')
+          .select('id, registration_number, make, model, year, color, chassis_number, engine_number, rider:riders(full_name, phone, qr_code, id_number)')
           .eq('owner_id', owner.id);
-        ownedBikes = (bikes || []).map((m: Record<string, unknown>) => ({
-          id: m.id as string,
-          registration_number: m.registration_number as string,
-          make: (m.make as string | null) ?? null,
-          model: (m.model as string | null) ?? null,
-          year: (m.year as number | null) ?? null,
-          color: (m.color as string | null) ?? null,
-          chassis_number: (m.chassis_number as string | null) ?? null,
-          engine_number: (m.engine_number as string | null) ?? null,
-          rider: (m.rider as { full_name: string } | null) ?? null,
-        }));
+        ownedBikes = (bikes || []).map((m: Record<string, unknown>) => {
+          const r = m.rider as { full_name: string; phone?: string | null; qr_code?: string | null; id_number?: string | null } | null;
+          return {
+            id: m.id as string,
+            registration_number: m.registration_number as string,
+            make: (m.make as string | null) ?? null,
+            model: (m.model as string | null) ?? null,
+            year: (m.year as number | null) ?? null,
+            color: (m.color as string | null) ?? null,
+            chassis_number: (m.chassis_number as string | null) ?? null,
+            engine_number: (m.engine_number as string | null) ?? null,
+            rider: r ? { full_name: r.full_name, phone: r.phone ?? null, qr_code: r.qr_code ?? null, id_number: r.id_number ?? null } : null,
+          };
+        });
       }
 
       return { rider, motorbikes, owner, ownedBikes };
