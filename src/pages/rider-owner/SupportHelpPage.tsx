@@ -30,6 +30,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
+import { supportTicketFormSchema } from '@/lib/zod';
 
 function SupportHelpContent() {
   const { user, profile, roles } = useAuth();
@@ -44,26 +45,40 @@ function SupportHelpContent() {
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [penaltyId, setPenaltyId] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<{
+    category?: string;
+    subject?: string;
+    description?: string;
+  }>({});
 
   const overCharLimit = isOverCharLimit(description);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!category || !subject.trim() || !description.trim()) {
-      toast.error('Please select a category, enter a subject, and describe the issue.');
-      return;
-    }
-    if (overCharLimit) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
+    setFormErrors({});
+    const payload = {
+      category: category || undefined,
+      subject: subject.trim(),
+      description: description.trim(),
+      penalty_id: category === 'penalty_dispute' && penaltyId ? penaltyId : undefined,
+    };
+    const result = supportTicketFormSchema.safeParse(payload);
+    if (!result.success) {
+      const issues = result.error.flatten().fieldErrors;
+      setFormErrors({
+        category: issues.category?.[0],
+        subject: issues.subject?.[0],
+        description: issues.description?.[0],
+      });
       return;
     }
     createTicket.mutate(
       {
         county_id: countyId,
-        category: category as SupportTicketCategory,
-        subject: subject.trim(),
-        description: description.trim(),
-        penalty_id: category === 'penalty_dispute' ? penaltyId : null,
+        category: result.data.category as SupportTicketCategory,
+        subject: result.data.subject,
+        description: result.data.description,
+        penalty_id: result.data.category === 'penalty_dispute' && result.data.penalty_id ? result.data.penalty_id : null,
       },
       {
         onSuccess: () => {
@@ -72,6 +87,7 @@ function SupportHelpContent() {
           setSubject('');
           setDescription('');
           setPenaltyId(null);
+          setFormErrors({});
         },
         onError: (err: Error) => {
           toast.error(err.message || 'Failed to submit ticket.');
@@ -122,8 +138,14 @@ function SupportHelpContent() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as SupportTicketCategory | '')}>
-                <SelectTrigger id="category" className="min-h-[44px]">
+              <Select
+                value={category}
+                onValueChange={(v) => {
+                  setCategory(v as SupportTicketCategory | '');
+                  if (formErrors.category) setFormErrors((e) => ({ ...e, category: undefined }));
+                }}
+              >
+                <SelectTrigger id="category" className={cn('min-h-[44px]', formErrors.category && 'border-destructive')}>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -134,6 +156,9 @@ function SupportHelpContent() {
                   ))}
                 </SelectContent>
               </Select>
+              {formErrors.category && (
+                <p className="text-xs text-destructive">{formErrors.category}</p>
+              )}
             </div>
 
             {category === 'penalty_dispute' && rider && penalties.length > 0 && (
@@ -161,11 +186,17 @@ function SupportHelpContent() {
               <Input
                 id="subject"
                 value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                onChange={(e) => {
+                  setSubject(e.target.value);
+                  if (formErrors.subject) setFormErrors((e) => ({ ...e, subject: undefined }));
+                }}
                 placeholder="Brief summary of the issue"
-                className="min-h-[44px]"
+                className={cn('min-h-[44px]', formErrors.subject && 'border-destructive')}
                 maxLength={200}
               />
+              {formErrors.subject && (
+                <p className="text-xs text-destructive">{formErrors.subject}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -173,11 +204,20 @@ function SupportHelpContent() {
               <Textarea
                 id="description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  if (formErrors.description) setFormErrors((e) => ({ ...e, description: undefined }));
+                }}
                 placeholder="Provide details so we can help you quickly."
                 rows={4}
-                className={cn('resize-y min-h-[100px]', overCharLimit && 'border-destructive focus-visible:ring-destructive')}
+                className={cn(
+                  'resize-y min-h-[100px]',
+                  (overCharLimit || formErrors.description) && 'border-destructive focus-visible:ring-destructive'
+                )}
               />
+              {formErrors.description && (
+                <p className="text-xs text-destructive">{formErrors.description}</p>
+              )}
             </div>
 
             <Button type="submit" disabled={createTicket.isPending || overCharLimit} className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto">

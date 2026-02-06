@@ -29,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { validateMpesaPhone } from '@/hooks/usePayments';
+import { permitPaymentFormSchema } from '@/lib/zod';
 import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -77,17 +78,26 @@ function PermitPaymentsContent() {
   }, [dashboardData?.motorbikes, profileData?.motorbikes, profileData?.ownedBikes]);
 
   const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId);
-  const { data: payments = [], isLoading: paymentsLoading } = useRiderPaymentHistory(
+  const { data: paymentsData, isLoading: paymentsLoading } = useRiderPaymentHistory(
     rider?.id ?? '',
     countyId
-  ) as { data: PaymentWithPermit[] };
+  );
+  const payments = (paymentsData ?? []) as PaymentWithPermit[];
   const initializePayment = useInitializePayment();
 
   const [selectedPermitType, setSelectedPermitType] = useState<PermitType | null>(null);
   const [selectedMotorbikeId, setSelectedMotorbikeId] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<{
+    permit_type_id?: string;
+    motorbike_id?: string;
+    phone?: string;
+    email?: string;
+  }>({});
   const [receiptPayment, setReceiptPayment] = useState<PaymentWithPermit | null>(null);
+
+  const permitPaymentSchema = useMemo(() => permitPaymentFormSchema(false), []);
 
   const handleMpesaPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -101,23 +111,39 @@ function PermitPaymentsContent() {
   const selectedType = selectedPermitType;
 
   const handlePay = () => {
-    if (!selectedType || !selectedMotorbikeId || !email || !riderId || !countyId) {
-      return;
-    }
-    const phoneError = validateMpesaPhone(mpesaPhone);
-    if (phoneError) {
-      setMpesaPhoneError(phoneError);
+    setFormErrors({});
+    const paymentMethod = mpesaPhone.trim() ? 'mobile_money' : 'card';
+    const payload = {
+      rider_id: riderId,
+      motorbike_id: selectedMotorbikeId,
+      permit_type_id: selectedType?.id ?? '',
+      email,
+      phone: mpesaPhone.trim() || undefined,
+      payment_method: paymentMethod as 'card' | 'mobile_money',
+      county_id: countyId ?? undefined,
+    };
+    const result = permitPaymentSchema.safeParse(payload);
+    if (!result.success) {
+      const issues = result.error.flatten().fieldErrors;
+      setFormErrors({
+        permit_type_id: issues.permit_type_id?.[0],
+        motorbike_id: issues.motorbike_id?.[0],
+        phone: issues.phone?.[0],
+        email: issues.email?.[0],
+      });
+      if (issues.phone?.[0]) setMpesaPhoneError(issues.phone[0]);
       return;
     }
     setMpesaPhoneError(null);
+    if (!selectedType || !countyId) return;
     initializePayment.mutate(
       {
         amount: selectedType.amount,
-        email,
-        phone: mpesaPhone.trim() || undefined,
-        permit_type_id: selectedType.id,
-        rider_id: riderId,
-        motorbike_id: selectedMotorbikeId,
+        email: result.data.email,
+        phone: result.data.phone,
+        permit_type_id: result.data.permit_type_id,
+        rider_id: result.data.rider_id,
+        motorbike_id: result.data.motorbike_id,
         county_id: countyId,
       },
       {
@@ -199,7 +225,10 @@ function PermitPaymentsContent() {
                     <button
                       key={pt.id}
                       type="button"
-                      onClick={() => setSelectedPermitType(pt)}
+                      onClick={() => {
+                        setSelectedPermitType(pt);
+                        if (formErrors.permit_type_id) setFormErrors((e) => ({ ...e, permit_type_id: undefined }));
+                      }}
                       className={cn(
                         'rounded-lg border-2 p-4 text-left transition-colors min-h-[56px] touch-manipulation w-full',
                         selectedPermitType?.id === pt.id
@@ -220,16 +249,22 @@ function PermitPaymentsContent() {
                     </button>
                   ))}
                 </div>
+                {formErrors.permit_type_id && (
+                  <p className="text-xs text-destructive">{formErrors.permit_type_id}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Motorbike</Label>
                 <Select
                   value={selectedMotorbikeId}
-                  onValueChange={setSelectedMotorbikeId}
+                  onValueChange={(v) => {
+                    setSelectedMotorbikeId(v);
+                    if (formErrors.motorbike_id) setFormErrors((e) => ({ ...e, motorbike_id: undefined }));
+                  }}
                   disabled={motorbikes.length === 0}
                 >
-                  <SelectTrigger className="min-h-[44px]">
+                  <SelectTrigger className={cn('min-h-[44px]', formErrors.motorbike_id && 'border-destructive')}>
                     <SelectValue placeholder="Select motorbike" />
                   </SelectTrigger>
                   <SelectContent>
@@ -240,7 +275,10 @@ function PermitPaymentsContent() {
                     ))}
                   </SelectContent>
                 </Select>
-                {motorbikes.length === 0 && (
+                {formErrors.motorbike_id && (
+                  <p className="text-xs text-destructive">{formErrors.motorbike_id}</p>
+                )}
+                {motorbikes.length === 0 && !formErrors.motorbike_id && (
                   <p className="text-xs text-muted-foreground">No motorbikes linked to your profile.</p>
                 )}
               </div>
@@ -254,19 +292,26 @@ function PermitPaymentsContent() {
                   autoComplete="tel"
                   placeholder="254712345678"
                   value={mpesaPhone}
-                  onChange={handleMpesaPhoneChange}
+                  onChange={(e) => {
+                    handleMpesaPhoneChange(e);
+                    if (formErrors.phone) setFormErrors((err) => ({ ...err, phone: undefined }));
+                  }}
                   onBlur={() => setMpesaPhoneError(validateMpesaPhone(mpesaPhone))}
-                  className={cn('min-h-[44px]', mpesaPhoneError && 'border-destructive')}
+                  className={cn('min-h-[44px]', (mpesaPhoneError || formErrors.phone) && 'border-destructive')}
                   maxLength={15}
                 />
-                {mpesaPhoneError ? (
-                  <p className="text-xs text-destructive">{mpesaPhoneError}</p>
+                {(mpesaPhoneError || formErrors.phone) ? (
+                  <p className="text-xs text-destructive">{mpesaPhoneError || formErrors.phone}</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Leave blank for card payment. Digits only: 5 (local) or 6–15 (with country code, no +).
                   </p>
                 )}
               </div>
+
+              {formErrors.email && (
+                <p className="text-sm text-destructive">{formErrors.email}</p>
+              )}
 
               <Button
                 className="w-full sm:w-auto min-h-[44px] touch-manipulation"

@@ -533,6 +533,36 @@ export const saccoSendMessageFormSchema = z
 
 export type SaccoSendMessageFormValues = z.infer<typeof saccoSendMessageFormSchema>;
 
+// ——— Support ticket (rider-owner/support-help) ———
+
+/** Support ticket category. Must match SupportTicketCategory in useSupportTickets. */
+export const supportTicketCategorySchema = z.enum(
+  ['payment_issue', 'wrong_details', 'penalty_dispute', 'sacco_stage_issue', 'technical_issue'],
+  { required_error: 'Please select a category', invalid_type_error: 'Please select a category' }
+);
+
+/** Subject for support ticket: required, 1–200 chars. */
+export const supportTicketSubjectSchema = z
+  .string()
+  .min(1, 'Subject is required')
+  .max(100, 'Subject must not exceed 100 characters');
+
+/** Description for support ticket: required, max TEXTAREA limit. */
+export const supportTicketDescriptionSchema = z
+  .string()
+  .min(1, 'Description is required')
+  .max(TEXTAREA_MAX_CHARS, `Please write less than ${TEXTAREA_MAX_CHARS} characters.`);
+
+/** Support ticket form schema (rider-owner/support-help). */
+export const supportTicketFormSchema = z.object({
+  category: supportTicketCategorySchema,
+  subject: supportTicketSubjectSchema,
+  description: supportTicketDescriptionSchema,
+  penalty_id: z.string().optional(),
+});
+
+export type SupportTicketFormValues = z.infer<typeof supportTicketFormSchema>;
+
 // ——— Permit payment / new payment (dashboard/permits + dashboard/payments) ———
 // Used by PaymentDialog: "Issue Permit" on dashboard/permits and "New Payment" on dashboard/payments.
 
