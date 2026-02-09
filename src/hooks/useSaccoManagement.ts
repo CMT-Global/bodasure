@@ -59,6 +59,9 @@ export function useSaccoOfficials(countyId?: string, saccoId?: string) {
 
       if (saccoId) {
         roleQuery = roleQuery.eq('sacco_id', saccoId);
+      } else {
+        // Sacco settings: show only users with a sacco role (exclude welfare-only)
+        roleQuery = roleQuery.not('sacco_id', 'is', null);
       }
 
       const { data: roles, error: rolesError } = await roleQuery;

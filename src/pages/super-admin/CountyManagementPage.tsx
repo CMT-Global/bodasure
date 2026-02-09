@@ -55,8 +55,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColumnDef } from '@tanstack/react-table';
 import { Plus, MoreHorizontal, Edit, Trash2, CheckCircle, XCircle, Lock, Unlock, Map, Loader2 } from 'lucide-react';
-import { useCountyUsers } from '@/hooks/useUserManagement';
-import { useAssignUserRoles } from '@/hooks/useUserManagement';
+import { useCountySuperAdmin, useAssignUserRoles } from '@/hooks/useUserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { countyFormSchema, type CountyFormValues } from '@/lib/zod';
@@ -437,10 +436,8 @@ function CountyFormDialog({
 
   const createMutation = useCreateCounty();
   const updateMutation = useUpdateCounty();
-  const { data: countyUsers = [] } = useCountyUsers(county?.id);
+  const { data: countySuperAdmin, isLoading: countySuperAdminLoading } = useCountySuperAdmin(county?.id ?? undefined);
   const assignRoles = useAssignUserRoles();
-
-  const countySuperAdmin = countyUsers.find((u) => u.roles.some((r) => r.role === 'county_super_admin' && r.county_id === county?.id));
 
   const handleOpenChange = (next: boolean) => {
     if (!next) form.reset();
@@ -643,9 +640,12 @@ function CountyFormDialog({
               <p className="text-sm font-medium">County Super Admin</p>
               {isEdit && county ? (
                 <>
-                  {countySuperAdmin ? (
+                  {countySuperAdminLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                  ) : countySuperAdmin ? (
                     <p className="text-sm text-muted-foreground">
-                      Current: {countySuperAdmin.email} {countySuperAdmin.full_name && `(${countySuperAdmin.full_name})`}
+                      Current: {countySuperAdmin.email}
+                      {countySuperAdmin.full_name ? ` (${countySuperAdmin.full_name})` : ''}
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">Not assigned</p>

@@ -74,7 +74,7 @@ import {
   type CountyUserResetPasswordFormValues,
 } from '@/lib/zod';
 
-// Available roles for county users
+// Available roles for county users (county portal only — used for create/edit and filters)
 const COUNTY_ROLES = [
   { value: 'county_super_admin', label: 'County Super Admin' },
   { value: 'county_admin', label: 'County Admin' },
@@ -83,6 +83,8 @@ const COUNTY_ROLES = [
   { value: 'county_registration_agent', label: 'County Registration Agent' },
   { value: 'county_analyst', label: 'County Analyst' },
 ];
+
+const COUNTY_PORTAL_ROLE_VALUES = new Set(COUNTY_ROLES.map((r) => r.value));
 
 export default function UsersPage() {
   const { profile, roles, hasRole } = useAuth();
@@ -149,11 +151,19 @@ export default function UsersPage() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
+      // Only show users with a county portal role (County Super Admin, County Admin, etc.)
+      const countyPortalRolesForUser = user.roles.filter((r) => COUNTY_PORTAL_ROLE_VALUES.has(r.role));
+      if (countyPortalRolesForUser.length === 0) return false;
+      // When a county is selected, only show users whose county portal role is for this county (don't show other county's users)
+      if (countyId) {
+        const hasRoleForThisCounty = countyPortalRolesForUser.some((r) => r.county_id === countyId);
+        if (!hasRoleForThisCounty) return false;
+      }
       if (statusFilter !== 'all' && user.is_active !== (statusFilter === 'active')) return false;
-      if (roleFilter !== 'all' && !user.roles.some(r => r.role === roleFilter)) return false;
+      if (roleFilter !== 'all' && !user.roles.some((r) => r.role === roleFilter)) return false;
       return true;
     });
-  }, [users, statusFilter, roleFilter]);
+  }, [users, countyId, statusFilter, roleFilter]);
 
   // Create user
   const handleCreateUser = async (values: CountyUserCreateFormValues) => {

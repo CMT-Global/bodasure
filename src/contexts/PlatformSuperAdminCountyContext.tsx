@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { COUNTY_ALL } from '@/components/shared/CountyFilterBar';
 
 interface PlatformSuperAdminCountyContextType {
   selectedCountyId: string | undefined;
@@ -38,6 +39,7 @@ export function usePlatformSuperAdminCounty() {
 
 /**
  * Effective county ID for data: platform super admin uses selected county from dropdown; others use auth county.
+ * When platform super admin selects "All counties" (COUNTY_ALL), returns undefined so pages can show all-county data.
  */
 export function useEffectiveCountyId(): string | undefined {
   const { countyId, hasRole } = useAuth();
@@ -47,7 +49,10 @@ export function useEffectiveCountyId(): string | undefined {
     hasRole('platform_super_admin') || hasRole('platform_admin');
 
   if (isPlatformSuperAdmin) {
-    return selectedCountyId ?? countyId;
+    if (selectedCountyId === undefined || selectedCountyId === COUNTY_ALL) {
+      return undefined;
+    }
+    return selectedCountyId;
   }
 
   return countyId;

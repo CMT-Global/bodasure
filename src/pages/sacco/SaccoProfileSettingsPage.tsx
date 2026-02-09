@@ -558,7 +558,7 @@ export default function SaccoProfileSettingsPage() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     {countyUsers
-                                      .filter((u) => u.is_active)
+                                      .filter((u) => u.is_active && u.roles.some((r) => SACCO_OFFICIAL_ROLES.some((o) => o.value === r.role)))
                                       .map((user) => (
                                         <SelectItem key={user.id} value={user.id}>
                                           {user.full_name || user.email}

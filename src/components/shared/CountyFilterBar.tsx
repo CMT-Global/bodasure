@@ -28,7 +28,7 @@ export function CountyFilterBar() {
     <div className="min-w-0 sm:max-w-[220px]">
       <Select
         value={value}
-        onValueChange={(v) => setSelectedCountyId(v === COUNTY_ALL ? undefined : v)}
+        onValueChange={(v) => setSelectedCountyId(v)}
       >
         <SelectTrigger className="h-10 w-full min-h-[44px] sm:min-h-0 rounded-md px-3">
           <SelectValue placeholder="Select county" />
