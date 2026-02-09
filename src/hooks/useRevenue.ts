@@ -85,26 +85,23 @@ export interface RevenueShareBySacco {
   shareType: string;
 }
 
-// Fetch revenue by date range
+// Fetch revenue by date range (countyId undefined = all counties for platform super admin)
 export function useRevenueByDateRange(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-by-date-range', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Build date filter
+      // Build queries: when countyId is set filter by county; when undefined aggregate all counties
       let permitQuery = supabase
         .from('payments')
         .select('amount, paid_at, permit_id')
-        .eq('county_id', countyId)
         .eq('status', 'completed');
+      if (countyId) permitQuery = permitQuery.eq('county_id', countyId);
 
-      // For penalties, we need to get all paid penalties and use paid_at or created_at for date
       let penaltyQuery = supabase
         .from('penalties')
         .select('amount, paid_at, is_paid, created_at')
-        .eq('county_id', countyId)
         .eq('is_paid', true);
+      if (countyId) penaltyQuery = penaltyQuery.eq('county_id', countyId);
 
       // Note: We'll filter by date in the code since some penalties might not have paid_at set
       // We'll use paid_at if available, otherwise created_at for date grouping
@@ -156,7 +153,7 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
         }))
         .sort((a, b) => a.date.localeCompare(b.date)) as RevenueByDateRange[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 

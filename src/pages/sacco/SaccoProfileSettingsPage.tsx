@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
@@ -116,6 +116,8 @@ export default function SaccoProfileSettingsPage() {
   const uploadDocument = useUploadSaccoDocument();
   const deleteDocument = useDeleteSaccoDocument();
   const [documentToDelete, setDocumentToDelete] = useState<{ index: number; type: string } | null>(null);
+  const [registrationFileName, setRegistrationFileName] = useState<string | null>(null);
+  const registrationFileInputRef = useRef<HTMLInputElement>(null);
 
   const profileForm = useForm<SaccoProfileFormValues>({
     resolver: zodResolver(saccoProfileFormSchema),
@@ -260,13 +262,22 @@ export default function SaccoProfileSettingsPage() {
     const file = e.target.files?.[0];
     if (!file || !saccoId || !countyId) return;
 
+    setRegistrationFileName(file.name);
     const documentType = e.target.name || 'registration';
-    uploadDocument.mutate({
-      file,
-      saccoId,
-      countyId,
-      documentType,
-    });
+    uploadDocument.mutate(
+      {
+        file,
+        saccoId,
+        countyId,
+        documentType,
+      },
+      {
+        onSuccess: () => {
+          setRegistrationFileName(null);
+          if (registrationFileInputRef.current) registrationFileInputRef.current.value = '';
+        },
+      }
+    );
   };
 
   const handleDeleteDocument = () => {
@@ -790,17 +801,32 @@ export default function SaccoProfileSettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="registration-doc" className="text-sm">Registration Document</Label>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <Input
-                        id="registration-doc"
-                        type="file"
-                        name="registration"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={handleFileUpload}
-                        disabled={uploadDocument.isPending}
-                        className="flex-1 min-h-[44px] w-full touch-manipulation file:mr-2 file:py-2 file:px-3 file:text-sm"
-                      />
+                      <label
+                        htmlFor="registration-doc"
+                        className="flex flex-1 min-h-[44px] w-full touch-manipulation rounded-md border border-input bg-background ring-offset-background has-[:focus-visible]:outline-none has-[:focus-visible]:border-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
+                      >
+                        <span className="flex h-full min-h-[44px] w-full cursor-pointer items-center gap-2 px-3 py-2">
+                          <span className="rounded bg-muted px-3 py-2 text-sm font-medium text-foreground shrink-0">
+                            Choose File
+                          </span>
+                          <span className="truncate text-sm text-muted-foreground min-w-0">
+                            {registrationFileName ?? 'No file chosen'}
+                          </span>
+                        </span>
+                        <input
+                          ref={registrationFileInputRef}
+                          id="registration-doc"
+                          type="file"
+                          name="registration"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={handleFileUpload}
+                          disabled={uploadDocument.isPending}
+                          className="sr-only"
+                          aria-label="Registration document"
+                        />
+                      </label>
                       {uploadDocument.isPending && (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
                       )}
                     </div>
                   </div>

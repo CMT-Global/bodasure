@@ -49,8 +49,14 @@ const COUNTY_PORTAL_ROLES_FOR_FETCH = [
   'county_analyst',
 ] as const;
 
-// Order for picking "display county": prefer the county from the user's highest county role (county_super_admin = that county, etc.).
+// Order for picking "display county": prefer platform roles (they have an associated county), then county portal roles, then any role with county_id.
 function getDisplayCountyFromRoles(roles: { role: string; county_id: string | null }[]): string | null {
+  // Platform roles with a county_id (e.g. platform_super_admin for Nairobi) should show that county
+  const platformRole = roles.find(
+    (x) => (x.role === 'platform_super_admin' || x.role === 'platform_admin') && x.county_id
+  );
+  if (platformRole?.county_id) return platformRole.county_id;
+  // Then county portal roles (county_super_admin, county_admin, etc.)
   for (const roleName of COUNTY_PORTAL_ROLES_FOR_FETCH) {
     const r = roles.find((x) => x.role === roleName && x.county_id);
     if (r?.county_id) return r.county_id;
