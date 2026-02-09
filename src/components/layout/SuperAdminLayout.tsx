@@ -359,39 +359,43 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Desktop: all portal buttons */}
-            <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+            {/* Desktop: all portal buttons — flex-nowrap so md shows one row; short labels until lg */}
+            <div className="hidden md:flex flex-shrink-0 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden py-1">
               <Button
                 variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/super-admin')}
-                className="min-h-[36px] font-semibold"
+                className="min-h-[36px] min-w-0 shrink-0 font-semibold"
               >
-                Super Admin Portal
+                <span className="hidden lg:inline">Super Admin Portal</span>
+                <span className="lg:hidden">Super Admin</span>
               </Button>
               <Button
                 variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/dashboard')}
-                className="min-h-[36px]"
+                className="min-h-[36px] min-w-0 shrink-0"
               >
-                County Portal
+                <span className="hidden lg:inline">County Portal</span>
+                <span className="lg:hidden">County</span>
               </Button>
               <Button
                 variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/sacco')}
-                className="min-h-[36px]"
+                className="min-h-[36px] min-w-0 shrink-0"
               >
-                Sacco Portal
+                <span className="hidden lg:inline">Sacco Portal</span>
+                <span className="lg:hidden">Sacco</span>
               </Button>
               <Button
                 variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/rider-owner')}
-                className="min-h-[36px]"
+                className="min-h-[36px] min-w-0 shrink-0"
               >
-                Rider & Owner Portal
+                <span className="hidden lg:inline">Rider & Owner Portal</span>
+                <span className="lg:hidden">Rider & Owner</span>
               </Button>
             </div>
           </div>

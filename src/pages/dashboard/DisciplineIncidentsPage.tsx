@@ -45,8 +45,9 @@ type IncidentType = 'warning' | 'disciplinary_action' | 'incident_report';
 type IncidentStatus = 'pending' | 'acknowledged' | 'resolved' | 'escalated' | 'dismissed';
 
 export default function DisciplineIncidentsPage() {
-  const { profile, roles } = useAuth();
+  const { profile, roles, hasRole } = useAuth();
   const countyId = useEffectiveCountyId();
+  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
 
   const { data: incidents = [], isLoading: incidentsLoading } = useCountyDisciplineIncidents(countyId);
   const queryClient = useQueryClient();
@@ -91,7 +92,6 @@ export default function DisciplineIncidentsPage() {
   };
 
   const handleUpdateStatus = async (incidentId: string, newStatus: IncidentStatus) => {
-    if (!countyId) return;
     const { error } = await supabase
       .from('sacco_discipline_incidents')
       .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -230,7 +230,7 @@ export default function DisciplineIncidentsPage() {
           <CountyFilterBar />
         </div>
 
-        {!countyId ? (
+        {!countyId && !isPlatformSuperAdmin ? (
           <div className="rounded-xl border border-border bg-card p-4 sm:p-6 text-center text-muted-foreground text-sm sm:text-base">
             No county linked to your account. Contact an administrator.
           </div>

@@ -801,7 +801,7 @@ const SACCO_DISCIPLINE_INCIDENTS_BASE_SELECT = `
 
 async function fetchDisciplineIncidentsFromDb(
   db: SaccoDisciplineIncidentsClient,
-  options: { saccoId: string; countyId: string } | { countyId: string; forCountyView: true }
+  options: { saccoId: string; countyId: string } | { countyId?: string; forCountyView: true }
 ) {
   const isCountyView = 'forCountyView' in options && options.forCountyView;
   const countyId = options.countyId;
@@ -816,8 +816,8 @@ async function fetchDisciplineIncidentsFromDb(
   let query = db
     .from('sacco_discipline_incidents')
     .select(select)
-    .eq('county_id', countyId)
     .order('created_at', { ascending: false });
+  if (countyId) query = query.eq('county_id', countyId);
 
   if ('saccoId' in options) {
     query = query.eq('sacco_id', options.saccoId);
@@ -893,8 +893,6 @@ export function useCountyDisciplineIncidents(countyId: string | undefined) {
   return useQuery({
     queryKey: ['county-discipline-incidents', countyId],
     queryFn: async () => {
-      if (!countyId) return [] as CountyDisciplineIncidentRow[];
-
       type RiderRef = { full_name: string; phone: string } | null;
       type SaccoRef = { name: string } | null;
       type Row = {
@@ -945,7 +943,7 @@ export function useCountyDisciplineIncidents(countyId: string | undefined) {
         };
       }) as CountyDisciplineIncidentRow[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -2372,47 +2370,42 @@ export interface ComplianceOverviewItem {
   status: 'compliant' | 'at_risk' | 'non_compliant';
 }
 
-// Fetch compliance overview for dashboard
+// Fetch compliance overview for dashboard (supports "All Counties" when countyId is undefined)
 export function useComplianceOverview(countyId?: string, limit: number = 4) {
   return useQuery({
     queryKey: ['compliance-overview', countyId, limit],
     queryFn: async () => {
-      if (!countyId) return [] as ComplianceOverviewItem[];
-
       const items: ComplianceOverviewItem[] = [];
 
-      // Fetch top saccos by compliance
-      const { data: saccos } = await supabase
+      // Saccos query: filter by county when selected, otherwise all counties
+      let saccosQuery = supabase
         .from('saccos')
         .select('id, name')
-        .eq('county_id', countyId)
         .eq('status', 'approved')
         .limit(10);
+      if (countyId) saccosQuery = saccosQuery.eq('county_id', countyId);
+      const { data: saccos } = await saccosQuery;
 
       if (saccos && saccos.length > 0) {
         const saccoIds = saccos.map(s => s.id);
-        const { data: riders } = await supabase
+        let ridersQuery = supabase
           .from('riders')
           .select('id, sacco_id, compliance_status')
-          .in('sacco_id', saccoIds)
-          .eq('county_id', countyId);
+          .in('sacco_id', saccoIds);
+        if (countyId) ridersQuery = ridersQuery.eq('county_id', countyId);
+        const { data: riders } = await ridersQuery;
 
-        // Calculate compliance per sacco
         const saccoStats = new Map<string, { total: number; compliant: number }>();
         saccos.forEach(s => saccoStats.set(s.id, { total: 0, compliant: 0 }));
-        
         riders?.forEach(rider => {
           if (rider.sacco_id) {
             const stats = saccoStats.get(rider.sacco_id);
             if (stats) {
               stats.total++;
-              if (rider.compliance_status === 'compliant') {
-                stats.compliant++;
-              }
+              if (rider.compliance_status === 'compliant') stats.compliant++;
             }
           }
         });
-
         saccos.forEach(sacco => {
           const stats = saccoStats.get(sacco.id) || { total: 0, compliant: 0 };
           if (stats.total > 0) {
@@ -2428,38 +2421,35 @@ export function useComplianceOverview(countyId?: string, limit: number = 4) {
         });
       }
 
-      // Fetch top stages by compliance
-      const { data: stages } = await supabase
+      // Stages query: filter by county when selected, otherwise all counties
+      let stagesQuery = supabase
         .from('stages')
         .select('id, name')
-        .eq('county_id', countyId)
         .eq('status', 'approved')
         .limit(10);
+      if (countyId) stagesQuery = stagesQuery.eq('county_id', countyId);
+      const { data: stages } = await stagesQuery;
 
       if (stages && stages.length > 0) {
         const stageIds = stages.map(s => s.id);
-        const { data: riders } = await supabase
+        let stageRidersQuery = supabase
           .from('riders')
           .select('id, stage_id, compliance_status')
-          .in('stage_id', stageIds)
-          .eq('county_id', countyId);
+          .in('stage_id', stageIds);
+        if (countyId) stageRidersQuery = stageRidersQuery.eq('county_id', countyId);
+        const { data: riders } = await stageRidersQuery;
 
-        // Calculate compliance per stage
         const stageStats = new Map<string, { total: number; compliant: number }>();
         stages.forEach(s => stageStats.set(s.id, { total: 0, compliant: 0 }));
-        
         riders?.forEach(rider => {
           if (rider.stage_id) {
             const stats = stageStats.get(rider.stage_id);
             if (stats) {
               stats.total++;
-              if (rider.compliance_status === 'compliant') {
-                stats.compliant++;
-              }
+              if (rider.compliance_status === 'compliant') stats.compliant++;
             }
           }
         });
-
         stages.forEach(stage => {
           const stats = stageStats.get(stage.id) || { total: 0, compliant: 0 };
           if (stats.total > 0) {
@@ -2475,12 +2465,11 @@ export function useComplianceOverview(countyId?: string, limit: number = 4) {
         });
       }
 
-      // Sort by compliance rate (lowest first to show non-compliant items)
       return items
         .sort((a, b) => a.complianceRate - b.complianceRate)
         .slice(0, limit) as ComplianceOverviewItem[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 

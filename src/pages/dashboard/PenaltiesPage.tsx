@@ -404,7 +404,7 @@ export default function PenaltiesPage() {
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <CountyFilterBar />
-            <Button variant="outline" onClick={handleCheckExpired} className="min-h-[44px] flex-1 sm:flex-initial">
+            <Button variant="outline" onClick={handleCheckExpired} className="min-h-[44px] flex-1 sm:flex-initial" disabled={!countyId} title={!countyId ? 'Select a county to check expired permits' : undefined}>
               <RefreshCw className="mr-2 h-4 w-4" />
               <span className="hidden sm:inline">Check Expired Permits</span>
               <span className="sm:hidden">Check Expired</span>
@@ -414,7 +414,7 @@ export default function PenaltiesPage() {
               Export
             </Button>
             {canIssuePenalties && (
-              <Button onClick={() => setIsIssuanceOpen(true)} className="glow-primary min-h-[44px] flex-1 sm:flex-initial">
+              <Button onClick={() => setIsIssuanceOpen(true)} className="glow-primary min-h-[44px] flex-1 sm:flex-initial" disabled={!countyId} title={!countyId ? 'Select a county to issue a penalty' : undefined}>
                 <Plus className="mr-2 h-4 w-4" />
                 Issue Penalty
               </Button>
@@ -552,7 +552,7 @@ export default function PenaltiesPage() {
         />
 
         {/* Penalty Issuance Dialog */}
-        {canIssuePenalties && (
+        {canIssuePenalties && countyId && (
           <PenaltyIssuanceDialog
             open={isIssuanceOpen}
             onOpenChange={setIsIssuanceOpen}

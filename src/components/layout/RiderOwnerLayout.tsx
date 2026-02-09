@@ -335,8 +335,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Desktop: portal buttons */}
-            <div className="hidden md:flex flex-shrink min-w-0 flex-wrap items-center gap-1 sm:gap-2 overflow-x-auto overflow-y-hidden py-1">
+            {/* Desktop: portal buttons — flex-nowrap so md shows one row; short labels until lg */}
+            <div className="hidden md:flex flex-shrink-0 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden py-1">
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
                 <Button
                   variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
@@ -344,8 +344,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   onClick={() => navigate('/super-admin')}
                   className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation font-semibold"
                 >
-                  <span className="hidden sm:inline">Super Admin Portal</span>
-                  <span className="sm:hidden">Super Admin</span>
+                  <span className="hidden lg:inline">Super Admin Portal</span>
+                  <span className="lg:hidden">Super Admin</span>
                 </Button>
               )}
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -355,8 +355,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   onClick={() => navigate('/dashboard')}
                   className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
                 >
-                  <span className="hidden sm:inline">County Portal</span>
-                  <span className="sm:hidden">County</span>
+                  <span className="hidden lg:inline">County Portal</span>
+                  <span className="lg:hidden">County</span>
                 </Button>
               )}
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -366,8 +366,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   onClick={() => navigate('/sacco')}
                   className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
                 >
-                  <span className="hidden sm:inline">Sacco Portal</span>
-                  <span className="sm:hidden">Sacco</span>
+                  <span className="hidden lg:inline">Sacco Portal</span>
+                  <span className="lg:hidden">Sacco</span>
                 </Button>
               )}
               <Button
@@ -376,8 +376,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 onClick={() => navigate('/rider-owner')}
                 className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
               >
-                <span className="hidden sm:inline">Rider & Owner Portal</span>
-                <span className="sm:hidden">Rider & Owner</span>
+                <span className="hidden lg:inline">Rider & Owner Portal</span>
+                <span className="lg:hidden">Rider & Owner</span>
               </Button>
             </div>
           </div>

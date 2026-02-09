@@ -71,14 +71,19 @@ export default function SettingsPage() {
   // Check if user is County Super Admin or Platform Super Admin
   const isCountySuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
 
-  // County selection for super admins when creating permit types
+  // County selection for super admins when creating permit types; keep in sync with filter bar
   const [selectedCountyId, setSelectedCountyId] = useState<string | undefined>(countyId);
   const { data: counties = [] } = useCounties();
-  
+
+  // When county filter bar selection changes, sync local state so form and permit types use the same county
+  useEffect(() => {
+    setSelectedCountyId(countyId);
+  }, [countyId]);
+
   // Use selected county or provided countyId for permit types
   const effectiveCountyId = selectedCountyId || countyId;
 
-  const { data: settings, isLoading: settingsLoading } = useCountySettings(countyId);
+  const { data: settings, isLoading: settingsLoading, isError: settingsError } = useCountySettings(countyId);
   const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(effectiveCountyId || '');
   const { data: saccos = [] } = useSaccos(countyId);
   const updateSettings = useUpdateCountySettings();
@@ -440,11 +445,71 @@ export default function SettingsPage() {
     );
   }
 
-  if (settingsLoading || permitTypesLoading) {
+  // When "All Counties" is selected, prompt to select a county to configure
+  if (!countyId) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[50vh] sm:h-64 px-4">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="space-y-4 sm:space-y-6 px-1 sm:px-0 min-w-0 overflow-x-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">County Settings & Configuration</h1>
+              <p className="text-muted-foreground text-sm mt-1 sm:text-base">Configure permit and penalty settings for your county</p>
+            </div>
+            <CountyFilterBar />
+          </div>
+          <Card>
+            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center text-muted-foreground">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <p className="text-sm sm:text-base">Select a county from the dropdown above to view and edit its permit, penalty, and revenue sharing settings.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Only block on settings loading so the form appears as soon as settings are ready; permit types load in-place
+  if (settingsLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4 sm:space-y-6 px-1 sm:px-0 min-w-0 overflow-x-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">County Settings & Configuration</h1>
+              <p className="text-muted-foreground text-sm mt-1 sm:text-base">Configure permit and penalty settings for your county</p>
+            </div>
+            <CountyFilterBar />
+          </div>
+          <div className="flex items-center justify-center min-h-[40vh] px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // County selected but settings failed to load
+  if (settingsError || (countyId && !settings && !settingsLoading)) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4 sm:space-y-6 px-1 sm:px-0 min-w-0 overflow-x-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">County Settings & Configuration</h1>
+              <p className="text-muted-foreground text-sm mt-1 sm:text-base">Configure permit and penalty settings for your county</p>
+            </div>
+            <CountyFilterBar />
+          </div>
+          <Card>
+            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center text-amber-600">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <p className="text-sm sm:text-base">Unable to load settings for this county. Try selecting the county again from the dropdown above, or refresh the page.</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </DashboardLayout>
     );
@@ -461,7 +526,7 @@ export default function SettingsPage() {
           <CountyFilterBar />
         </div>
 
-        <Tabs defaultValue="permits" className="space-y-4 sm:space-y-6">
+        <Tabs key={countyId} defaultValue="permits" className="space-y-4 sm:space-y-6">
           <TabsList className="w-full grid grid-cols-3 h-auto min-h-[44px] p-1.5 gap-1 md:flex md:inline-flex md:h-10 md:flex-row md:rounded-md md:p-1">
             <TabsTrigger value="permits" className="flex flex-col sm:flex-row items-center justify-center gap-1 px-2 py-3 text-xs font-medium min-h-[44px] rounded-md data-[state=active]:shadow-sm sm:px-3 sm:py-1.5 sm:text-sm sm:min-h-0 md:flex-row md:gap-2">
               <Shield className="h-4 w-4 shrink-0 sm:mr-0 md:mr-2" />

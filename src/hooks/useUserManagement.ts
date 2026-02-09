@@ -297,19 +297,17 @@ export function useCountySuperAdmin(countyId: string | undefined) {
   });
 }
 
-// Fetch user activity logs
+// Fetch user activity logs (countyId undefined = all counties)
 export function useUserActivityLogs(countyId?: string, userId?: string) {
   return useQuery({
     queryKey: ['user-activity-logs', countyId, userId],
     queryFn: async () => {
-      if (!countyId) return [];
-
       let query = supabase
         .from('audit_logs')
         .select('*')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false })
         .limit(500);
+      if (countyId) query = query.eq('county_id', countyId);
 
       if (userId) {
         query = query.eq('user_id', userId);
@@ -342,7 +340,7 @@ export function useUserActivityLogs(countyId?: string, userId?: string) {
         user: log.user_id ? profilesMap.get(log.user_id) || null : null,
       })) as UserActivityLog[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
