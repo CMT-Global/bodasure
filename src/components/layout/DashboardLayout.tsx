@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -77,9 +77,17 @@ const navItems: NavItem[] = [
   { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin'] },
 ];
 
+// Persist sidebar scroll across remounts (each page renders its own layout, so layout unmounts on navigate)
+let savedCountySidebarScrollTop = 0;
+
+const SCROLLBAR_HIDE_DELAY_MS = 1000;
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const scrollbarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, roles, hasRole, countyName } = useAuth();
@@ -111,6 +119,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+    };
+  }, []);
+
+  // Restore sidebar scroll on mount (layout remounts on every page change)
+  useLayoutEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = savedCountySidebarScrollTop;
+    const restore = () => {
+      if (el) el.scrollTop = saved;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    const t = setTimeout(restore, 50);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -156,8 +184,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           )}
         </div>
 
-        {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
+        {/* Navigation - scrollable div preserves scroll position on route change; scrollbar auto-hides after 1s */}
+        <div
+          ref={sidebarScrollRef}
+          className={cn(
+            'sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden py-4',
+            scrollbarVisible && 'scrollbar-visible'
+          )}
+          onScroll={() => {
+            if (sidebarScrollRef.current) savedCountySidebarScrollTop = sidebarScrollRef.current.scrollTop;
+            setScrollbarVisible(true);
+            if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+            scrollbarHideTimeoutRef.current = setTimeout(() => setScrollbarVisible(false), SCROLLBAR_HIDE_DELAY_MS);
+          }}
+          onClickCapture={() => {
+            if (sidebarScrollRef.current) savedCountySidebarScrollTop = sidebarScrollRef.current.scrollTop;
+          }}
+        >
           <nav className="space-y-1 px-2">
             {filteredNavItems.map((item) => {
               const isActive = location.pathname === item.href;
@@ -179,7 +222,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               );
             })}
           </nav>
-        </ScrollArea>
+        </div>
 
         {/* Collapse button (desktop only) */}
         <div className="hidden lg:block p-2 border-t border-sidebar-border">

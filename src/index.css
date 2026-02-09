@@ -154,6 +154,33 @@
     @apply bg-muted-foreground;
   }
 
+  /* Sidebar nav: scrollbar auto-hide (show on scroll, hide after 1s idle) */
+  .sidebar-nav-scroll {
+    scrollbar-color: transparent transparent;
+    scrollbar-width: none;
+  }
+  .sidebar-nav-scroll.scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  .sidebar-nav-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar-nav-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-nav-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+    transition: background 0.25s ease;
+  }
+  .sidebar-nav-scroll.scrollbar-visible::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+  }
+  .sidebar-nav-scroll.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.6);
+  }
+
   /* Date input calendar icon - visible on dark background (DOB, License expiry, etc.) */
   input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(1);

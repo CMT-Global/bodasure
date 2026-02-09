@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -40,9 +40,15 @@ interface SaccoPortalLayoutProps {
   children: ReactNode;
 }
 
+let savedSaccoSidebarScrollTop = 0;
+const SCROLLBAR_HIDE_DELAY_MS = 1000;
+
 export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const scrollbarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, hasRole } = useAuth();
@@ -74,6 +80,25 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = savedSaccoSidebarScrollTop;
+    const restore = () => {
+      if (el) el.scrollTop = saved;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    const t = setTimeout(restore, 50);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden min-w-0">
@@ -113,7 +138,22 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
+        <div
+          ref={sidebarScrollRef}
+          className={cn(
+            'sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden py-4',
+            scrollbarVisible && 'scrollbar-visible'
+          )}
+          onScroll={() => {
+            if (sidebarScrollRef.current) savedSaccoSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+            setScrollbarVisible(true);
+            if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+            scrollbarHideTimeoutRef.current = setTimeout(() => setScrollbarVisible(false), SCROLLBAR_HIDE_DELAY_MS);
+          }}
+          onClickCapture={() => {
+            if (sidebarScrollRef.current) savedSaccoSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+          }}
+        >
           <nav className="space-y-1 px-2">
             <Link
               to="/sacco"
@@ -263,7 +303,7 @@ export function SaccoPortalLayout({ children }: SaccoPortalLayoutProps) {
               </Link>
             )}
           </nav>
-        </ScrollArea>
+        </div>
 
         {/* Collapse button (desktop only) */}
         <div className="hidden lg:block p-2 border-t border-sidebar-border">

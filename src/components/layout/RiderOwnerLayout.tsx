@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,15 @@ interface RiderOwnerLayoutProps {
   children: ReactNode;
 }
 
+let savedRiderOwnerSidebarScrollTop = 0;
+const SCROLLBAR_HIDE_DELAY_MS = 1000;
+
 export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const scrollbarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, hasRole } = useAuth();
@@ -47,6 +53,25 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = savedRiderOwnerSidebarScrollTop;
+    const restore = () => {
+      if (el) el.scrollTop = saved;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    const t = setTimeout(restore, 50);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden min-w-0 max-w-[100vw]">
@@ -86,7 +111,22 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
+        <div
+          ref={sidebarScrollRef}
+          className={cn(
+            'sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden py-4',
+            scrollbarVisible && 'scrollbar-visible'
+          )}
+          onScroll={() => {
+            if (sidebarScrollRef.current) savedRiderOwnerSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+            setScrollbarVisible(true);
+            if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+            scrollbarHideTimeoutRef.current = setTimeout(() => setScrollbarVisible(false), SCROLLBAR_HIDE_DELAY_MS);
+          }}
+          onClickCapture={() => {
+            if (sidebarScrollRef.current) savedRiderOwnerSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+          }}
+        >
           <nav className="space-y-1 px-2">
             <Link
               to="/rider-owner"
@@ -215,7 +255,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               {!isCollapsed && <span className="truncate">Profile &amp; Registration</span>}
             </Link>
           </nav>
-        </ScrollArea>
+        </div>
 
         {/* Collapse button (desktop only) */}
         <div className="hidden lg:block p-2 border-t border-sidebar-border">
