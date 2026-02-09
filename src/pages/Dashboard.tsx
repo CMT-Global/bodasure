@@ -8,14 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, FileCheck, AlertTriangle, CreditCard, XCircle, CheckCircle2, Download } from 'lucide-react';
-import { useDashboardStats, useRecentActivity, useMonthlyRevenue, useComplianceOverview, useAllCounties } from '@/hooks/useData';
+import { useDashboardStats, useRecentActivity, useMonthlyRevenue, useComplianceOverview } from '@/hooks/useData';
 import { useRevenueByDateRange } from '@/hooks/useRevenue';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { format } from 'date-fns';
-
-const COUNTY_PROFILE = '_profile';
 
 function exportDashboardCSV(rows: Record<string, string | number>[], filename: string) {
   if (!rows?.length) return;
@@ -30,27 +29,15 @@ function exportDashboardCSV(rows: Record<string, string | number>[], filename: s
 }
 
 export default function Dashboard() {
-  const { profile, roles, hasRole } = useAuth();
-  const isPlatformAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
-  const { data: allCounties = [] } = useAllCounties();
+  const { profile, roles } = useAuth();
+  const countyId = useEffectiveCountyId();
 
-  const [countyFilter, setCountyFilter] = useState(COUNTY_PROFILE);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
     return format(d, 'yyyy-MM-dd');
   });
   const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
-
-  const profileCountyId = useMemo(
-    () => profile?.county_id || roles.find((r) => r.county_id)?.county_id || undefined,
-    [profile, roles]
-  );
-
-  const countyId = useMemo(() => {
-    if (!isPlatformAdmin || countyFilter === COUNTY_PROFILE) return profileCountyId;
-    return countyFilter;
-  }, [isPlatformAdmin, countyFilter, profileCountyId]);
 
   const { data: stats, isLoading } = useDashboardStats(countyId);
   const { data: recentActivities = [], isLoading: isLoadingActivities } = useRecentActivity(countyId, 5);
@@ -107,16 +94,19 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Dashboard</h1>
             <p className="text-muted-foreground text-sm sm:text-base">Welcome back! Here's what's happening in your county.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleExport} className="w-full sm:w-auto min-h-[44px] sm:min-h-0 touch-manipulation">
-            <Download className="mr-2 h-4 w-4 shrink-0" /> Export
-          </Button>
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <CountyFilterBar />
+            <Button variant="outline" size="sm" onClick={handleExport} className="w-full sm:w-auto min-h-[44px] sm:min-h-0 touch-manipulation">
+              <Download className="mr-2 h-4 w-4 shrink-0" /> Export
+            </Button>
+          </div>
         </div>
 
-        {/* Date & county filters */}
+        {/* Date range filter — county is selected via County dropdown above (all pages) */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base">Filters</CardTitle>
-            <CardDescription className="text-sm">Apply date range and county to revenue and export.</CardDescription>
+            <CardDescription className="text-sm">Apply date range to revenue and export.</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 flex flex-col sm:flex-row flex-wrap gap-4">
             <div className="flex flex-col gap-2 min-w-0 flex-1 sm:flex-initial">
@@ -127,24 +117,6 @@ export default function Dashboard() {
                 <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="min-h-[44px] sm:min-h-0 flex-1 min-w-0" />
               </div>
             </div>
-            {isPlatformAdmin && allCounties.length > 0 && (
-              <div className="flex flex-col gap-2 min-w-0 flex-1 sm:flex-initial sm:max-w-[200px]">
-                <Label>County</Label>
-                <Select value={countyFilter} onValueChange={setCountyFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px] min-h-[44px] sm:min-h-0">
-                    <SelectValue placeholder="My county" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={COUNTY_PROFILE}>My county</SelectItem>
-                    {allCounties.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </CardContent>
         </Card>
 

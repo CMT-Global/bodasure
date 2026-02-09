@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { exportToCSV } from '@/utils/exportCsv';
 
@@ -74,17 +76,13 @@ type PaymentRow = {
 
 export default function PaymentsPage() {
   const { profile, roles } = useAuth();
+  const countyId = useEffectiveCountyId();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
   const [selectedRiderName, setSelectedRiderName] = useState<string>('');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-  }, [profile, roles]);
 
   const { data: payments = [], isLoading } = usePayments(countyId);
 
@@ -239,6 +237,7 @@ export default function PaymentsPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <CountyFilterBar />
             <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredPayments.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export

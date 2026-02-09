@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { PlatformSuperAdminCountyProvider } from "@/contexts/PlatformSuperAdminCountyContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { RedirectIfAuthenticated } from "@/components/auth/RedirectIfAuthenticated";
 import Index from "./pages/Index";
@@ -117,6 +118,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <PlatformSuperAdminCountyProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
@@ -545,6 +547,7 @@ const App = () => (
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </PlatformSuperAdminCountyProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

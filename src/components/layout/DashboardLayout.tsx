@@ -82,7 +82,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut, roles, hasRole } = useAuth();
+  const { user, profile, signOut, roles, hasRole, countyName } = useAuth();
   const { data: notifications = [] } = useUserNotifications(15, !!user);
   const unreadCount = notifications.filter((n) => !n.read_at).length;
   const markRead = useMarkNotificationRead();
@@ -130,17 +130,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
+        {/* Logo + county name for county portal users */}
+        <div className="flex h-16 flex-col justify-center gap-0.5 border-b border-sidebar-border px-4">
           {!isCollapsed && (
-            <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <span className="text-sm font-bold text-primary-foreground">B</span>
-              </div>
-              <span className="text-lg font-semibold text-sidebar-foreground">
-                Boda<span className="text-primary">Sure</span>
-              </span>
-            </Link>
+            <>
+              <Link to="/dashboard" className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                  <span className="text-sm font-bold text-primary-foreground">B</span>
+                </div>
+                <span className="text-lg font-semibold text-sidebar-foreground">
+                  Boda<span className="text-primary">Sure</span>
+                </span>
+              </Link>
+              {countyName && (
+                <p className="text-xs text-muted-foreground truncate pl-10" title={countyName}>
+                  {countyName}
+                </p>
+              )}
+            </>
           )}
           {isCollapsed && (
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary mx-auto">
@@ -220,7 +227,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <span className="truncate">
                     {location.pathname.startsWith('/super-admin') && 'Super Admin'}
-                    {location.pathname.startsWith('/dashboard') && 'County'}
+                    {location.pathname.startsWith('/dashboard') && (countyName ? `County · ${countyName}` : 'County')}
                     {location.pathname.startsWith('/sacco') && 'Sacco'}
                     {location.pathname.startsWith('/rider-owner') && 'Rider & Owner'}
                     {!location.pathname.startsWith('/super-admin') && !location.pathname.startsWith('/dashboard') && !location.pathname.startsWith('/sacco') && !location.pathname.startsWith('/rider-owner') && 'Portals'}
@@ -237,8 +244,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
                 {COUNTY_PORTAL_ACCESS_ROLES.some(role => hasRole(role)) && (
                   <DropdownMenuItem onClick={() => navigate('/dashboard')} className="min-h-[44px]">
-                    <span className="sm:hidden">County</span>
-                    <span className="hidden sm:inline">County Portal</span>
+                    <span className="sm:hidden">{countyName ?? 'County'}</span>
+                    <span className="hidden sm:inline">{countyName ? `County · ${countyName}` : 'County Portal'}</span>
                   </DropdownMenuItem>
                 )}
                 {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -274,9 +281,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   size="sm"
                   onClick={() => navigate('/dashboard')}
                   className="min-h-[36px] min-w-0"
+                  title={countyName ? `County: ${countyName}` : 'County Portal'}
                 >
-                  <span className="sm:hidden">County</span>
-                  <span className="hidden sm:inline">County Portal</span>
+                  <span className="sm:hidden">{countyName ?? 'County'}</span>
+                  <span className="hidden sm:inline">{countyName ? `${countyName}` : 'County Portal'}</span>
                 </Button>
               )}
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (

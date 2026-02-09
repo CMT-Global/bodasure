@@ -477,7 +477,22 @@ function CountyFormDialog({
           address: payloadBase.address ?? undefined,
         } as CountyInsert,
         {
-          onSuccess: () => {
+          onSuccess: (data: { id: string }) => {
+            const emailToAssign = assignEmail.trim();
+            if (emailToAssign) {
+              (async () => {
+                const { data: profiles } = await supabase.from('profiles').select('id').eq('email', emailToAssign.toLowerCase()).limit(1);
+                const user = profiles?.[0];
+                if (user) {
+                  assignRoles.mutate(
+                    { userId: user.id, countyId: data.id, roles: ['county_super_admin'] },
+                    { onSuccess: () => toast.success('County Super Admin assigned') }
+                  );
+                } else {
+                  toast.error('County created, but no user found with that email to assign as County Super Admin.');
+                }
+              })();
+            }
             onSuccess();
             handleOpenChange(false);
           },
@@ -516,7 +531,7 @@ function CountyFormDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit county' : 'Create county'}</DialogTitle>
           <DialogDescription>
-            {isEdit ? 'Update county profile, branding, contact details and status.' : 'Add a new county. You can assign a County Super Admin after creation.'}
+            {isEdit ? 'Update county profile, branding, contact details and status.' : 'Add a new county. Optionally assign a County Super Admin by email; they will be assigned after the county is created.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -624,29 +639,41 @@ function CountyFormDialog({
                 </FormItem>
               )}
             />
-            {isEdit && county && (
-              <div className="grid gap-2 pt-2 border-t">
-                <p className="text-sm font-medium">County Super Admin</p>
-                {countySuperAdmin ? (
-                  <p className="text-sm text-muted-foreground">
-                    Current: {countySuperAdmin.email} {countySuperAdmin.full_name && `(${countySuperAdmin.full_name})`}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Not assigned</p>
-                )}
-                <div className="flex gap-2">
+            <div className="grid gap-2 pt-2 border-t">
+              <p className="text-sm font-medium">County Super Admin</p>
+              {isEdit && county ? (
+                <>
+                  {countySuperAdmin ? (
+                    <p className="text-sm text-muted-foreground">
+                      Current: {countySuperAdmin.email} {countySuperAdmin.full_name && `(${countySuperAdmin.full_name})`}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not assigned</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="Assign by email"
+                      value={assignEmail}
+                      onChange={(e) => setAssignEmail(e.target.value)}
+                    />
+                    <Button type="button" variant="secondary" onClick={handleAssignSuperAdmin} disabled={assignRoles.isPending || !assignEmail.trim()}>
+                      {assignRoles.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">Optional: assign by email. They will be assigned after the county is created.</p>
                   <Input
                     type="email"
-                    placeholder="Assign by email"
+                    placeholder="User email (optional)"
                     value={assignEmail}
                     onChange={(e) => setAssignEmail(e.target.value)}
                   />
-                  <Button type="button" variant="secondary" onClick={handleAssignSuperAdmin} disabled={assignRoles.isPending || !assignEmail.trim()}>
-                    {assignRoles.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
-                  </Button>
-                </div>
-              </div>
-            )}
+                </>
+              )}
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
               <Button type="submit" disabled={saving}>

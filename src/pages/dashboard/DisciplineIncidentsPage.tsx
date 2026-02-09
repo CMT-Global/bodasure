@@ -33,6 +33,8 @@ import {
 } from '@/components/ui/dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { useCountyDisciplineIncidents, CountyDisciplineIncidentRow } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { ColumnDef } from '@tanstack/react-table';
@@ -44,10 +46,7 @@ type IncidentStatus = 'pending' | 'acknowledged' | 'resolved' | 'escalated' | 'd
 
 export default function DisciplineIncidentsPage() {
   const { profile, roles } = useAuth();
-  const countyId = useMemo(
-    () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
-    [profile, roles]
-  );
+  const countyId = useEffectiveCountyId();
 
   const { data: incidents = [], isLoading: incidentsLoading } = useCountyDisciplineIncidents(countyId);
   const queryClient = useQueryClient();
@@ -228,6 +227,7 @@ export default function DisciplineIncidentsPage() {
               Incidents escalated from saccos — review and mark as resolved
             </p>
           </div>
+          <CountyFilterBar />
         </div>
 
         {!countyId ? (

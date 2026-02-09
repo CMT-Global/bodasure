@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   useSupportTicketsForCounty,
   useUpdateSupportTicket,
@@ -46,10 +48,7 @@ const STATUS_OPTIONS: { value: SupportTicketStatus; label: string }[] = [
 
 export default function SupportTicketsPage() {
   const { profile, roles } = useAuth();
-  const countyId = useMemo(
-    () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
-    [profile, roles]
-  );
+  const countyId = useEffectiveCountyId();
   const { data: tickets = [], isLoading, error } = useSupportTicketsForCounty(countyId, true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -86,11 +85,14 @@ export default function SupportTicketsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Support Tickets</h1>
-          <p className="text-muted-foreground text-sm sm:text-base mt-1">
-            Tickets submitted by riders and owners from the Support & Help page. Update status and add notes.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Support Tickets</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">
+              Tickets submitted by riders and owners from the Support & Help page. Update status and add notes.
+            </p>
+          </div>
+          <CountyFilterBar />
         </div>
 
         <Card>

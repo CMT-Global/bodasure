@@ -19,6 +19,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { useCountySettings, useUpdateCountySettings, PermitSettings, PenaltySettings, PenaltyType, EscalationRule, RevenueSharingSettings, RevenueShareRule, RevenueShareType } from '@/hooks/useCountySettings';
 import { usePermitTypes } from '@/hooks/usePayments';
 import { useSaccos, useCounties } from '@/hooks/useData';
@@ -63,11 +65,8 @@ export default function SettingsPage() {
   
   // Check if user is Platform Super Admin
   const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
+
+  const countyId = useEffectiveCountyId();
 
   // Check if user is County Super Admin or Platform Super Admin
   const isCountySuperAdmin = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
@@ -454,9 +453,12 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 px-1 sm:px-0 min-w-0 overflow-x-hidden">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">County Settings & Configuration</h1>
-          <p className="text-muted-foreground text-sm mt-1 sm:text-base">Configure permit and penalty settings for your county</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">County Settings & Configuration</h1>
+            <p className="text-muted-foreground text-sm mt-1 sm:text-base">Configure permit and penalty settings for your county</p>
+          </div>
+          <CountyFilterBar />
         </div>
 
         <Tabs defaultValue="permits" className="space-y-4 sm:space-y-6">

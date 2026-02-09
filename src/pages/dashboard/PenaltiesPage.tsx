@@ -26,6 +26,7 @@ import {
 } from '@/hooks/usePenalties';
 import { PenaltyIssuanceDialog } from '@/components/penalties/PenaltyIssuanceDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -110,12 +112,9 @@ export default function PenaltiesPage() {
   const updatePenaltyStatus = useUpdatePenaltyStatus();
   const waivePenalty = useWaivePenalty();
   const updateRiderStatus = useUpdateRiderStatus();
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-  }, [profile, roles]);
-  
+
+  const countyId = useEffectiveCountyId();
+
   const checkExpiredPermits = useCheckExpiredPermits(countyId);
 
   const { data: penalties = [], isLoading } = usePenalties(countyId);
@@ -404,6 +403,7 @@ export default function PenaltiesPage() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
+            <CountyFilterBar />
             <Button variant="outline" onClick={handleCheckExpired} className="min-h-[44px] flex-1 sm:flex-initial">
               <RefreshCw className="mr-2 h-4 w-4" />
               <span className="hidden sm:inline">Check Expired Permits</span>

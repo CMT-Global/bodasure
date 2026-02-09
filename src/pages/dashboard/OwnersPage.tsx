@@ -6,6 +6,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, User, Phone, Mail } from 'lucide-react';
 import { useOwners, Owner } from '@/hooks/useData';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColumnDef } from '@tanstack/react-table';
@@ -51,17 +52,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
-const DEMO_COUNTY_ID = '550e8400-e29b-41d4-a716-446655440001';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
 
 export default function OwnersPage() {
+  const countyId = useEffectiveCountyId();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const queryClient = useQueryClient();
-  const { data: owners = [], isLoading } = useOwners(DEMO_COUNTY_ID);
+  const { data: owners = [], isLoading } = useOwners(countyId);
 
   const filteredOwners = useMemo(() => {
     return owners.filter((owner) => {
@@ -167,6 +168,7 @@ export default function OwnersPage() {
             <p className="text-muted-foreground">Manage bike owners • {filteredOwners.length} total</p>
           </div>
           <div className="flex gap-2">
+            <CountyFilterBar />
             <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredOwners.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
             <Button onClick={() => { setSelectedOwner(null); setIsFormOpen(true); }} className="glow-primary">
               <Plus className="mr-2 h-4 w-4" />Add Owner
@@ -189,7 +191,7 @@ export default function OwnersPage() {
         <DataTable columns={columns} data={filteredOwners} searchPlaceholder="Search owners..." isLoading={isLoading} />
 
         {/* Form Dialog */}
-        <OwnerFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} owner={selectedOwner} countyId={DEMO_COUNTY_ID} />
+        <OwnerFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} owner={selectedOwner} countyId={countyId} />
 
         {/* Delete Confirmation */}
         <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

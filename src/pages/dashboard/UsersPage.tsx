@@ -47,6 +47,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   useCountyUsers,
   useUserActivityLogs,
@@ -84,11 +86,7 @@ const COUNTY_ROLES = [
 
 export default function UsersPage() {
   const { profile, roles, hasRole } = useAuth();
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   // Platform/county super admins have full access; county_admin can manage users
   const canAccessUserManagement = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
@@ -407,13 +405,16 @@ export default function UsersPage() {
               <h1 className="text-2xl font-bold sm:text-3xl">User Management</h1>
               <p className="text-sm sm:text-base text-muted-foreground mt-1">Manage county users, roles, and permissions • {filteredUsers.length} total</p>
             </div>
-            <Button 
-              onClick={() => { setUserForm({ email: '', password: '', fullName: '', phone: '', roles: [] }); setIsCreateDialogOpen(true); }} 
+            <div className="flex flex-col sm:flex-row gap-2">
+              <CountyFilterBar />
+              <Button 
+              onClick={() => { createUserForm.reset(); setIsCreateDialogOpen(true); }} 
               className="glow-primary min-h-[44px] w-full sm:w-auto"
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Create User
             </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">

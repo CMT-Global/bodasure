@@ -6,6 +6,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Plus, Heart, Users, Phone, Mail, MapPin } from 'lucide-react';
 import { useWelfareGroups, WelfareGroup } from '@/hooks/useData';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColumnDef } from '@tanstack/react-table';
@@ -58,15 +59,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
 
 export default function WelfareGroupsPage() {
-  const { profile, roles } = useAuth();
-
-  const countyId = useMemo(() => {
-    const id = profile?.county_id || roles.find((r) => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-    return id;
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -237,9 +233,12 @@ export default function WelfareGroupsPage() {
             <h1 className="text-2xl font-bold">Welfare Groups</h1>
             <p className="text-muted-foreground">Manage welfare groups • {filteredGroups.length} total</p>
           </div>
-          <Button onClick={() => { setSelectedGroup(null); setIsFormOpen(true); }} className="glow-primary">
+          <div className="flex gap-2">
+            <CountyFilterBar />
+            <Button onClick={() => { setSelectedGroup(null); setIsFormOpen(true); }} className="glow-primary">
             <Plus className="mr-2 h-4 w-4" /> Add Welfare Group
           </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
