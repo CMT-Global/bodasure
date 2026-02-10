@@ -17,6 +17,8 @@ import {
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   useRevenueByDateRange,
   useRevenueBySacco,
@@ -54,11 +56,7 @@ import { reportsDateRangeFormSchema, type ReportsDateRangeFormValues } from '@/l
 
 export default function ReportsPage() {
   const { profile, roles } = useAuth();
-  
-  // Get county_id from profile or first role (same fallback as Penalties page)
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   // Date range state (used by report hooks)
   const [startDate, setStartDate] = useState(() => {
@@ -1382,6 +1380,7 @@ export default function ReportsPage() {
             <h1 className="text-xl sm:text-2xl font-bold">Reports, Exports & Audit Logs</h1>
             <p className="text-sm sm:text-base text-muted-foreground">Comprehensive reports, exports, and activity tracking</p>
           </div>
+          <CountyFilterBar />
         </div>
 
         {/* Date Range Filter (validation from @/lib/zod: min 1/1/2020, max today) */}

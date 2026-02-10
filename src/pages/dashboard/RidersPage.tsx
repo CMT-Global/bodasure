@@ -12,7 +12,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/utils/exportCsv';
-import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,12 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function RidersPage() {
-  const { profile, roles } = useAuth();
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -123,6 +119,7 @@ export default function RidersPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
+              <CountyFilterBar />
               <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || filteredRiders.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export

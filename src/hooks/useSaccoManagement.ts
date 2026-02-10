@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { SACCO_PORTAL_ROLE_KEYS } from '@/config/portalRoles';
+import { SACCO_OFFICIAL_ROLES_QUERY_FILTER } from '@/config/portalRoles';
 
 export interface SaccoOfficial {
   id: string;
@@ -41,8 +41,6 @@ export interface RevenueShare {
   } | null;
 }
 
-const SACCO_OFFICIAL_ROLES = [...SACCO_PORTAL_ROLE_KEYS, 'welfare_admin', 'welfare_officer'] as const;
-
 // Fetch sacco officials (users with sacco roles in the county; when saccoId provided, only officials of that sacco)
 export function useSaccoOfficials(countyId?: string, saccoId?: string) {
   return useQuery({
@@ -54,11 +52,14 @@ export function useSaccoOfficials(countyId?: string, saccoId?: string) {
         .from('user_roles')
         .select('id, user_id, role, county_id, sacco_id, welfare_group_id, granted_at, granted_by')
         .eq('county_id', countyId)
-        .in('role', SACCO_OFFICIAL_ROLES as unknown as string[])
+        .in('role', SACCO_OFFICIAL_ROLES_QUERY_FILTER)
         .order('granted_at', { ascending: false });
 
       if (saccoId) {
         roleQuery = roleQuery.eq('sacco_id', saccoId);
+      } else {
+        // Sacco settings: show only users with a sacco role (exclude welfare-only)
+        roleQuery = roleQuery.not('sacco_id', 'is', null);
       }
 
       const { data: roles, error: rolesError } = await roleQuery;

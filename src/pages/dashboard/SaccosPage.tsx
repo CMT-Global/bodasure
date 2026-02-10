@@ -4,8 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Building2, Users, Phone, Mail, MapPin, CheckCircle2, XCircle, AlertTriangle, MapPin as MapPinIcon } from 'lucide-react';
+import { Plus, Download, Building2, Users, Phone, Mail, MapPin, CheckCircle2, XCircle, AlertTriangle, MapPin as MapPinIcon, Loader2 } from 'lucide-react';
 import { useSaccos, Sacco } from '@/hooks/useData';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ColumnDef } from '@tanstack/react-table';
@@ -46,7 +47,6 @@ import { Separator } from '@/components/ui/separator';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 import { exportToCSV } from '@/utils/exportCsv';
 import { saccoFormSchema, type SaccoFormValues } from '@/lib/zod';
 import {
@@ -59,16 +59,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { useSaccoOfficials, useAssignSaccoRole } from '@/hooks/useSaccoManagement';
 
 export default function SaccosPage() {
-  const { profile, roles } = useAuth();
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    const id = profile?.county_id || roles.find(r => r.county_id)?.county_id || '550e8400-e29b-41d4-a716-446655440001';
-    return id;
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -279,7 +274,8 @@ export default function SaccosPage() {
             <h1 className="text-2xl font-bold">Saccos</h1>
             <p className="text-muted-foreground">Manage Sacco organizations • {filteredSaccos.length} total</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <CountyFilterBar />
             <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredSaccos.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
             <Button onClick={() => { setSelectedSacco(null); setIsFormOpen(true); }} className="glow-primary">
               <Plus className="mr-2 h-4 w-4" />Add Sacco
@@ -315,7 +311,7 @@ export default function SaccosPage() {
         <DataTable columns={columns} data={filteredSaccos} searchPlaceholder="Search saccos..." isLoading={isLoading} />
 
         {/* Form Dialog */}
-        <SaccoFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} sacco={selectedSacco} countyId={countyId} />
+        <SaccoFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} sacco={selectedSacco} countyId={countyId ?? selectedSacco?.county_id} />
 
         {/* Detail Sheet */}
         <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -418,22 +414,30 @@ function getSaccoDefaultValues(sacco: Sacco | null): SaccoFormValues {
 }
 
 // Sacco Form Dialog Component
-function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolean; onOpenChange: (open: boolean) => void; sacco: Sacco | null; countyId: string }) {
+function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolean; onOpenChange: (open: boolean) => void; sacco: Sacco | null; countyId: string | undefined }) {
   const queryClient = useQueryClient();
   const isEditing = !!sacco;
+  const [assignAdminEmail, setAssignAdminEmail] = useState('');
+  // Use sacco's county when page county is not set (e.g. "All counties") so current admin still loads
+  const effectiveCountyId = countyId ?? sacco?.county_id;
 
   const form = useForm<SaccoFormValues>({
     resolver: zodResolver(saccoFormSchema),
     defaultValues: getSaccoDefaultValues(sacco),
   });
 
+  const { data: saccoOfficials = [], isLoading: saccoOfficialsLoading } = useSaccoOfficials(effectiveCountyId, sacco?.id);
+  const assignSaccoRole = useAssignSaccoRole();
+  const saccoAdmin = sacco ? saccoOfficials.find((u) => u.roles.some((r) => r.role === 'sacco_admin' && r.sacco_id === sacco.id)) : null;
+
   useEffect(() => {
     if (!open) return;
     form.reset(getSaccoDefaultValues(sacco));
+    setAssignAdminEmail('');
   }, [open, sacco]);
 
   const mutation = useMutation({
-    mutationFn: async (values: SaccoFormValues) => {
+    mutationFn: async ({ values, assignAdminEmail: adminEmail }: { values: SaccoFormValues; assignAdminEmail?: string }) => {
       const payload = {
         name: values.name.trim(),
         registration_number: values.registration_number?.trim() || null,
@@ -441,33 +445,101 @@ function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolea
         contact_phone: values.contact_phone?.trim() || null,
         address: values.address?.trim() || null,
         status: values.status,
-        county_id: countyId,
+        county_id: effectiveCountyId!,
       };
       if (isEditing && sacco) {
         const { error } = await supabase.from('saccos').update(payload).eq('id', sacco.id);
         if (error) throw error;
+        if (adminEmail?.trim()) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', adminEmail.trim().toLowerCase())
+            .limit(1);
+          const user = profiles?.[0];
+          if (!user) throw new Error('No user found with that email; sacco admin not assigned');
+          const { data: { session } } = await supabase.auth.getSession();
+          const { error: roleError } = await supabase.from('user_roles').insert({
+            user_id: user.id,
+            role: 'sacco_admin',
+            county_id: effectiveCountyId!,
+            sacco_id: sacco.id,
+            granted_by: session?.user?.id ?? null,
+          });
+          if (roleError) throw roleError;
+        }
       } else {
-        const { error } = await supabase.from('saccos').insert([payload]);
+        const { data: inserted, error } = await supabase.from('saccos').insert([payload]).select('id').single();
         if (error) throw error;
+        if (adminEmail?.trim() && inserted?.id) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', adminEmail.trim().toLowerCase())
+            .limit(1);
+          const user = profiles?.[0];
+          if (user) {
+            const { data: { session } } = await supabase.auth.getSession();
+            await supabase.from('user_roles').insert({
+              user_id: user.id,
+              role: 'sacco_admin',
+              county_id: effectiveCountyId!,
+              sacco_id: inserted.id,
+              granted_by: session?.user?.id ?? null,
+            });
+          }
+        }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, { assignAdminEmail: adminEmail }) => {
       queryClient.invalidateQueries({ queryKey: ['saccos'] });
-      toast.success(isEditing ? 'Sacco updated' : 'Sacco added');
+      if (isEditing && sacco && adminEmail?.trim() && effectiveCountyId) {
+        queryClient.invalidateQueries({ queryKey: ['sacco-officials', effectiveCountyId, sacco.id] });
+      }
+      toast.success(isEditing ? (adminEmail?.trim() ? 'Sacco updated and admin assigned' : 'Sacco updated') : 'Sacco added');
       onOpenChange(false);
       form.reset();
+      setAssignAdminEmail('');
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const onSubmit = (values: SaccoFormValues) => mutation.mutate(values);
+  const onSubmit = (values: SaccoFormValues) => mutation.mutate({ values, assignAdminEmail });
+
+  const handleAssignSaccoAdmin = async () => {
+    if (!sacco?.id || !assignAdminEmail.trim()) {
+      toast.error('Enter an email to assign');
+      return;
+    }
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', assignAdminEmail.trim().toLowerCase())
+      .limit(1);
+    const user = profiles?.[0];
+    if (!user) {
+      toast.error('No user found with that email');
+      return;
+    }
+    assignSaccoRole.mutate(
+      { userId: user.id, role: 'sacco_admin', countyId: effectiveCountyId!, saccoId: sacco.id },
+      {
+        onSuccess: () => {
+          toast.success('Sacco Admin assigned');
+          setAssignAdminEmail('');
+        },
+      }
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Sacco' : 'Add New Sacco'}</DialogTitle>
-          <DialogDescription>{isEditing ? 'Update sacco information' : 'Register a new Sacco organization'}</DialogDescription>
+          <DialogDescription>
+            {isEditing ? 'Update sacco information. Optionally assign or change Sacco Admin by email.' : 'Register a new Sacco. Optionally assign a Sacco Admin by email; they will be assigned after the sacco is created.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -559,11 +631,54 @@ function SaccoFormDialog({ open, onOpenChange, sacco, countyId }: { open: boolea
                 </FormItem>
               )}
             />
+            <div className="grid gap-2 pt-2 border-t">
+              <p className="text-sm font-medium">Sacco Admin</p>
+              {isEditing && sacco ? (
+                <>
+                  {saccoOfficialsLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                  ) : saccoAdmin ? (
+                    <p className="text-sm text-muted-foreground">
+                      Current: {saccoAdmin.email}
+                      {saccoAdmin.full_name ? ` (${saccoAdmin.full_name})` : ''}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not assigned</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="Assign by email"
+                      value={assignAdminEmail}
+                      onChange={(e) => setAssignAdminEmail(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAssignSaccoAdmin}
+                      disabled={assignSaccoRole.isPending || !assignAdminEmail.trim()}
+                    >
+                      {assignSaccoRole.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">Optional: assign by email. They will be assigned after the sacco is created.</p>
+                  <Input
+                    type="email"
+                    placeholder="User email (optional)"
+                    value={assignAdminEmail}
+                    onChange={(e) => setAssignAdminEmail(e.target.value)}
+                  />
+                </>
+              )}
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? 'Update' : 'Add'}
+                {isEditing ? 'Save changes' : 'Add'}
               </Button>
             </DialogFooter>
           </form>

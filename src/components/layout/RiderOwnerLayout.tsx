@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,15 @@ interface RiderOwnerLayoutProps {
   children: ReactNode;
 }
 
+let savedRiderOwnerSidebarScrollTop = 0;
+const SCROLLBAR_HIDE_DELAY_MS = 1000;
+
 export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const scrollbarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, hasRole } = useAuth();
@@ -47,6 +53,25 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = savedRiderOwnerSidebarScrollTop;
+    const restore = () => {
+      if (el) el.scrollTop = saved;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    const t = setTimeout(restore, 50);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden min-w-0 max-w-[100vw]">
@@ -86,7 +111,22 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
+        <div
+          ref={sidebarScrollRef}
+          className={cn(
+            'sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden py-4',
+            scrollbarVisible && 'scrollbar-visible'
+          )}
+          onScroll={() => {
+            if (sidebarScrollRef.current) savedRiderOwnerSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+            setScrollbarVisible(true);
+            if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+            scrollbarHideTimeoutRef.current = setTimeout(() => setScrollbarVisible(false), SCROLLBAR_HIDE_DELAY_MS);
+          }}
+          onClickCapture={() => {
+            if (sidebarScrollRef.current) savedRiderOwnerSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+          }}
+        >
           <nav className="space-y-1 px-2">
             <Link
               to="/rider-owner"
@@ -215,7 +255,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               {!isCollapsed && <span className="truncate">Profile &amp; Registration</span>}
             </Link>
           </nav>
-        </ScrollArea>
+        </div>
 
         {/* Collapse button (desktop only) */}
         <div className="hidden lg:block p-2 border-t border-sidebar-border">
@@ -295,8 +335,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Desktop: portal buttons */}
-            <div className="hidden md:flex flex-shrink min-w-0 flex-wrap items-center gap-1 sm:gap-2 overflow-x-auto overflow-y-hidden py-1">
+            {/* Desktop: portal buttons — flex-nowrap so md shows one row; short labels until lg */}
+            <div className="hidden md:flex flex-shrink-0 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden py-1">
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
                 <Button
                   variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
@@ -304,8 +344,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   onClick={() => navigate('/super-admin')}
                   className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation font-semibold"
                 >
-                  <span className="hidden sm:inline">Super Admin Portal</span>
-                  <span className="sm:hidden">Super Admin</span>
+                  <span className="hidden lg:inline">Super Admin Portal</span>
+                  <span className="lg:hidden">Super Admin</span>
                 </Button>
               )}
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -315,8 +355,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   onClick={() => navigate('/dashboard')}
                   className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
                 >
-                  <span className="hidden sm:inline">County Portal</span>
-                  <span className="sm:hidden">County</span>
+                  <span className="hidden lg:inline">County Portal</span>
+                  <span className="lg:hidden">County</span>
                 </Button>
               )}
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -326,8 +366,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                   onClick={() => navigate('/sacco')}
                   className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
                 >
-                  <span className="hidden sm:inline">Sacco Portal</span>
-                  <span className="sm:hidden">Sacco</span>
+                  <span className="hidden lg:inline">Sacco Portal</span>
+                  <span className="lg:hidden">Sacco</span>
                 </Button>
               )}
               <Button
@@ -336,8 +376,8 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
                 onClick={() => navigate('/rider-owner')}
                 className="min-h-[44px] min-w-0 shrink-0 px-3 touch-manipulation"
               >
-                <span className="hidden sm:inline">Rider & Owner Portal</span>
-                <span className="sm:hidden">Rider & Owner</span>
+                <span className="hidden lg:inline">Rider & Owner Portal</span>
+                <span className="lg:hidden">Rider & Owner</span>
               </Button>
             </div>
           </div>

@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   useRiderUpdateRequestsByCounty,
   useReviewRiderUpdateRequest,
@@ -75,10 +77,7 @@ function requestUserName(req: RiderUpdateRequestWithNames): string {
 
 export default function UpdateRequestsPage() {
   const { user, profile, roles } = useAuth();
-  const countyId = useMemo(
-    () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
-    [profile, roles]
-  );
+  const countyId = useEffectiveCountyId();
   const [statusFilterValue, setStatusFilterValue] = useState<string>('pending');
   const { data: requests = [], isLoading, error } = useRiderUpdateRequestsByCounty(
     countyId,
@@ -155,11 +154,14 @@ export default function UpdateRequestsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Update requests</h1>
-          <p className="text-muted-foreground text-sm sm:text-base mt-1">
-            Riders and owners raise these from Rider-Owner → Profile. Approve or reject requests for your county.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Update requests</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">
+              Riders and owners raise these from Rider-Owner → Profile. Approve or reject requests for your county.
+            </p>
+          </div>
+          <CountyFilterBar />
         </div>
 
         <Card>

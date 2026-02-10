@@ -54,18 +54,13 @@ export interface SaccoPerformanceReport {
   revenue: number;
 }
 
-// Fetch registration report
+// Fetch registration report (countyId undefined = all counties)
 export function useRegistrationReport(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['registration-report', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      let query = supabase
-        .from('riders')
-        .select('id, status, created_at')
-        .eq('county_id', countyId);
-
+      let query = supabase.from('riders').select('id, status, created_at');
+      if (countyId) query = query.eq('county_id', countyId);
       if (startDate) query = query.gte('created_at', startDate);
       if (endDate) {
         const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
@@ -101,22 +96,17 @@ export function useRegistrationReport(countyId?: string, startDate?: string, end
         }))
         .sort((a, b) => a.date.localeCompare(b.date)) as RegistrationReport[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch payment report
+// Fetch payment report (countyId undefined = all counties)
 export function usePaymentReport(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['payment-report', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      let query = supabase
-        .from('payments')
-        .select('id, status, amount, created_at, paid_at')
-        .eq('county_id', countyId);
-
+      let query = supabase.from('payments').select('id, status, amount, created_at, paid_at');
+      if (countyId) query = query.eq('county_id', countyId);
       if (startDate) query = query.gte('created_at', startDate);
       if (endDate) {
         const endExclusive = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
@@ -161,22 +151,17 @@ export function usePaymentReport(countyId?: string, startDate?: string, endDate?
         }))
         .sort((a, b) => a.date.localeCompare(b.date)) as PaymentReport[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch penalty report
+// Fetch penalty report (countyId undefined = all counties)
 export function usePenaltyReport(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['penalty-report', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      let query = supabase
-        .from('penalties')
-        .select('id, is_paid, amount, created_at')
-        .eq('county_id', countyId);
-
+      let query = supabase.from('penalties').select('id, is_paid, amount, created_at');
+      if (countyId) query = query.eq('county_id', countyId);
       if (startDate) query = query.gte('created_at', startDate);
       // Use exclusive upper bound (start of next day) so we include the full end date
       if (endDate) {
@@ -219,30 +204,23 @@ export function usePenaltyReport(countyId?: string, startDate?: string, endDate?
         }))
         .sort((a, b) => a.date.localeCompare(b.date)) as PenaltyReport[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch compliance report
+// Fetch compliance report (countyId undefined = all counties)
 export function useComplianceReport(countyId?: string) {
   return useQuery({
     queryKey: ['compliance-report', countyId],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Get all saccos
-      const { data: saccos } = await supabase
-        .from('saccos')
-        .select('id, name')
-        .eq('county_id', countyId);
-
+      let saccosQuery = supabase.from('saccos').select('id, name');
+      if (countyId) saccosQuery = saccosQuery.eq('county_id', countyId);
+      const { data: saccos } = await saccosQuery;
       if (!saccos) return [];
 
-      // Get riders by sacco
-      const { data: riders } = await supabase
-        .from('riders')
-        .select('id, sacco_id, compliance_status')
-        .eq('county_id', countyId);
+      let ridersQuery = supabase.from('riders').select('id, sacco_id, compliance_status');
+      if (countyId) ridersQuery = ridersQuery.eq('county_id', countyId);
+      const { data: riders } = await ridersQuery;
 
       if (!riders) return [];
 
@@ -281,39 +259,34 @@ export function useComplianceReport(countyId?: string) {
         };
       }).filter(r => r.totalRiders > 0) as ComplianceReport[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch Sacco performance report
+// Fetch Sacco performance report (countyId undefined = all counties)
 export function useSaccoPerformanceReport(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['sacco-performance-report', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
       try {
-        // Get all saccos
-        const { data: saccos, error: saccosError } = await supabase
-          .from('saccos')
-          .select('id, name')
-          .eq('county_id', countyId);
+        let saccosQuery = supabase.from('saccos').select('id, name');
+        if (countyId) saccosQuery = saccosQuery.eq('county_id', countyId);
+        const { data: saccos, error: saccosError } = await saccosQuery;
 
         if (saccosError) {
           console.error('Error fetching saccos:', saccosError);
           throw saccosError;
         }
-
         if (!saccos || saccos.length === 0) return [];
 
         const saccoIds = saccos.map(s => s.id);
 
-        // Get riders by sacco - get ALL riders, not filtered by date
-        const { data: riders, error: ridersError } = await supabase
+        let ridersQuery = supabase
           .from('riders')
           .select('id, sacco_id, compliance_status')
-          .eq('county_id', countyId)
           .in('sacco_id', saccoIds);
+        if (countyId) ridersQuery = ridersQuery.eq('county_id', countyId);
+        const { data: riders, error: ridersError } = await ridersQuery;
 
         if (ridersError) {
           console.error('Error fetching riders:', ridersError);
@@ -322,20 +295,15 @@ export function useSaccoPerformanceReport(countyId?: string, startDate?: string,
 
         const riderIds = riders?.map(r => r.id) || [];
 
-        // Get permits - get ALL permits for riders in these saccos (not filtered by date)
-        // We want to see current permit status, not just permits created in date range
         let permitsQuery = supabase
           .from('permits')
-          .select('id, rider_id, status, expires_at')
-          .eq('county_id', countyId);
-
+          .select('id, rider_id, status, expires_at');
+        if (countyId) permitsQuery = permitsQuery.eq('county_id', countyId);
         if (riderIds.length > 0) {
           permitsQuery = permitsQuery.in('rider_id', riderIds);
         } else {
-          // If no riders, return empty array for permits
           permitsQuery = permitsQuery.eq('rider_id', '00000000-0000-0000-0000-000000000000');
         }
-
         const { data: permits, error: permitsError } = await permitsQuery;
 
         if (permitsError) {
@@ -343,12 +311,10 @@ export function useSaccoPerformanceReport(countyId?: string, startDate?: string,
           throw permitsError;
         }
 
-        // Get penalties - filter by date range if provided
         let penaltiesQuery = supabase
           .from('penalties')
-          .select('id, rider_id, is_paid, amount')
-          .eq('county_id', countyId);
-
+          .select('id, rider_id, is_paid, amount');
+        if (countyId) penaltiesQuery = penaltiesQuery.eq('county_id', countyId);
         if (riderIds.length > 0) {
           penaltiesQuery = penaltiesQuery.in('rider_id', riderIds);
         } else {
@@ -368,13 +334,11 @@ export function useSaccoPerformanceReport(countyId?: string, startDate?: string,
           throw penaltiesError;
         }
 
-        // Get payments (revenue) - filter by date range on paid_at
         let paymentsQuery = supabase
           .from('payments')
           .select('amount, rider_id')
-          .eq('county_id', countyId)
           .eq('status', 'completed');
-
+        if (countyId) paymentsQuery = paymentsQuery.eq('county_id', countyId);
         if (riderIds.length > 0) {
           paymentsQuery = paymentsQuery.in('rider_id', riderIds);
         } else {
@@ -512,7 +476,7 @@ export function useSaccoPerformanceReport(countyId?: string, startDate?: string,
         return [];
       }
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 

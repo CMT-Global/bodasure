@@ -85,7 +85,7 @@ const REGISTRATION_WIZARD_STEP_GROUPS: {
 ];
 
 export default function RegistrationSupportPage() {
-  const { profile, roles } = useAuth();
+  const { countyId } = useAuth();
   const queryClient = useQueryClient();
   const [selectedRider, setSelectedRider] = useState<RiderWithDetails | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -94,11 +94,6 @@ export default function RegistrationSupportPage() {
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const stepFieldsRef = useRef<HTMLDivElement>(null);
-
-  const countyId = useMemo(
-    () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
-    [profile, roles]
-  );
 
   const { data: saccos = [], isLoading: saccosLoading } = useSaccos(countyId);
   const [saccoId, setSaccoId] = useState<string | undefined>(undefined);

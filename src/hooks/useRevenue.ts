@@ -85,26 +85,23 @@ export interface RevenueShareBySacco {
   shareType: string;
 }
 
-// Fetch revenue by date range
+// Fetch revenue by date range (countyId undefined = all counties for platform super admin)
 export function useRevenueByDateRange(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-by-date-range', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Build date filter
+      // Build queries: when countyId is set filter by county; when undefined aggregate all counties
       let permitQuery = supabase
         .from('payments')
         .select('amount, paid_at, permit_id')
-        .eq('county_id', countyId)
         .eq('status', 'completed');
+      if (countyId) permitQuery = permitQuery.eq('county_id', countyId);
 
-      // For penalties, we need to get all paid penalties and use paid_at or created_at for date
       let penaltyQuery = supabase
         .from('penalties')
         .select('amount, paid_at, is_paid, created_at')
-        .eq('county_id', countyId)
         .eq('is_paid', true);
+      if (countyId) penaltyQuery = penaltyQuery.eq('county_id', countyId);
 
       // Note: We'll filter by date in the code since some penalties might not have paid_at set
       // We'll use paid_at if available, otherwise created_at for date grouping
@@ -156,31 +153,22 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
         }))
         .sort((a, b) => a.date.localeCompare(b.date)) as RevenueByDateRange[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch revenue by Sacco
+// Fetch revenue by Sacco (countyId undefined = all counties)
 export function useRevenueBySacco(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-by-sacco', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Get all saccos
-      const { data: saccos } = await supabase
-        .from('saccos')
-        .select('id, name')
-        .eq('county_id', countyId);
-
+      let saccosQuery = supabase.from('saccos').select('id, name');
+      if (countyId) saccosQuery = saccosQuery.eq('county_id', countyId);
+      const { data: saccos } = await saccosQuery;
       if (!saccos) return [];
 
-      // Get riders by sacco
-      let ridersQuery = supabase
-        .from('riders')
-        .select('id, sacco_id')
-        .eq('county_id', countyId);
-
+      let ridersQuery = supabase.from('riders').select('id, sacco_id');
+      if (countyId) ridersQuery = ridersQuery.eq('county_id', countyId);
       const { data: riders } = await ridersQuery;
       if (!riders) return [];
 
@@ -194,28 +182,23 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
         }
       });
 
-      // Get permit payments
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       let permitPaymentsQuery = supabase
         .from('payments')
         .select('amount, rider_id, paid_at')
-        .eq('county_id', countyId)
         .eq('status', 'completed')
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
+      if (countyId) permitPaymentsQuery = permitPaymentsQuery.eq('county_id', countyId);
       if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
       if (endBound) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endBound);
-
       const { data: permitPayments } = await permitPaymentsQuery;
 
-      // Get penalty payments - filter by is_paid, but handle date filtering in code
-      // since some penalties might not have paid_at set
       let penaltyPaymentsQuery = supabase
         .from('penalties')
         .select('amount, rider_id, paid_at, is_paid, created_at')
-        .eq('county_id', countyId)
         .eq('is_paid', true)
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
+      if (countyId) penaltyPaymentsQuery = penaltyPaymentsQuery.eq('county_id', countyId);
 
       const { data: penaltyPayments } = await penaltyPaymentsQuery;
 
@@ -270,30 +253,23 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
         };
       }).filter(r => r.totalRevenue > 0 || r.riderCount > 0) as RevenueBySacco[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch revenue by stage
+// Fetch revenue by stage (countyId undefined = all counties)
 export function useRevenueByStage(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-by-stage', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      // Get all stages with sacco info
-      const { data: stages } = await supabase
-        .from('stages')
-        .select('id, name, sacco_id, sacco:saccos(name)')
-        .eq('county_id', countyId);
-
+      let stagesQuery = supabase.from('stages').select('id, name, sacco_id, sacco:saccos(name)');
+      if (countyId) stagesQuery = stagesQuery.eq('county_id', countyId);
+      const { data: stages } = await stagesQuery;
       if (!stages) return [];
 
-      // Get riders by stage
-      const { data: riders } = await supabase
-        .from('riders')
-        .select('id, stage_id')
-        .eq('county_id', countyId);
+      let ridersQuery = supabase.from('riders').select('id, stage_id');
+      if (countyId) ridersQuery = ridersQuery.eq('county_id', countyId);
+      const { data: riders } = await ridersQuery;
 
       if (!riders) return [];
 
@@ -307,29 +283,23 @@ export function useRevenueByStage(countyId?: string, startDate?: string, endDate
         }
       });
 
-      // Get payments
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       let permitPaymentsQuery = supabase
         .from('payments')
         .select('amount, rider_id, paid_at')
-        .eq('county_id', countyId)
         .eq('status', 'completed')
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
+      if (countyId) permitPaymentsQuery = permitPaymentsQuery.eq('county_id', countyId);
       if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
       if (endBound) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endBound);
-
       const { data: permitPayments } = await permitPaymentsQuery;
 
-      // Get penalty payments - filter by is_paid, but handle date filtering in code
-      // since some penalties might not have paid_at set
       let penaltyPaymentsQuery = supabase
         .from('penalties')
         .select('amount, rider_id, paid_at, is_paid, created_at')
-        .eq('county_id', countyId)
         .eq('is_paid', true)
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
-
+      if (countyId) penaltyPaymentsQuery = penaltyPaymentsQuery.eq('county_id', countyId);
       const { data: penaltyPayments } = await penaltyPaymentsQuery;
 
       // Calculate revenue per stage
@@ -384,17 +354,15 @@ export function useRevenueByStage(countyId?: string, startDate?: string, endDate
         };
       }).filter(r => r.totalRevenue > 0 || r.riderCount > 0) as RevenueByStage[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch revenue by permit type
+// Fetch revenue by permit type (countyId undefined = all counties)
 export function useRevenueByPermitType(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-by-permit-type', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
       let paymentsQuery = supabase
         .from('payments')
         .select(`
@@ -405,8 +373,8 @@ export function useRevenueByPermitType(countyId?: string, startDate?: string, en
             permit_types!inner(id, name, amount)
           )
         `)
-        .eq('county_id', countyId)
         .eq('status', 'completed');
+      if (countyId) paymentsQuery = paymentsQuery.eq('county_id', countyId);
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
@@ -435,21 +403,19 @@ export function useRevenueByPermitType(countyId?: string, startDate?: string, en
         averageAmount: data.amounts.reduce((sum, amt) => sum + amt, 0) / data.amounts.length,
       })) as RevenueByPermitType[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch penalty revenue breakdown
+// Fetch penalty revenue breakdown (countyId undefined = all counties)
 export function usePenaltyRevenueBreakdown(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['penalty-revenue-breakdown', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
       let penaltiesQuery = supabase
         .from('penalties')
-        .select('penalty_type, amount, is_paid, paid_at')
-        .eq('county_id', countyId);
+        .select('penalty_type, amount, is_paid, paid_at');
+      if (countyId) penaltiesQuery = penaltiesQuery.eq('county_id', countyId);
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       if (startBound) penaltiesQuery = penaltiesQuery.gte('created_at', startBound);
@@ -489,17 +455,15 @@ export function usePenaltyRevenueBreakdown(countyId?: string, startDate?: string
         };
       }) as PenaltyRevenueBreakdown[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
-// Fetch revenue shares
+// Fetch revenue shares (countyId undefined = all counties)
 export function useRevenueShares(countyId?: string, saccoId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-shares', countyId, saccoId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
       let sharesQuery = supabase
         .from('revenue_shares')
         .select(`
@@ -508,8 +472,8 @@ export function useRevenueShares(countyId?: string, saccoId?: string, startDate?
           rider:riders(full_name, phone),
           payment:payments(amount, description, paid_at)
         `)
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
+      if (countyId) sharesQuery = sharesQuery.eq('county_id', countyId);
 
       if (saccoId) {
         sharesQuery = sharesQuery.eq('sacco_id', saccoId);
@@ -532,7 +496,7 @@ export function useRevenueShares(countyId?: string, saccoId?: string, startDate?
         sacco_name: share.sacco?.name || null,
       })) as RevenueShare[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -710,20 +674,18 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
   });
 }
 
-// Fetch revenue shares aggregated by Sacco
+// Fetch revenue shares aggregated by Sacco (countyId undefined = all counties)
 export function useRevenueSharesBySacco(countyId?: string, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['revenue-shares-by-sacco', countyId, startDate, endDate],
     queryFn: async () => {
-      if (!countyId) return [];
-
       let sharesQuery = supabase
         .from('revenue_shares')
         .select(`
           *,
           sacco:saccos(name)
-        `)
-        .eq('county_id', countyId);
+        `);
+      if (countyId) sharesQuery = sharesQuery.eq('county_id', countyId);
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
       if (startBound) {
@@ -777,6 +739,6 @@ export function useRevenueSharesBySacco(countyId?: string, startDate?: string, e
 
       return Array.from(saccoMap.values()) as RevenueShareBySacco[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }

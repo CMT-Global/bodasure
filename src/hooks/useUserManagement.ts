@@ -39,25 +39,77 @@ export interface UserActivityLog {
   } | null;
 }
 
+// County portal role values — users with any of these for a county are shown when that county is selected (even if profile.county_id is not set).
+const COUNTY_PORTAL_ROLES_FOR_FETCH = [
+  'county_super_admin',
+  'county_admin',
+  'county_finance_officer',
+  'county_enforcement_officer',
+  'county_registration_agent',
+  'county_analyst',
+] as const;
+
+// Order for picking "display county": prefer platform roles (they have an associated county), then county portal roles, then any role with county_id.
+function getDisplayCountyFromRoles(roles: { role: string; county_id: string | null }[]): string | null {
+  // Platform roles with a county_id (e.g. platform_super_admin for Nairobi) should show that county
+  const platformRole = roles.find(
+    (x) => (x.role === 'platform_super_admin' || x.role === 'platform_admin') && x.county_id
+  );
+  if (platformRole?.county_id) return platformRole.county_id;
+  // Then county portal roles (county_super_admin, county_admin, etc.)
+  for (const roleName of COUNTY_PORTAL_ROLES_FOR_FETCH) {
+    const r = roles.find((x) => x.role === roleName && x.county_id);
+    if (r?.county_id) return r.county_id;
+  }
+  const anyCounty = roles.find((r) => r.county_id)?.county_id ?? null;
+  return anyCounty;
+}
+
 // Fetch all users in a county (or all users when countyId is undefined, e.g. platform admin).
-// When countyId is undefined (super admin), we fetch via user_roles first so we include every user
-// who has any role (including rider/owner), and show all roles per user.
+// When countyId is set: include (1) profiles with profile.county_id = countyId and (2) users who have a county portal role for this county in user_roles (so staff show even if profile.county_id is unset).
+// When countyId is undefined (super admin), we fetch via user_roles first so we include every user who has any role.
 export function useCountyUsers(countyId?: string) {
   return useQuery({
     queryKey: ['county-users', countyId],
     queryFn: async () => {
       if (countyId) {
-        // County portal: profiles by county, then roles for those users
-        const { data: profiles, error: profilesError } = await supabase
+        // 1) Profiles with profile.county_id = countyId
+        const { data: profilesByCounty, error: profilesError } = await supabase
           .from('profiles')
           .select('*')
           .eq('county_id', countyId)
           .order('created_at', { ascending: false });
 
         if (profilesError) throw profilesError;
-        if (!profiles || profiles.length === 0) return [];
 
-        const userIds = profiles.map(p => p.id);
+        // 2) Users who have a county portal role for this county (so they show even if profile.county_id is not set)
+        const { data: countyPortalRoles, error: rolesErr } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('county_id', countyId)
+          .in('role', [...COUNTY_PORTAL_ROLES_FOR_FETCH]);
+
+        if (rolesErr) throw rolesErr;
+        const userIdsFromRoles = [...new Set((countyPortalRoles ?? []).map((r) => r.user_id))];
+
+        const allUserIds = [...new Set([...(profilesByCounty ?? []).map((p) => p.id), ...userIdsFromRoles])];
+        if (allUserIds.length === 0) return [];
+
+        // 3) Fetch profiles for any user we don't already have (from step 2 only)
+        const idsWeHave = new Set((profilesByCounty ?? []).map((p) => p.id));
+        const idsToFetch = userIdsFromRoles.filter((id) => !idsWeHave.has(id));
+        let extraProfiles: (typeof profilesByCounty) = [];
+        if (idsToFetch.length > 0) {
+          const { data: fetched, error: fetchErr } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', idsToFetch);
+          if (!fetchErr) extraProfiles = fetched ?? [];
+        }
+
+        const allProfiles = [...(profilesByCounty ?? []), ...extraProfiles];
+        const userIds = allProfiles.map((p) => p.id);
+
         const { data: roles, error: rolesError } = await supabase
           .from('user_roles')
           .select('id, user_id, role, county_id, granted_at')
@@ -66,12 +118,12 @@ export function useCountyUsers(countyId?: string) {
         if (rolesError) throw rolesError;
         type RoleRow = (typeof roles)[number];
         const rolesByUser = new Map<string, RoleRow[]>();
-        (roles ?? []).forEach(role => {
+        (roles ?? []).forEach((role) => {
           const existing = rolesByUser.get(role.user_id) ?? [];
           existing.push(role);
           rolesByUser.set(role.user_id, existing);
         });
-        return profiles.map(profile => ({
+        return allProfiles.map((profile) => ({
           ...profile,
           roles: rolesByUser.get(profile.id) ?? [],
         })) as CountyUser[];
@@ -172,8 +224,10 @@ export function useCountyUsers(countyId?: string) {
         const userRoles = rolesByUser.get(uid) ?? [];
         const ownerDetails = ownerDetailsByUser.get(uid);
         const riderDetails = riderDetailsByUser.get(uid);
-        // Prefer profile; fall back to owner then rider details for name/email/county
+        // Display county: prefer county from county portal roles (e.g. county_super_admin of Nairobi → show Nairobi), then profile, then rider/owner
         const fallback = ownerDetails ?? riderDetails;
+        const countyFromRole = getDisplayCountyFromRoles(userRoles);
+        const effectiveCountyId = countyFromRole || profile?.county_id || fallback?.county_id || null;
         if (profile) {
           const merged = {
             ...profile,
@@ -181,7 +235,7 @@ export function useCountyUsers(countyId?: string) {
             full_name: profile.full_name || fallback?.full_name || null,
             email: profile.email || fallback?.email || '',
             phone: profile.phone || fallback?.phone || null,
-            county_id: profile.county_id || fallback?.county_id || null,
+            county_id: effectiveCountyId,
           };
           return merged as CountyUser;
         }
@@ -191,7 +245,7 @@ export function useCountyUsers(countyId?: string) {
           full_name: fallback?.full_name ?? null,
           phone: fallback?.phone ?? null,
           avatar_url: null,
-          county_id: fallback?.county_id ?? null,
+          county_id: effectiveCountyId,
           is_active: true,
           created_at: '',
           updated_at: '',
@@ -211,19 +265,49 @@ export function useCountyUsers(countyId?: string) {
   });
 }
 
-// Fetch user activity logs
+/** Fetches the user who has county_super_admin role for a county (by user_roles, not profile.county_id). */
+export function useCountySuperAdmin(countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['county-super-admin', countyId],
+    queryFn: async (): Promise<{ id: string; email: string; full_name: string | null } | null> => {
+      if (!countyId) return null;
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('county_id', countyId)
+        .eq('role', 'county_super_admin')
+        .limit(1);
+
+      if (rolesError || !roles?.length) return null;
+      const userId = roles[0].user_id;
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .eq('id', userId)
+        .single();
+
+      if (profileError || !profile) return null;
+      return {
+        id: profile.id,
+        email: profile.email ?? '',
+        full_name: profile.full_name ?? null,
+      };
+    },
+    enabled: !!countyId,
+  });
+}
+
+// Fetch user activity logs (countyId undefined = all counties)
 export function useUserActivityLogs(countyId?: string, userId?: string) {
   return useQuery({
     queryKey: ['user-activity-logs', countyId, userId],
     queryFn: async () => {
-      if (!countyId) return [];
-
       let query = supabase
         .from('audit_logs')
         .select('*')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false })
         .limit(500);
+      if (countyId) query = query.eq('county_id', countyId);
 
       if (userId) {
         query = query.eq('user_id', userId);
@@ -256,7 +340,7 @@ export function useUserActivityLogs(countyId?: string, userId?: string) {
         user: log.user_id ? profilesMap.get(log.user_id) || null : null,
       })) as UserActivityLog[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -484,6 +568,7 @@ export function useAssignUserRoles() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['county-users', variables.countyId] });
+      queryClient.invalidateQueries({ queryKey: ['county-super-admin', variables.countyId] });
       toast.success('Roles updated successfully');
     },
     onError: (error: Error) => {
