@@ -78,22 +78,24 @@ async function calculateEscalatedPenalty(
   return { amount: baseAmount, multiplier: 1 };
 }
 
-// Fetch penalties with rider info
+// Fetch penalties with rider info. When countyId is undefined (e.g. "All Counties" for platform super admin), fetches all penalties.
 export function usePenalties(countyId?: string) {
   return useQuery({
     queryKey: ['penalties', countyId],
     queryFn: async () => {
-      if (!countyId) return [];
-
-      const { data, error } = await supabase
+      let query = supabase
         .from('penalties')
         .select(`
           *,
           riders(id, full_name, phone, id_number, compliance_status, status)
         `)
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
-      
+
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
 
       // Get penalty counts per rider to identify repeat offenders
@@ -110,7 +112,7 @@ export function usePenalties(countyId?: string) {
         penalty_count: penaltyCounts.get(penalty.rider_id) || 1,
       })) as PenaltyWithRepeatInfo[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 

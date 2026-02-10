@@ -214,6 +214,21 @@ export const SACCO_PORTAL_ROLE_KEYS = [
   'general_official',
 ] as const;
 
+/**
+ * Role values that exist in the base app_role enum (before migration 20260202130000).
+ * Use for Supabase .in('role', ...) filters so the request works even when extended
+ * official roles (chairman, vice_chairman, etc.) have not been added to the DB yet.
+ */
+export const SACCO_OFFICIAL_ROLES_QUERY_FILTER = [
+  'sacco_admin',
+  'sacco_officer',
+  'welfare_admin',
+  'welfare_officer',
+  'stage_chairman',
+  'stage_secretary',
+  'stage_treasurer',
+] as const;
+
 export type SaccoPortalRoleKey = (typeof SACCO_PORTAL_ROLE_KEYS)[number];
 
 /** Check if a role string is a Sacco/Welfare Portal role (org-level only). */

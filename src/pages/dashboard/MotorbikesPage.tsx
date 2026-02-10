@@ -9,6 +9,8 @@ import { MotorbikeDetailSheet } from '@/components/motorbikes/MotorbikeDetailShe
 import { getMotorbikeColumns } from '@/components/motorbikes/MotorbikeColumns';
 import { Motorbike, useMotorbikes } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -26,11 +28,7 @@ import { exportToCSV } from '@/utils/exportCsv';
 
 export default function MotorbikesPage() {
   const { profile, roles } = useAuth();
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -115,6 +113,7 @@ export default function MotorbikesPage() {
               <p className="text-sm sm:text-base text-muted-foreground mt-1">Registered motorbikes • {filteredMotorbikes.length} total</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
+              <CountyFilterBar />
               <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || filteredMotorbikes.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export

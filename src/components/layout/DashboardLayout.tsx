@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -77,12 +77,20 @@ const navItems: NavItem[] = [
   { title: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['county_super_admin'] },
 ];
 
+// Persist sidebar scroll across remounts (each page renders its own layout, so layout unmounts on navigate)
+let savedCountySidebarScrollTop = 0;
+
+const SCROLLBAR_HIDE_DELAY_MS = 1000;
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const scrollbarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut, roles, hasRole } = useAuth();
+  const { user, profile, signOut, roles, hasRole, countyName } = useAuth();
   const { data: notifications = [] } = useUserNotifications(15, !!user);
   const unreadCount = notifications.filter((n) => !n.read_at).length;
   const markRead = useMarkNotificationRead();
@@ -112,6 +120,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       .slice(0, 2);
   };
 
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+    };
+  }, []);
+
+  // Restore sidebar scroll on mount (layout remounts on every page change)
+  useLayoutEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = savedCountySidebarScrollTop;
+    const restore = () => {
+      if (el) el.scrollTop = saved;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    const t = setTimeout(restore, 50);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Mobile overlay */}
@@ -130,17 +158,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
+        {/* Logo + county name for county portal users */}
+        <div className="flex h-16 flex-col justify-center gap-0.5 border-b border-sidebar-border px-4">
           {!isCollapsed && (
-            <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <span className="text-sm font-bold text-primary-foreground">B</span>
-              </div>
-              <span className="text-lg font-semibold text-sidebar-foreground">
-                Boda<span className="text-primary">Sure</span>
-              </span>
-            </Link>
+            <>
+              <Link to="/dashboard" className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                  <span className="text-sm font-bold text-primary-foreground">B</span>
+                </div>
+                <span className="text-lg font-semibold text-sidebar-foreground">
+                  Boda<span className="text-primary">Sure</span>
+                </span>
+              </Link>
+              {countyName && (
+                <p className="text-xs text-muted-foreground truncate pl-10" title={countyName}>
+                  {countyName}
+                </p>
+              )}
+            </>
           )}
           {isCollapsed && (
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary mx-auto">
@@ -149,8 +184,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           )}
         </div>
 
-        {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
+        {/* Navigation - scrollable div preserves scroll position on route change; scrollbar auto-hides after 1s */}
+        <div
+          ref={sidebarScrollRef}
+          className={cn(
+            'sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden py-4',
+            scrollbarVisible && 'scrollbar-visible'
+          )}
+          onScroll={() => {
+            if (sidebarScrollRef.current) savedCountySidebarScrollTop = sidebarScrollRef.current.scrollTop;
+            setScrollbarVisible(true);
+            if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+            scrollbarHideTimeoutRef.current = setTimeout(() => setScrollbarVisible(false), SCROLLBAR_HIDE_DELAY_MS);
+          }}
+          onClickCapture={() => {
+            if (sidebarScrollRef.current) savedCountySidebarScrollTop = sidebarScrollRef.current.scrollTop;
+          }}
+        >
           <nav className="space-y-1 px-2">
             {filteredNavItems.map((item) => {
               const isActive = location.pathname === item.href;
@@ -172,7 +222,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               );
             })}
           </nav>
-        </ScrollArea>
+        </div>
 
         {/* Collapse button (desktop only) */}
         <div className="hidden lg:block p-2 border-t border-sidebar-border">
@@ -220,7 +270,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <span className="truncate">
                     {location.pathname.startsWith('/super-admin') && 'Super Admin'}
-                    {location.pathname.startsWith('/dashboard') && 'County'}
+                    {location.pathname.startsWith('/dashboard') && (countyName ? `County · ${countyName}` : 'County')}
                     {location.pathname.startsWith('/sacco') && 'Sacco'}
                     {location.pathname.startsWith('/rider-owner') && 'Rider & Owner'}
                     {!location.pathname.startsWith('/super-admin') && !location.pathname.startsWith('/dashboard') && !location.pathname.startsWith('/sacco') && !location.pathname.startsWith('/rider-owner') && 'Portals'}
@@ -237,8 +287,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
                 {COUNTY_PORTAL_ACCESS_ROLES.some(role => hasRole(role)) && (
                   <DropdownMenuItem onClick={() => navigate('/dashboard')} className="min-h-[44px]">
-                    <span className="sm:hidden">County</span>
-                    <span className="hidden sm:inline">County Portal</span>
+                    <span className="sm:hidden">{countyName ?? 'County'}</span>
+                    <span className="hidden sm:inline">{countyName ? `County · ${countyName}` : 'County Portal'}</span>
                   </DropdownMenuItem>
                 )}
                 {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -255,17 +305,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Desktop: portal buttons */}
-            <div className="hidden md:flex min-w-0 flex-shrink flex-wrap items-center gap-1.5 sm:gap-2">
+            {/* Desktop: portal buttons — flex-nowrap so md shows one row; short labels until lg */}
+            <div className="hidden md:flex min-w-0 flex-shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden py-1">
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
                 <Button
                   variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => navigate('/super-admin')}
-                  className="min-h-[36px] min-w-0 font-semibold"
+                  className="min-h-[36px] min-w-0 shrink-0 font-semibold"
                 >
-                  <span className="sm:hidden">Super Admin</span>
-                  <span className="hidden sm:inline">Super Admin Portal</span>
+                  <span className="lg:hidden">Super Admin</span>
+                  <span className="hidden lg:inline">Super Admin Portal</span>
                 </Button>
               )}
               {COUNTY_PORTAL_ACCESS_ROLES.some(role => hasRole(role)) && (
@@ -273,10 +323,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => navigate('/dashboard')}
-                  className="min-h-[36px] min-w-0"
+                  className="min-h-[36px] min-w-0 shrink-0"
+                  title={countyName ? `County: ${countyName}` : 'County Portal'}
                 >
-                  <span className="sm:hidden">County</span>
-                  <span className="hidden sm:inline">County Portal</span>
+                  <span className="lg:hidden">{countyName ?? 'County'}</span>
+                  <span className="hidden lg:inline">{countyName ? `${countyName}` : 'County Portal'}</span>
                 </Button>
               )}
               {(hasRole('platform_super_admin') || hasRole('platform_admin')) && (
@@ -285,19 +336,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => navigate('/sacco')}
-                    className="min-h-[36px] min-w-0"
+                    className="min-h-[36px] min-w-0 shrink-0"
                   >
-                    <span className="sm:hidden">Sacco</span>
-                    <span className="hidden sm:inline">Sacco Portal</span>
+                    <span className="lg:hidden">Sacco</span>
+                    <span className="hidden lg:inline">Sacco Portal</span>
                   </Button>
                   <Button
                     variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => navigate('/rider-owner')}
-                    className="min-h-[36px] min-w-0"
+                    className="min-h-[36px] min-w-0 shrink-0"
                   >
-                    <span className="sm:hidden">Rider & Owner</span>
-                    <span className="hidden sm:inline">Rider & Owner Portal</span>
+                    <span className="lg:hidden">Rider & Owner</span>
+                    <span className="hidden lg:inline">Rider & Owner Portal</span>
                   </Button>
                 </>
               )}

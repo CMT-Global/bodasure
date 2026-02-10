@@ -2,6 +2,16 @@ import { useState, useEffect, useRef, createContext, useContext, ReactNode } fro
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+/** County portal roles that carry county_id — must match backend get_user_county_id(). Use role's county as source of truth for county users. */
+const COUNTY_PORTAL_ROLES_WITH_COUNTY = [
+  'county_super_admin',
+  'county_admin',
+  'county_finance_officer',
+  'county_enforcement_officer',
+  'county_registration_agent',
+  'county_analyst',
+] as const;
+
 interface Profile {
   id: string;
   email: string;
@@ -16,6 +26,8 @@ interface UserRole {
   id: string;
   role: string;
   county_id: string | null;
+  /** County name from joined counties table (fetched with user_roles). */
+  county_name?: string | null;
 }
 
 interface AuthContextType {
@@ -32,6 +44,10 @@ interface AuthContextType {
   hasRole: (role: string) => boolean;
   isPlatformAdmin: () => boolean;
   isCountyAdmin: () => boolean;
+  /** Effective county ID for county portal: from county portal role first (source of truth), then profile. Never use hardcoded fallback. */
+  countyId: string | undefined;
+  /** County name from the user's county portal role (same source as countyId). Fetched with roles. */
+  countyName: string | undefined;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -195,18 +211,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Fetch roles
+      // Fetch roles with county name (join counties)
       let rolesData: UserRole[] | null = null;
       const { data: rolesDataRes, error: rolesError } = await supabase
         .from('user_roles')
-        .select('id, role, county_id')
+        .select('id, role, county_id, counties(name)')
         .eq('user_id', userId);
 
       if (rolesError) {
         console.error('Error fetching roles:', rolesError);
         setRoles([]);
       } else {
-        rolesData = (rolesDataRes || []) as UserRole[];
+        const rows = (rolesDataRes || []) as { id: string; role: string; county_id: string | null; counties: { name: string } | null }[];
+        rolesData = rows.map((r) => ({
+          id: r.id,
+          role: r.role,
+          county_id: r.county_id,
+          county_name: r.counties?.name ?? null,
+        }));
         setRoles(rolesData);
         console.log('Loaded roles:', rolesData);
       }
@@ -217,12 +239,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: claimResult } = await supabase.rpc('claim_rider_or_owner_by_email');
         const result = claimResult as { ok?: boolean } | null;
         if (result?.ok) {
-          const { data: newRoles } = await supabase
+          const { data: newRolesRes } = await supabase
             .from('user_roles')
-            .select('id, role, county_id')
+            .select('id, role, county_id, counties(name)')
             .eq('user_id', userId);
-          if (newRoles?.length) {
-            setRoles(newRoles as UserRole[]);
+          const newRows = (newRolesRes || []) as { id: string; role: string; county_id: string | null; counties: { name: string } | null }[];
+          if (newRows.length) {
+            setRoles(newRows.map((r) => ({
+              id: r.id,
+              role: r.role,
+              county_id: r.county_id,
+              county_name: r.counties?.name ?? null,
+            })));
           }
         }
       }
@@ -274,6 +302,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return isPlatformAdmin() || hasRole('county_super_admin') || hasRole('county_admin');
   };
 
+  // Effective county: prefer county from county portal role (user's assigned county), then profile. Ensures county officers see their actual county, not a stale/wrong profile county.
+  const countyPortalRoleWithCounty = roles.find(
+    (r) => r.county_id && (COUNTY_PORTAL_ROLES_WITH_COUNTY as readonly string[]).includes(r.role)
+  );
+  const countyId = countyPortalRoleWithCounty?.county_id ?? profile?.county_id ?? undefined;
+  const countyName = countyPortalRoleWithCounty?.county_name ?? undefined;
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -289,6 +324,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasRole,
       isPlatformAdmin,
       isCountyAdmin,
+      countyId,
+      countyName,
     }}>
       {children}
     </AuthContext.Provider>

@@ -11,6 +11,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import { format, differenceInDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { exportToCSV } from '@/utils/exportCsv';
 
 // Helper to determine permit type from duration
@@ -189,15 +191,7 @@ export default function PermitsPage() {
   // Check if user is platform super admin
   const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
 
-  // Get county_id from profile or first role
-  // For super admins, countyId can be undefined (they'll select it in the dialog)
-  const countyId = useMemo(() => {
-    if (isPlatformSuperAdmin) {
-      // Super admins can work across counties, so countyId is optional
-      return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-    }
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles, isPlatformSuperAdmin]);
+  const countyId = useEffectiveCountyId();
 
   // Only fetch permits if we have a countyId (for non-super-admins or super-admins with selected county)
   const { data: permits = [], isLoading } = usePermits(countyId || '');
@@ -250,6 +244,7 @@ export default function PermitsPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
+              <CountyFilterBar />
               <Button variant="outline" className="min-h-[44px] flex-1 sm:flex-initial" onClick={handleExport} disabled={isLoading || permits.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export

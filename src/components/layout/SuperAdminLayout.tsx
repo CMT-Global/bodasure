@@ -1,8 +1,7 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -20,9 +19,15 @@ interface SuperAdminLayoutProps {
   children: ReactNode;
 }
 
+let savedSuperAdminSidebarScrollTop = 0;
+const SCROLLBAR_HIDE_DELAY_MS = 1000;
+
 export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [scrollbarVisible, setScrollbarVisible] = useState(false);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const scrollbarHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut, hasRole } = useAuth();
@@ -41,6 +46,25 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = savedSuperAdminSidebarScrollTop;
+    const restore = () => {
+      if (el) el.scrollTop = saved;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    const t = setTimeout(restore, 50);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -77,7 +101,22 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
           )}
         </div>
 
-        <ScrollArea className="flex-1 py-4">
+        <div
+          ref={sidebarScrollRef}
+          className={cn(
+            'sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden py-4',
+            scrollbarVisible && 'scrollbar-visible'
+          )}
+          onScroll={() => {
+            if (sidebarScrollRef.current) savedSuperAdminSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+            setScrollbarVisible(true);
+            if (scrollbarHideTimeoutRef.current) clearTimeout(scrollbarHideTimeoutRef.current);
+            scrollbarHideTimeoutRef.current = setTimeout(() => setScrollbarVisible(false), SCROLLBAR_HIDE_DELAY_MS);
+          }}
+          onClickCapture={() => {
+            if (sidebarScrollRef.current) savedSuperAdminSidebarScrollTop = sidebarScrollRef.current.scrollTop;
+          }}
+        >
           <nav className="space-y-1 px-2">
             <Link
               to="/super-admin"
@@ -249,7 +288,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               {!isCollapsed && <span className="break-words">System Settings</span>}
             </Link>
           </nav>
-        </ScrollArea>
+        </div>
 
         <div className="hidden lg:block p-2 border-t border-sidebar-border">
           <Button
@@ -320,39 +359,43 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Desktop: all portal buttons */}
-            <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+            {/* Desktop: all portal buttons — flex-nowrap so md shows one row; short labels until lg */}
+            <div className="hidden md:flex flex-shrink-0 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden py-1">
               <Button
                 variant={location.pathname.startsWith('/super-admin') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/super-admin')}
-                className="min-h-[36px] font-semibold"
+                className="min-h-[36px] min-w-0 shrink-0 font-semibold"
               >
-                Super Admin Portal
+                <span className="hidden lg:inline">Super Admin Portal</span>
+                <span className="lg:hidden">Super Admin</span>
               </Button>
               <Button
                 variant={location.pathname.startsWith('/dashboard') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/dashboard')}
-                className="min-h-[36px]"
+                className="min-h-[36px] min-w-0 shrink-0"
               >
-                County Portal
+                <span className="hidden lg:inline">County Portal</span>
+                <span className="lg:hidden">County</span>
               </Button>
               <Button
                 variant={location.pathname.startsWith('/sacco') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/sacco')}
-                className="min-h-[36px]"
+                className="min-h-[36px] min-w-0 shrink-0"
               >
-                Sacco Portal
+                <span className="hidden lg:inline">Sacco Portal</span>
+                <span className="lg:hidden">Sacco</span>
               </Button>
               <Button
                 variant={location.pathname.startsWith('/rider-owner') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/rider-owner')}
-                className="min-h-[36px]"
+                className="min-h-[36px] min-w-0 shrink-0"
               >
-                Rider & Owner Portal
+                <span className="hidden lg:inline">Rider & Owner Portal</span>
+                <span className="lg:hidden">Rider & Owner</span>
               </Button>
             </div>
           </div>

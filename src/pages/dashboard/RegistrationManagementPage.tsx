@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Search, Download, Filter } from 'lucide-react';
 import { useRidersWithDetails, RiderWithDetails } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   Select,
   SelectContent,
@@ -18,17 +20,13 @@ import { exportToCSV } from '@/utils/exportCsv';
 
 export default function RegistrationManagementPage() {
   const { profile, roles } = useAuth();
+  const countyId = useEffectiveCountyId();
   const [selectedRider, setSelectedRider] = useState<RiderWithDetails | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [complianceFilter, setComplianceFilter] = useState<string>('all');
   const [permitFilter, setPermitFilter] = useState<string>('all');
-
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
 
   const { data: riders = [], isLoading } = useRidersWithDetails(countyId);
 
@@ -100,6 +98,7 @@ export default function RegistrationManagementPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <CountyFilterBar />
             <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredRiders.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export

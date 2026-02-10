@@ -47,6 +47,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import {
   useCountyUsers,
   useUserActivityLogs,
@@ -72,7 +74,7 @@ import {
   type CountyUserResetPasswordFormValues,
 } from '@/lib/zod';
 
-// Available roles for county users
+// Available roles for county users (county portal only — used for create/edit and filters)
 const COUNTY_ROLES = [
   { value: 'county_super_admin', label: 'County Super Admin' },
   { value: 'county_admin', label: 'County Admin' },
@@ -82,13 +84,11 @@ const COUNTY_ROLES = [
   { value: 'county_analyst', label: 'County Analyst' },
 ];
 
+const COUNTY_PORTAL_ROLE_VALUES = new Set(COUNTY_ROLES.map((r) => r.value));
+
 export default function UsersPage() {
   const { profile, roles, hasRole } = useAuth();
-  
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
+  const countyId = useEffectiveCountyId();
 
   // Platform/county super admins have full access; county_admin can manage users
   const canAccessUserManagement = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin');
@@ -151,11 +151,19 @@ export default function UsersPage() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
+      // Only show users with a county portal role (County Super Admin, County Admin, etc.)
+      const countyPortalRolesForUser = user.roles.filter((r) => COUNTY_PORTAL_ROLE_VALUES.has(r.role));
+      if (countyPortalRolesForUser.length === 0) return false;
+      // When a county is selected, only show users whose county portal role is for this county (don't show other county's users)
+      if (countyId) {
+        const hasRoleForThisCounty = countyPortalRolesForUser.some((r) => r.county_id === countyId);
+        if (!hasRoleForThisCounty) return false;
+      }
       if (statusFilter !== 'all' && user.is_active !== (statusFilter === 'active')) return false;
-      if (roleFilter !== 'all' && !user.roles.some(r => r.role === roleFilter)) return false;
+      if (roleFilter !== 'all' && !user.roles.some((r) => r.role === roleFilter)) return false;
       return true;
     });
-  }, [users, statusFilter, roleFilter]);
+  }, [users, countyId, statusFilter, roleFilter]);
 
   // Create user
   const handleCreateUser = async (values: CountyUserCreateFormValues) => {
@@ -407,13 +415,16 @@ export default function UsersPage() {
               <h1 className="text-2xl font-bold sm:text-3xl">User Management</h1>
               <p className="text-sm sm:text-base text-muted-foreground mt-1">Manage county users, roles, and permissions • {filteredUsers.length} total</p>
             </div>
-            <Button 
-              onClick={() => { setUserForm({ email: '', password: '', fullName: '', phone: '', roles: [] }); setIsCreateDialogOpen(true); }} 
+            <div className="flex flex-col sm:flex-row gap-2">
+              <CountyFilterBar />
+              <Button 
+              onClick={() => { createUserForm.reset(); setIsCreateDialogOpen(true); }} 
               className="glow-primary min-h-[44px] w-full sm:w-auto"
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Create User
             </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">

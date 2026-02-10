@@ -29,11 +29,14 @@ import {
   useRiderByName,
 } from '@/hooks/useVerification';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { RiderWithDetails } from '@/hooks/useData';
 import { verificationSearchFormSchema, type VerificationSearchFormValues } from '@/lib/zod';
 
 export default function VerificationPage() {
   const { profile, roles } = useAuth();
+  const countyId = useEffectiveCountyId();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'name' | 'plate'>('name');
   const [scannedQR, setScannedQR] = useState<string>('');
@@ -44,11 +47,6 @@ export default function VerificationPage() {
     resolver: zodResolver(verificationSearchFormSchema),
     defaultValues: { search_type: 'name', search_query: '' },
   });
-
-  // Get county_id from profile or first role
-  const countyId = useMemo(() => {
-    return profile?.county_id || roles.find(r => r.county_id)?.county_id || undefined;
-  }, [profile, roles]);
 
   // QR Code search
   const {
@@ -134,6 +132,7 @@ export default function VerificationPage() {
               Verify riders using QR code scanning or search by name or plate
             </p>
           </div>
+          <CountyFilterBar />
         </div>
 
         {/* Search and QR Scanner Section */}

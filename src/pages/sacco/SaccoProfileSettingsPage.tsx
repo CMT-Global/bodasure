@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
@@ -47,6 +47,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -80,14 +81,26 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { saccoProfileFormSchema, type SaccoProfileFormValues } from '@/lib/zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { saccoProfileFormSchema, saccoCreateUserFormSchema, type SaccoProfileFormValues, type SaccoCreateUserFormValues } from '@/lib/zod';
+
+const SACCO_OFFICIAL_ROLES = [
+  { value: 'sacco_admin', label: 'Sacco Admin' },
+  { value: 'sacco_officer', label: 'Sacco Officer' },
+  { value: 'chairman', label: 'Chairman' },
+  { value: 'vice_chairman', label: 'Vice Chairman' },
+  { value: 'secretary', label: 'Secretary' },
+  { value: 'vice_secretary', label: 'Vice Secretary' },
+  { value: 'treasurer', label: 'Treasurer' },
+  { value: 'vice_treasurer', label: 'Vice Treasurer' },
+  { value: 'general_official', label: 'General Official' },
+];
 
 export default function SaccoProfileSettingsPage() {
-  const { profile, roles } = useAuth();
-  const countyId = useMemo(
-    () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
-    [profile, roles]
-  );
+  const { countyId, hasRole } = useAuth();
+  const isSaccoAdmin = hasRole('sacco_admin') || hasRole('platform_super_admin');
+  const queryClient = useQueryClient();
 
   const { data: saccos = [], isLoading: saccosLoading } = useSaccos(countyId);
   const [saccoId, setSaccoId] = useState<string | undefined>(undefined);
@@ -103,6 +116,8 @@ export default function SaccoProfileSettingsPage() {
   const uploadDocument = useUploadSaccoDocument();
   const deleteDocument = useDeleteSaccoDocument();
   const [documentToDelete, setDocumentToDelete] = useState<{ index: number; type: string } | null>(null);
+  const [registrationFileName, setRegistrationFileName] = useState<string | null>(null);
+  const registrationFileInputRef = useRef<HTMLInputElement>(null);
 
   const profileForm = useForm<SaccoProfileFormValues>({
     resolver: zodResolver(saccoProfileFormSchema),
@@ -116,9 +131,15 @@ export default function SaccoProfileSettingsPage() {
   });
 
   const [showAssignRoleDialog, setShowAssignRoleDialog] = useState(false);
+  const [assignMode, setAssignMode] = useState<'existing' | 'create'>('existing');
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [selectedRole, setSelectedRole] = useState<string>('sacco_officer');
   const [roleToRemove, setRoleToRemove] = useState<{ userId: string; role: string; saccoId?: string | null; welfareGroupId?: string | null } | null>(null);
+
+  const createUserForm = useForm<SaccoCreateUserFormValues>({
+    resolver: zodResolver(saccoCreateUserFormSchema),
+    defaultValues: { full_name: '', email: '', phone: '', password: '', role: 'sacco_officer' },
+  });
 
   // Update form when sacco data loads
   useEffect(() => {
@@ -147,6 +168,59 @@ export default function SaccoProfileSettingsPage() {
       updates: values,
     });
   };
+
+  const createSaccoUser = useMutation({
+    mutationFn: async (values: SaccoCreateUserFormValues) => {
+      if (!countyId || !saccoId || !sacco) throw new Error('Sacco context required');
+      let userId: string;
+      try {
+        const { data: authData, error: authError } = await (supabase.auth as any).admin?.createUser({
+          email: values.email,
+          password: values.password,
+          email_confirm: true,
+          user_metadata: { full_name: values.full_name },
+        });
+        if (authError) throw authError;
+        if (!authData?.user) throw new Error('Failed to create user');
+        userId = authData.user.id;
+      } catch (_) {
+        const { data: signupData, error: signupError } = await supabase.auth.signUp({
+          email: values.email,
+          password: values.password,
+          options: { emailRedirectTo: window.location.origin, data: { full_name: values.full_name } },
+        });
+        if (signupError) throw signupError;
+        if (!signupData.user) throw new Error('Failed to create user');
+        userId = signupData.user.id;
+      }
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          county_id: sacco.county_id,
+          full_name: values.full_name,
+          phone: (values.phone && values.phone.trim()) || null,
+        })
+        .eq('id', userId);
+      if (profileError) throw profileError;
+      await assignRole.mutateAsync({
+        userId,
+        role: values.role,
+        countyId,
+        saccoId,
+      });
+      return userId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sacco-officials', countyId, saccoId] });
+      queryClient.invalidateQueries({ queryKey: ['county-users', countyId] });
+      toast.success('User created and role assigned');
+      setShowAssignRoleDialog(false);
+      createUserForm.reset({ full_name: '', email: '', phone: '', password: '', role: 'sacco_officer' });
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to create user'),
+  });
+
+  const handleCreateUser = (values: SaccoCreateUserFormValues) => createSaccoUser.mutate(values);
 
   const handleAssignRole = async () => {
     if (!countyId || !selectedUser) return;
@@ -188,13 +262,22 @@ export default function SaccoProfileSettingsPage() {
     const file = e.target.files?.[0];
     if (!file || !saccoId || !countyId) return;
 
+    setRegistrationFileName(file.name);
     const documentType = e.target.name || 'registration';
-    uploadDocument.mutate({
-      file,
-      saccoId,
-      countyId,
-      documentType,
-    });
+    uploadDocument.mutate(
+      {
+        file,
+        saccoId,
+        countyId,
+        documentType,
+      },
+      {
+        onSuccess: () => {
+          setRegistrationFileName(null);
+          if (registrationFileInputRef.current) registrationFileInputRef.current.value = '';
+        },
+      }
+    );
   };
 
   const handleDeleteDocument = () => {
@@ -426,72 +509,199 @@ export default function SaccoProfileSettingsPage() {
                         <Users className="h-5 w-5 shrink-0" />
                         Manage Officials
                       </CardTitle>
-                      <CardDescription className="text-sm">Assign and remove roles for sacco officials.</CardDescription>
+                      <CardDescription className="text-sm">Assign and remove roles for sacco officials. Assign an existing user or create a new user and assign a role.</CardDescription>
                     </div>
-                    <Dialog open={showAssignRoleDialog} onOpenChange={setShowAssignRoleDialog}>
+                    <Dialog
+                      open={showAssignRoleDialog}
+                      onOpenChange={(open) => {
+                        setShowAssignRoleDialog(open);
+                        if (!open) {
+                          setAssignMode('existing');
+                          setSelectedUser('');
+                          createUserForm.reset({ full_name: '', email: '', phone: '', password: '', role: 'sacco_officer' });
+                        }
+                      }}
+                    >
                       <DialogTrigger asChild>
                         <Button className="gap-2 min-h-[44px] w-full sm:w-auto touch-manipulation justify-center">
                           <UserPlus className="h-4 w-4 shrink-0" />
                           Assign Role
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-lg p-4 sm:p-6">
+                      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle>Assign Role to Official</DialogTitle>
-                          <DialogDescription>Select a user and role to assign.</DialogDescription>
+                          <DialogDescription>
+                            Assign a role to an existing user or create a new user and assign a role.
+                          </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="user-select">User</Label>
-                            <Select value={selectedUser} onValueChange={setSelectedUser}>
-                              <SelectTrigger id="user-select" className="min-h-[44px]">
-                                <SelectValue placeholder="Select user" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {countyUsers
-                                  .filter((u) => u.is_active)
-                                  .map((user) => (
-                                    <SelectItem key={user.id} value={user.id}>
-                                      {user.full_name || user.email}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="role-select">Role</Label>
-                            <Select value={selectedRole} onValueChange={(v: any) => setSelectedRole(v)}>
-                              <SelectTrigger id="role-select" className="min-h-[44px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="sacco_admin">Sacco Admin</SelectItem>
-                                <SelectItem value="sacco_officer">Sacco Officer</SelectItem>
-                                <SelectItem value="chairman">Chairman</SelectItem>
-                                <SelectItem value="vice_chairman">Vice Chairman</SelectItem>
-                                <SelectItem value="secretary">Secretary</SelectItem>
-                                <SelectItem value="vice_secretary">Vice Secretary</SelectItem>
-                                <SelectItem value="treasurer">Treasurer</SelectItem>
-                                <SelectItem value="vice_treasurer">Vice Treasurer</SelectItem>
-                                <SelectItem value="general_official">General Official</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowAssignRoleDialog(false)} className="min-h-[44px] touch-manipulation">
-                              Cancel
+                          <div className="flex gap-2 border-b pb-3">
+                            <Button
+                              type="button"
+                              variant={assignMode === 'existing' ? 'secondary' : 'ghost'}
+                              size="sm"
+                              className="min-h-[44px] touch-manipulation"
+                              onClick={() => { setAssignMode('existing'); setSelectedUser(''); }}
+                            >
+                              Existing user
                             </Button>
-                            <Button onClick={handleAssignRole} disabled={!selectedUser || assignRole.isPending} className="min-h-[44px] touch-manipulation">
-                              {assignRole.isPending ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Assigning…
-                                </>
-                              ) : (
-                                'Assign'
-                              )}
-                            </Button>
+                            {isSaccoAdmin && (
+                              <Button
+                                type="button"
+                                variant={assignMode === 'create' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                className="min-h-[44px] touch-manipulation"
+                                onClick={() => { setAssignMode('create'); setSelectedUser(''); createUserForm.reset({ full_name: '', email: '', phone: '', password: '', role: (selectedRole || 'sacco_officer') as SaccoCreateUserFormValues['role'] }); }}
+                              >
+                                Create new user
+                              </Button>
+                            )}
                           </div>
+
+                          {assignMode === 'existing' ? (
+                            <>
+                              <div className="space-y-2">
+                                <Label htmlFor="user-select">User</Label>
+                                <Select value={selectedUser} onValueChange={setSelectedUser}>
+                                  <SelectTrigger id="user-select" className="min-h-[44px]">
+                                    <SelectValue placeholder="Select user" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {countyUsers
+                                      .filter((u) => u.is_active && u.roles.some((r) => SACCO_OFFICIAL_ROLES.some((o) => o.value === r.role)))
+                                      .map((user) => (
+                                        <SelectItem key={user.id} value={user.id}>
+                                          {user.full_name || user.email}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="role-select">Role</Label>
+                                <Select value={selectedRole} onValueChange={(v: string) => setSelectedRole(v)}>
+                                  <SelectTrigger id="role-select" className="min-h-[44px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {SACCO_OFFICIAL_ROLES.map((r) => (
+                                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setShowAssignRoleDialog(false)} className="min-h-[44px] touch-manipulation">
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleAssignRole} disabled={!selectedUser || assignRole.isPending} className="min-h-[44px] touch-manipulation">
+                                  {assignRole.isPending ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Assigning…
+                                    </>
+                                  ) : (
+                                    'Assign'
+                                  )}
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <Form {...createUserForm}>
+                              <form onSubmit={createUserForm.handleSubmit(handleCreateUser)} className="space-y-4">
+                                <FormField
+                                  control={createUserForm.control}
+                                  name="full_name"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Full Name *</FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="John Doe" className="min-h-[44px]" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={createUserForm.control}
+                                  name="email"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Email *</FormLabel>
+                                      <FormControl>
+                                        <Input type="email" placeholder="user@example.com" className="min-h-[44px]" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={createUserForm.control}
+                                  name="phone"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Phone</FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="+254712345678" className="min-h-[44px]" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={createUserForm.control}
+                                  name="password"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Password *</FormLabel>
+                                      <FormControl>
+                                        <Input type="password" placeholder="Minimum 6 characters" className="min-h-[44px]" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={createUserForm.control}
+                                  name="role"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Role *</FormLabel>
+                                      <Select value={field.value} onValueChange={field.onChange}>
+                                        <FormControl>
+                                          <SelectTrigger className="min-h-[44px]">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          {SACCO_OFFICIAL_ROLES.map((r) => (
+                                            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <div className="flex justify-end gap-2 pt-2">
+                                  <Button type="button" variant="outline" onClick={() => setShowAssignRoleDialog(false)} className="min-h-[44px] touch-manipulation">
+                                    Cancel
+                                  </Button>
+                                  <Button type="submit" disabled={createSaccoUser.isPending} className="min-h-[44px] touch-manipulation">
+                                    {createSaccoUser.isPending ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Creating…
+                                      </>
+                                    ) : (
+                                      'Create & assign role'
+                                    )}
+                                  </Button>
+                                </div>
+                              </form>
+                            </Form>
+                          )}
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -591,17 +801,32 @@ export default function SaccoProfileSettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="registration-doc" className="text-sm">Registration Document</Label>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <Input
-                        id="registration-doc"
-                        type="file"
-                        name="registration"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={handleFileUpload}
-                        disabled={uploadDocument.isPending}
-                        className="flex-1 min-h-[44px] w-full touch-manipulation file:mr-2 file:py-2 file:px-3 file:text-sm"
-                      />
+                      <label
+                        htmlFor="registration-doc"
+                        className="flex flex-1 min-h-[44px] w-full touch-manipulation rounded-md border border-input bg-background ring-offset-background has-[:focus-visible]:outline-none has-[:focus-visible]:border-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
+                      >
+                        <span className="flex h-full min-h-[44px] w-full cursor-pointer items-center gap-2 px-3 py-2">
+                          <span className="rounded bg-muted px-3 py-2 text-sm font-medium text-foreground shrink-0">
+                            Choose File
+                          </span>
+                          <span className="truncate text-sm text-muted-foreground min-w-0">
+                            {registrationFileName ?? 'No file chosen'}
+                          </span>
+                        </span>
+                        <input
+                          ref={registrationFileInputRef}
+                          id="registration-doc"
+                          type="file"
+                          name="registration"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={handleFileUpload}
+                          disabled={uploadDocument.isPending}
+                          className="sr-only"
+                          aria-label="Registration document"
+                        />
+                      </label>
                       {uploadDocument.isPending && (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
                       )}
                     </div>
                   </div>

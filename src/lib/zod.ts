@@ -387,6 +387,20 @@ export const saccoProfileFormSchema = z.object({
   address: riderAddressSchema,
 });
 
+/** Sacco portal: create user (sacco admin only). One sacco role. */
+const SACCO_OFFICIAL_ROLE_VALUES = [
+  'sacco_admin', 'sacco_officer', 'chairman', 'vice_chairman', 'secretary', 'vice_secretary',
+  'treasurer', 'vice_treasurer', 'general_official',
+] as const;
+export const saccoCreateUserFormSchema = z.object({
+  full_name: riderNameSchema,
+  email: z.string().min(1, 'Email is required').email('Invalid email'),
+  phone: saccoContactPhoneSchema,
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(SACCO_OFFICIAL_ROLE_VALUES),
+});
+export type SaccoCreateUserFormValues = z.infer<typeof saccoCreateUserFormSchema>;
+
 export type SaccoProfileFormValues = z.infer<typeof saccoProfileFormSchema>;
 
 // ——— County validation (super-admin/counties add/edit) ———

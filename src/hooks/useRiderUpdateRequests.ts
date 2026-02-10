@@ -86,7 +86,7 @@ export function useSubmitRiderUpdateRequest() {
   });
 }
 
-/** County admins: fetch rider update requests for their county (optionally by status), with rider/owner and requester names. */
+/** County admins: fetch rider update requests for their county (or all counties when countyId undefined), with rider/owner and requester names. */
 export function useRiderUpdateRequestsByCounty(
   countyId: string | undefined,
   statusFilter?: 'pending' | 'approved' | 'rejected'
@@ -94,11 +94,10 @@ export function useRiderUpdateRequestsByCounty(
   return useQuery({
     queryKey: ['rider-update-requests-by-county', countyId, statusFilter],
     queryFn: async (): Promise<RiderUpdateRequestWithNames[]> => {
-      if (!countyId) return [];
       let q = fromRiderUpdateRequests()
         .select('*, riders(full_name), owners(full_name)')
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
+      if (countyId) q = q.eq('county_id', countyId);
       if (statusFilter) q = q.eq('status', statusFilter);
       const { data, error } = await q;
       if (error) throw error;
@@ -117,7 +116,7 @@ export function useRiderUpdateRequestsByCounty(
         requested_by_name: nameByUserId.get(r.requested_by) ?? null,
       }));
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
