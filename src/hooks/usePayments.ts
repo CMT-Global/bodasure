@@ -382,6 +382,7 @@ export function useVerifyPayment() {
         toast.success('Payment verified successfully!');
         queryClient.invalidateQueries({ queryKey: ['payments'] });
         queryClient.invalidateQueries({ queryKey: ['permits'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
         queryClient.invalidateQueries({ queryKey: ['riders'] });
         queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
         queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });

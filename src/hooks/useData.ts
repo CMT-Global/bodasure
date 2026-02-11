@@ -235,6 +235,7 @@ function escapeIlike(value: string): string {
 export function useRiderOwnerDashboard(userId: string | undefined) {
   return useQuery({
     queryKey: ['rider-owner-dashboard', userId],
+    refetchOnMount: 'always', // so permit status and last payment reflect after paying on Permit payments page
     queryFn: async (): Promise<RiderOwnerDashboardData> => {
       if (!userId) {
         return {

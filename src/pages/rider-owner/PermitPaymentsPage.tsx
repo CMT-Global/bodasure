@@ -130,6 +130,7 @@ function PermitPaymentsContent() {
   // When returning from Paystack with ?payment_reference=..., verify and refresh so status shows Completed
   const paymentReference = searchParams.get('payment_reference');
   const verifiedRef = useRef<string | null>(null);
+  const autoSyncAttemptedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!paymentReference || verifiedRef.current === paymentReference) return;
     verifiedRef.current = paymentReference;
@@ -137,11 +138,13 @@ function PermitPaymentsContent() {
       onSettled: () => {
         queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
         queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
         // Refetch multiple times to pick up DB update from verify (can be delayed)
         [800, 1500, 3000].forEach((ms) =>
           setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
             queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+            queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
           }, ms)
         );
         const next = new URLSearchParams(searchParams);
@@ -151,6 +154,31 @@ function PermitPaymentsContent() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when param appears
   }, [paymentReference]);
+
+  // Auto-sync payments that have paid_at but status still pending (e.g. webhook missed) so permit is created and status updated
+  useEffect(() => {
+    if (!payments.length || !rider?.id) return;
+    for (const p of payments) {
+      const ref = p.payment_reference;
+      if (!ref || autoSyncAttemptedRef.current.has(ref)) continue;
+      const meta = p.metadata as Record<string, unknown> | null;
+      const needsSync =
+        (p.status !== 'completed' && !!p.paid_at) ||
+        (!!meta?.permit_type_id && !p.permit_id && !!meta?.permit_number);
+      if (needsSync) {
+        autoSyncAttemptedRef.current.add(ref);
+        verifyPayment.mutate(ref, {
+          onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+            queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+            queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
+          },
+        });
+        break; // one at a time
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- verifyPayment and queryClient are stable; only re-run when payments/rider change
+  }, [payments, rider?.id]);
 
   const [selectedPermitType, setSelectedPermitType] = useState<PermitType | null>(null);
   const [selectedMotorbikeId, setSelectedMotorbikeId] = useState<string>('');
