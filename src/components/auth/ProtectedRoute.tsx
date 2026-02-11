@@ -8,8 +8,9 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, roles, isLoading, isLoadingRoles, rolesLoaded, hasRole } = useAuth();
+  const { user, roles, isLoading, isLoadingRoles, rolesLoaded, hasRole, isProfileComplete } = useAuth();
   const location = useLocation();
+  const pathname = location.pathname;
 
   // Wait for auth to load
   if (isLoading) {
@@ -37,6 +38,11 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
         </div>
       </div>
     );
+  }
+
+  // Mandatory profile completion before accessing any protected route (except /complete-profile)
+  if (!isProfileComplete && pathname !== '/complete-profile') {
+    return <Navigate to="/complete-profile" replace />;
   }
 
   // When requiredRoles is specified, enforce them strictly (no bypass) — e.g. Super Admin Portal only for platform_super_admin/platform_admin

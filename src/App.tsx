@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Unauthorized from "./pages/Unauthorized";
+import CompleteProfilePage from "./pages/CompleteProfilePage";
 import NotFound from "./pages/NotFound";
 // Import role assignment utility (makes it available in browser console)
 import "@/utils/assignRole";
@@ -125,6 +126,7 @@ const App = () => (
             <Route path="/login" element={<RedirectIfAuthenticated><Login /></RedirectIfAuthenticated>} />
             <Route path="/signup" element={<RedirectIfAuthenticated><Signup /></RedirectIfAuthenticated>} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfilePage /></ProtectedRoute>} />
             <Route path="/verify" element={<PublicVerificationPage />} />
             <Route path="/verify/:qrCode" element={<PublicVerificationPage />} />
 
