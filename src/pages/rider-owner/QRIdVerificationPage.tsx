@@ -59,9 +59,6 @@ function QRIdVerificationContent() {
   const stageName = rider?.stage?.name ?? null;
   const latestPermit = data?.permits?.[0];
   const permitStatus = getPermitDisplayStatus(latestPermit);
-  const permitExpiry = latestPermit?.expires_at
-    ? format(parseISO(latestPermit.expires_at), 'dd MMM yyyy')
-    : null;
   const complianceStatus = rider?.compliance_status ?? 'pending_review';
 
   const verificationUrl = rider?.qr_code
@@ -266,9 +263,6 @@ function QRIdVerificationContent() {
                       <StatusBadge status={permitStatus} />
                     )}
                     <StatusBadge status={complianceStatus} />
-                    {permitExpiry && permitStatus !== 'none' && (
-                      <span className="text-[11px] text-muted-foreground">Exp: {permitExpiry}</span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -324,9 +318,6 @@ function QRIdVerificationContent() {
                         <StatusBadge status={permitStatus} />
                       )}
                       <StatusBadge status={complianceStatus} />
-                      {permitExpiry && permitStatus !== 'none' && (
-                        <span className="text-[11px] text-muted-foreground">Exp {permitExpiry}</span>
-                      )}
                     </div>
                   </div>
                 </div>

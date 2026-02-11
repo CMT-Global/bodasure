@@ -224,7 +224,8 @@ export interface RiderOwnerProfileData {
   ownedBikes: RiderOwnerProfileBike[];
 }
 
-const EXPIRING_SOON_DAYS = 30;
+/** Show "Expiring soon" only when within this many days of expiry (e.g. 7 = one week for 1-month permits). */
+const EXPIRING_SOON_DAYS = 7;
 
 /** Escape % and _ for use in ilike so they match literally (case-insensitive email match). */
 function escapeIlike(value: string): string {

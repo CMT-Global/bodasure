@@ -2,9 +2,10 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RiderOwnerLayout } from '@/components/layout/RiderOwnerLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { useRiderOwnerDashboard, useRiderOwnerProfile } from '@/hooks/useData';
+import { useRiderOwnerDashboard, useRiderOwnerProfile, EXPIRING_SOON_DAYS } from '@/hooks/useData';
 import {
   usePermitTypes,
+  useRiderPermits,
   useRiderPaymentHistory,
   useInitializePayment,
   useVerifyPayment,
@@ -46,7 +47,7 @@ import {
   FileText,
   Download,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
@@ -80,6 +81,7 @@ function PermitPaymentsContent() {
   }, [dashboardData?.motorbikes, profileData?.motorbikes, profileData?.ownedBikes]);
 
   const { data: permitTypes = [], isLoading: permitTypesLoading } = usePermitTypes(countyId);
+  const { data: riderPermits = [], isLoading: riderPermitsLoading } = useRiderPermits(rider?.id);
   const { data: paymentsData, isLoading: paymentsLoading } = useRiderPaymentHistory(
     rider?.id ?? '',
     countyId
@@ -87,6 +89,39 @@ function PermitPaymentsContent() {
   const payments = (paymentsData ?? []) as PaymentWithPermit[];
   const initializePayment = useInitializePayment();
   const verifyPayment = useVerifyPayment();
+
+  // Block buying same permit type for same bike until it is "expiring soon" (within EXPIRING_SOON_DAYS). Once expiring soon or expired, rider can buy again.
+  const activePermitKeys = useMemo(() => {
+    const now = new Date();
+    const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
+    const set = new Set<string>();
+    for (const p of riderPermits) {
+      if (p.status !== 'active' || !p.expires_at) continue;
+      const expiresAt = parseISO(p.expires_at);
+      if (expiresAt <= now) continue; // already expired
+      // Block only if expiry is after the "expiring soon" window (more than EXPIRING_SOON_DAYS left)
+      if (expiresAt > expiringSoonThreshold) {
+        set.add(`${p.motorbike_id}|${p.permit_type_id}`);
+      }
+    }
+    return set;
+  }, [riderPermits]);
+
+  // Latest permit for expiry display (most recent by expires_at) — include type name and bike so we can show "which" permit
+  const latestPermitForExpiry = useMemo(() => {
+    const withExpiry = riderPermits.filter((p) => p.expires_at);
+    if (withExpiry.length === 0) return null;
+    const sorted = [...withExpiry].sort(
+      (a, b) => parseISO(b.expires_at!).getTime() - parseISO(a.expires_at!).getTime()
+    );
+    const p = sorted[0];
+    const bikeLabel = motorbikes.find((m) => m.id === p.motorbike_id)?.registration_number ?? null;
+    return {
+      expires_at: p.expires_at!,
+      permitTypeName: p.permit_types?.name ?? 'Permit',
+      motorbikeRegistration: bikeLabel,
+    };
+  }, [riderPermits, motorbikes]);
 
   // Match county portal: treat as paid if status is completed OR paid_at is set (webhook may set paid_at first)
   const getPaymentDisplayStatus = (p: PaymentWithPermit) =>
@@ -141,6 +176,12 @@ function PermitPaymentsContent() {
   const email = profile?.email ?? '';
   const riderId = rider?.id ?? '';
   const selectedType = selectedPermitType;
+
+  // Block buying if rider already has an active permit for this bike + permit type
+  const hasActivePermitForSelection =
+    !!selectedMotorbikeId &&
+    !!selectedType &&
+    activePermitKeys.has(`${selectedMotorbikeId}|${selectedType.id}`);
 
   const handlePay = () => {
     setFormErrors({});
@@ -236,9 +277,38 @@ function PermitPaymentsContent() {
             Choose a permit option and pay via Paystack (card or M-Pesa). On success your permit
             becomes active and expiry updates.
           </CardDescription>
+          {latestPermitForExpiry && (
+            <p className="text-sm font-medium text-foreground mt-2">
+              <span className="text-primary font-medium">{latestPermitForExpiry.permitTypeName}</span>
+              {latestPermitForExpiry.motorbikeRegistration && (
+                <> <span className="text-muted-foreground">({latestPermitForExpiry.motorbikeRegistration})</span></>
+              )}
+              {' — expires '}
+              <span className="text-primary">{format(parseISO(latestPermitForExpiry.expires_at), 'dd MMM yyyy')}</span>
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
-          {permitTypesLoading || dashboardLoading ? (
+          {hasActivePermitForSelection && selectedType && selectedMotorbikeId && (() => {
+            const activePermit = riderPermits.find(
+              (p) =>
+                p.motorbike_id === selectedMotorbikeId &&
+                p.permit_type_id === selectedType.id &&
+                p.status === 'active' &&
+                p.expires_at &&
+                parseISO(p.expires_at) > new Date()
+            );
+            const expiryStr = activePermit?.expires_at
+              ? format(parseISO(activePermit.expires_at), 'dd MMM yyyy')
+              : '';
+            return (
+              <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+                You already have an active <strong>{selectedType.name}</strong> permit for this motorbike
+                {expiryStr ? ` until ${expiryStr}` : ''}. You can renew when it is expiring soon (within {EXPIRING_SOON_DAYS} days of expiry) or after it expires.
+              </div>
+            );
+          })()}
+          {permitTypesLoading || dashboardLoading || riderPermitsLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -352,6 +422,7 @@ function PermitPaymentsContent() {
                   !selectedMotorbikeId ||
                   !email ||
                   !!mpesaPhoneError ||
+                  hasActivePermitForSelection ||
                   initializePayment.isPending
                 }
                 onClick={handlePay}
@@ -417,6 +488,11 @@ function PermitPaymentsContent() {
                       <p className="text-sm text-muted-foreground mt-0.5">
                         {format(new Date(payment.created_at), 'dd MMM yyyy, HH:mm')}
                       </p>
+                      {payment.permits?.expires_at && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Expires: {format(new Date(payment.permits.expires_at), 'dd MMM yyyy')}
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
@@ -574,3 +650,4 @@ export default function PermitPaymentsPage() {
     </RiderOwnerLayout>
   );
 }
+

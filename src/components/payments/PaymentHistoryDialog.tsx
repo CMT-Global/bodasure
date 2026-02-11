@@ -9,7 +9,6 @@ import {
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { format } from 'date-fns';
 import { Loader2, History, CreditCard } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
@@ -40,7 +39,7 @@ export function PaymentHistoryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[min(36rem,calc(100vw-2rem))] w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-hidden flex flex-col overflow-x-hidden">
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
             Payment History
@@ -50,7 +49,7 @@ export function PaymentHistoryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2 -mr-2">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -169,7 +168,7 @@ export function PaymentHistoryDialog({
               </div>
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

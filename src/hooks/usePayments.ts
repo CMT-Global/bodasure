@@ -101,6 +101,34 @@ export function usePermits(countyId: string) {
   });
 }
 
+/** Rider's permits with type and bike for duplicate-purchase check and expiry display */
+export interface RiderPermitRow {
+  id: string;
+  permit_number: string;
+  status: string;
+  expires_at: string | null;
+  permit_type_id: string;
+  motorbike_id: string;
+  permit_types: { name: string; duration_days: number } | null;
+}
+
+export function useRiderPermits(riderId: string | undefined) {
+  return useQuery({
+    queryKey: ['rider-permits', riderId],
+    queryFn: async () => {
+      if (!riderId) return [];
+      const { data, error } = await supabase
+        .from('permits')
+        .select('id, permit_number, status, expires_at, permit_type_id, motorbike_id, permit_types(name, duration_days)')
+        .eq('rider_id', riderId)
+        .order('expires_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as RiderPermitRow[];
+    },
+    enabled: !!riderId,
+  });
+}
+
 // Fetch payments for a specific permit
 export function usePermitPayments(permitId: string) {
   return useQuery({
@@ -127,24 +155,26 @@ export function usePermitPayments(permitId: string) {
   });
 }
 
-export function usePayments(countyId: string) {
+export function usePayments(countyId: string | undefined) {
   return useQuery({
     queryKey: ['payments', countyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('payments')
         .select(`
           *,
           riders(id, full_name, phone),
           permits(permit_number, permit_types(name))
         `)
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
-      
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 

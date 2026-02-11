@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     referer?.includes("paystack.com") || origin?.includes("paystack.com");
   const baseUrlRaw =
     appOriginParam ||
-    (fromPaystack ? (appUrl || "http://localhost:5173") : (appUrl || referer || origin || "http://localhost:5173"));
+    (fromPaystack ? (appUrl || "http://localhost:8080") : (appUrl || referer || origin || "http://localhost:8080"));
   const baseUrlNormalized = baseUrlRaw.startsWith("http")
     ? baseUrlRaw
     : `https://${baseUrlRaw}`;
