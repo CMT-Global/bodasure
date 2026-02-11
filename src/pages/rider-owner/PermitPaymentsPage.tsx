@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RiderOwnerLayout } from '@/components/layout/RiderOwnerLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useRiderOwnerDashboard, useRiderOwnerProfile } from '@/hooks/useData';
@@ -7,6 +7,7 @@ import {
   usePermitTypes,
   useRiderPaymentHistory,
   useInitializePayment,
+  useVerifyPayment,
   type PermitType,
   type Payment,
 } from '@/hooks/usePayments';
@@ -63,6 +64,7 @@ type PaymentWithPermit = Payment & {
 function PermitPaymentsContent() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: dashboardData, isLoading: dashboardLoading, error } = useRiderOwnerDashboard(user?.id);
   const { data: profileData } = useRiderOwnerProfile(user?.id);
@@ -84,6 +86,29 @@ function PermitPaymentsContent() {
   );
   const payments = (paymentsData ?? []) as PaymentWithPermit[];
   const initializePayment = useInitializePayment();
+  const verifyPayment = useVerifyPayment();
+
+  // When returning from Paystack with ?payment_reference=..., verify and refresh so status shows Completed
+  const paymentReference = searchParams.get('payment_reference');
+  const verifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!paymentReference || verifiedRef.current === paymentReference) return;
+    verifiedRef.current = paymentReference;
+    verifyPayment.mutate(paymentReference, {
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+        // Refetch again after a short delay so we pick up the DB update from verify
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+        }, 800);
+        const next = new URLSearchParams(searchParams);
+        next.delete('payment_reference');
+        setSearchParams(next, { replace: true });
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when param appears
+  }, [paymentReference]);
 
   const [selectedPermitType, setSelectedPermitType] = useState<PermitType | null>(null);
   const [selectedMotorbikeId, setSelectedMotorbikeId] = useState<string>('');

@@ -155,13 +155,23 @@ Deno.serve(async (req) => {
       customFields.push({ display_name: "Penalty ID", variable_name: "penalty_id", value: penalty_id });
     }
 
+    // Return path so callback redirects user to the page where they started payment
+    const returnPath = isPenaltyPayment
+      ? "/rider-owner/penalties-payments"
+      : "/rider-owner/permit-payments";
+    const callbackUrl = new URL(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/paystack-callback`
+    );
+    callbackUrl.searchParams.set("reference", reference);
+    callbackUrl.searchParams.set("return_path", returnPath);
+
     // Initialize Paystack transaction
     const paystackPayload: Record<string, unknown> = {
       email,
       amount: Math.round(amount * 100), // Paystack expects amount in cents/kobo
       reference,
       currency: "KES",
-      callback_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/paystack-callback?reference=${reference}`,
+      callback_url: callbackUrl.toString(),
       metadata: {
         payment_id: payment.id,
         rider_id,
@@ -201,10 +211,12 @@ Deno.serve(async (req) => {
         .update({ status: "failed" })
         .eq("id", payment.id);
 
+      const errMsg =
+        paystackData.message ||
+        (paystackData as { err?: { msg?: string } }).err?.msg ||
+        "Paystack could not start the payment. Check your Paystack keys and callback URL.";
       return new Response(
-        JSON.stringify({
-          error: paystackData.message || "Failed to initialize payment",
-        }),
+        JSON.stringify({ error: errMsg }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

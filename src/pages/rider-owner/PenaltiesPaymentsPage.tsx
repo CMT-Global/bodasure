@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RiderOwnerLayout } from '@/components/layout/RiderOwnerLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useRiderOwnerDashboard } from '@/hooks/useData';
 import { useRiderPenalties } from '@/hooks/usePenalties';
-import { useInitializePenaltyPayment } from '@/hooks/usePayments';
+import { useInitializePenaltyPayment, useVerifyPayment } from '@/hooks/usePayments';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,16 +25,37 @@ function getPenaltyStatus(penalty: Penalty): 'unpaid' | 'paid' | 'waived' {
 
 function PenaltiesPaymentsContent() {
   const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: dashboardData, isLoading: dashboardLoading, error } = useRiderOwnerDashboard(user?.id);
   const rider = dashboardData?.rider ?? null;
   const countyId = rider?.county_id ?? undefined;
   const { data: penalties = [], isLoading: penaltiesLoading } = useRiderPenalties(rider?.id ?? '', countyId);
   const initializePenaltyPayment = useInitializePenaltyPayment();
+  const verifyPayment = useVerifyPayment();
 
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
   const [payingPenaltyId, setPayingPenaltyId] = useState<string | null>(null);
+
+  const paymentReference = searchParams.get('payment_reference');
+  const verifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!paymentReference || verifiedRef.current === paymentReference) return;
+    verifiedRef.current = paymentReference;
+    verifyPayment.mutate(paymentReference, {
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['rider-penalties', rider?.id ?? '', countyId] });
+        queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['rider-penalties', rider?.id ?? '', countyId] });
+        }, 800);
+        const next = new URLSearchParams(searchParams);
+        next.delete('payment_reference');
+        setSearchParams(next, { replace: true });
+      },
+    });
+  }, [paymentReference]);
 
   const handleMpesaPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;

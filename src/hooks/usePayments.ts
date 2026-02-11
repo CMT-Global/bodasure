@@ -219,19 +219,28 @@ export function useInitializePayment() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(params),
-        }
-      );
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(params),
+      });
 
-      const data = await response.json();
+      let data: { error?: string; data?: { authorization_url?: string }; success?: boolean };
+      try {
+        data = await response.json();
+      } catch {
+        const msg = response.status === 404
+          ? 'Payment service unavailable. Deploy the paystack-initialize function to your Supabase project.'
+          : response.status === 502 || response.status === 503
+            ? 'Payment service temporarily unavailable. Try again in a moment.'
+            : `Failed to initialize payment (${response.status})`;
+        throw new Error(msg);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to initialize payment');
       }
@@ -256,19 +265,28 @@ export function useInitializePenaltyPayment() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(params),
-        }
-      );
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(params),
+      });
 
-      const data = await response.json();
+      let data: { error?: string; data?: { authorization_url?: string }; success?: boolean };
+      try {
+        data = await response.json();
+      } catch {
+        const msg = response.status === 404
+          ? 'Payment service unavailable. Deploy the paystack-initialize function to your Supabase project.'
+          : response.status === 502 || response.status === 503
+            ? 'Payment service temporarily unavailable. Try again in a moment.'
+            : `Failed to initialize payment (${response.status})`;
+        throw new Error(msg);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to initialize payment');
       }
@@ -315,6 +333,8 @@ export function useVerifyPayment() {
         queryClient.invalidateQueries({ queryKey: ['payments'] });
         queryClient.invalidateQueries({ queryKey: ['permits'] });
         queryClient.invalidateQueries({ queryKey: ['riders'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
       }
     },
     onError: (error: Error) => {

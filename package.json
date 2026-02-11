@@ -16,7 +16,8 @@
         "supabase:link": "supabase link",
         "supabase:push": "supabase db push",
         "supabase:reset": "supabase db reset",
-        "supabase:types": "supabase gen types typescript --local > src/integrations/supabase/types.ts"
+        "supabase:types": "supabase gen types typescript --local > src/integrations/supabase/types.ts",
+        "supabase:functions:serve": "supabase functions serve --env-file .env"
     },
     "dependencies": {
         "@hookform/resolvers": "^3.10.0",
