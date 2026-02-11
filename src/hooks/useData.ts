@@ -1417,7 +1417,8 @@ export async function fetchDashboardStatsForCounty(countyId: string): Promise<Da
   let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId);
   let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('status', 'active');
   let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('compliance_status', 'non_compliant');
-  let paymentsQuery = supabase.from('payments').select('amount').eq('status', 'completed').eq('county_id', countyId);
+  // Match dashboard/payments: count as paid if status is 'completed' OR paid_at is set
+  let paymentsQuery = supabase.from('payments').select('amount, status, paid_at').eq('county_id', countyId);
 
   const [riders, activePermits, nonCompliantRiders, payments] = await Promise.all([
     ridersQuery,
@@ -1427,7 +1428,10 @@ export async function fetchDashboardStatsForCounty(countyId: string): Promise<Da
   ]);
 
   const totalRiders = riders.count ?? 0;
-  const totalRevenue = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) ?? 0;
+  const isPaidPayment = (p: { status?: string; paid_at?: string | null }) =>
+    p.status === 'completed' || !!p.paid_at;
+  const totalRevenue =
+    payments.data?.filter(isPaidPayment).reduce((sum, p) => sum + Number(p.amount), 0) ?? 0;
   const complianceRate = totalRiders > 0 ? Math.round(((totalRiders - (nonCompliantRiders.count ?? 0)) / totalRiders) * 100) : 100;
 
   return {
@@ -2107,7 +2111,8 @@ export function useDashboardStats(countyId?: string) {
       let penaltiesTotalQuery = supabase.from('penalties').select('id', { count: 'exact', head: true });
       let penaltiesUnpaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', false);
       let penaltiesPaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', true);
-      let paymentsQuery = supabase.from('payments').select('amount').eq('status', 'completed');
+      // Match dashboard/payments: count as paid if status is 'completed' OR paid_at is set
+      let paymentsQuery = supabase.from('payments').select('amount, status, paid_at');
 
       // Apply county filter if provided
       if (countyId) {
@@ -2147,7 +2152,10 @@ export function useDashboardStats(countyId?: string) {
         (p) => p.status === 'expired' || (p.expires_at && new Date(p.expires_at) < new Date(now))
       ).length || 0;
 
-      const totalRevenue = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
+      const totalRevenue =
+        payments.data?.filter(isPaid).reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
       return {
         totalRiders: riders.count || 0,
@@ -2311,16 +2319,17 @@ export function useMonthlyRevenue(countyId?: string, months: number = 6) {
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
 
+      // Match dashboard/payments: revenue = payments with paid_at set (completed or paid_at)
       let paymentsQuery = supabase
         .from('payments')
-        .select('amount, paid_at')
-        .eq('status', 'completed')
+        .select('amount, paid_at, status')
+        .not('paid_at', 'is', null)
         .gte('paid_at', startDate.toISOString())
         .lte('paid_at', now.toISOString());
       if (countyId) paymentsQuery = paymentsQuery.eq('county_id', countyId);
       const { data: payments } = await paymentsQuery;
 
-      // Group by month
+      // Group by month (include payment if status is completed OR paid_at is set)
       const monthMap = new Map<string, number>();
 
       // Initialize all months with 0
@@ -2331,9 +2340,10 @@ export function useMonthlyRevenue(countyId?: string, months: number = 6) {
         monthMap.set(monthKey, 0);
       }
 
-      // Sum payments by month
-      payments?.forEach((payment: any) => {
-        if (payment.paid_at) {
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
+      payments?.forEach((payment: { amount?: number; paid_at?: string | null; status?: string }) => {
+        if (payment.paid_at && isPaid(payment)) {
           const date = new Date(payment.paid_at);
           const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
           const current = monthMap.get(monthKey) || 0;

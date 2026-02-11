@@ -136,7 +136,7 @@ export function usePayments(countyId: string) {
         .select(`
           *,
           riders(id, full_name, phone),
-          permits(permit_number)
+          permits(permit_number, permit_types(name))
         `)
         .eq('county_id', countyId)
         .order('created_at', { ascending: false });
@@ -191,6 +191,14 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
       }>;
     },
     enabled: !!riderId,
+    // When there are pending payments, poll so we pick up webhook updates (county shows paid; rider should too)
+    refetchInterval: (query) => {
+      const list = (query.state.data ?? []) as Payment[];
+      const hasPending = list.some(
+        (p) => p.status !== 'completed' && !p.paid_at
+      );
+      return hasPending ? 5000 : false;
+    },
   });
 }
 
@@ -202,6 +210,8 @@ interface InitializePaymentParams {
   rider_id: string;
   motorbike_id: string;
   county_id: string;
+  /** Return path after payment (e.g. /dashboard/payments). Omit for rider-owner defaults. */
+  return_path?: string;
 }
 
 export interface InitializePenaltyPaymentParams {
@@ -211,6 +221,8 @@ export interface InitializePenaltyPaymentParams {
   phone?: string;
   rider_id: string;
   county_id: string;
+  /** Return path after payment (e.g. /dashboard/payments). Omit for rider-owner defaults. */
+  return_path?: string;
 }
 
 export function useInitializePayment() {
@@ -220,13 +232,17 @@ export function useInitializePayment() {
       if (!session) throw new Error('Not authenticated');
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`;
+      const body = {
+        ...params,
+        app_origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+      };
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(params),
+        body: JSON.stringify(body),
       });
 
       let data: { error?: string; data?: { authorization_url?: string }; success?: boolean };
@@ -266,13 +282,17 @@ export function useInitializePenaltyPayment() {
       if (!session) throw new Error('Not authenticated');
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`;
+      const body = {
+        ...params,
+        app_origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+      };
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(params),
+        body: JSON.stringify(body),
       });
 
       let data: { error?: string; data?: { authorization_url?: string }; success?: boolean };
@@ -335,6 +355,10 @@ export function useVerifyPayment() {
         queryClient.invalidateQueries({ queryKey: ['riders'] });
         queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
         queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['monthly-revenue'] });
+        queryClient.invalidateQueries({ queryKey: ['revenue-by-date-range'] });
+        queryClient.invalidateQueries({ queryKey: ['revenue-by-county'] });
       }
     },
     onError: (error: Error) => {

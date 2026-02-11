@@ -90,12 +90,14 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
   return useQuery({
     queryKey: ['revenue-by-date-range', countyId, startDate, endDate],
     queryFn: async () => {
-      // Build queries: when countyId is set filter by county; when undefined aggregate all counties
+      // Match dashboard/payments: revenue = paid (status completed OR paid_at set); filter by paid_at in range
       let permitQuery = supabase
         .from('payments')
-        .select('amount, paid_at, permit_id')
-        .eq('status', 'completed');
+        .select('amount, paid_at, permit_id, status');
       if (countyId) permitQuery = permitQuery.eq('county_id', countyId);
+      if (startDate) permitQuery = permitQuery.gte('paid_at', `${startDate}T00:00:00.000Z`);
+      if (endDate) permitQuery = permitQuery.lte('paid_at', `${endDate}T23:59:59.999Z`);
+      permitQuery = permitQuery.not('paid_at', 'is', null);
 
       let penaltyQuery = supabase
         .from('penalties')
@@ -117,13 +119,13 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
       // Group by date
       const dateMap = new Map<string, { permit: number; penalty: number }>();
 
-      (permitPayments.data || []).forEach((payment: any) => {
-        if (payment.paid_at) {
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
+      (permitPayments.data || []).forEach((payment: { amount?: number; paid_at?: string; status?: string }) => {
+        if (payment.paid_at && isPaid(payment)) {
           const paymentDate = payment.paid_at.split('T')[0];
-          // Check if payment date is within range
           if (startDate && paymentDate < startDate) return;
           if (endDate && paymentDate > endDate) return;
-          
           const current = dateMap.get(paymentDate) || { permit: 0, penalty: 0 };
           dateMap.set(paymentDate, { ...current, permit: current.permit + Number(payment.amount || 0) });
         }
@@ -522,10 +524,11 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
       if (!counties?.length) return [] as RevenueByCounty[];
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      // Match dashboard/payments: revenue = paid (status completed OR paid_at set); filter by paid_at in range
       let paymentsQuery = supabase
         .from('payments')
-        .select('county_id, amount, paid_at')
-        .eq('status', 'completed');
+        .select('county_id, amount, paid_at, status')
+        .not('paid_at', 'is', null);
       if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
       if (endBound) paymentsQuery = paymentsQuery.lte('paid_at', endBound);
       const { data: payments, error: payError } = await paymentsQuery;
@@ -540,7 +543,10 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
       const countyMap = new Map<string, { permit: number; penalty: number }>();
       counties.forEach((c: { id: string }) => countyMap.set(c.id, { permit: 0, penalty: 0 }));
 
-      (payments || []).forEach((p: { county_id: string; amount: number; paid_at?: string }) => {
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
+      (payments || []).forEach((p: { county_id: string; amount: number; paid_at?: string; status?: string }) => {
+        if (!isPaid(p)) return;
         const key = p.county_id;
         if (!key) return;
         let dateOk = true;

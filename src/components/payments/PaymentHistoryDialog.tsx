@@ -32,8 +32,9 @@ export function PaymentHistoryDialog({
 
   if (!riderId) return null;
 
+  // Treat as paid if status is completed OR paid_at is set (e.g. webhook set paid_at but status lagged)
   const totalPaid = payments
-    ?.filter(p => p.status === 'completed')
+    ?.filter(p => p.status === 'completed' || !!p.paid_at)
     .reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
   return (
@@ -98,7 +99,7 @@ export function PaymentHistoryDialog({
                                   currency: 'KES',
                                 }).format(payment.amount)}
                               </p>
-                              <StatusBadge status={payment.status} />
+                              <StatusBadge status={payment.paid_at ? 'completed' : payment.status} />
                             </div>
                             {payment.payment_reference && (
                               <p className="text-xs text-muted-foreground font-mono">

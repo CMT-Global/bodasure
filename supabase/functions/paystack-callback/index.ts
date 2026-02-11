@@ -13,18 +13,18 @@ Deno.serve(async (req) => {
   const reference =
     url.searchParams.get("reference") || url.searchParams.get("trxref");
   const returnPath = url.searchParams.get("return_path") || "";
+  const appOriginParam = url.searchParams.get("app_origin")?.replace(/\/$/, "");
 
-  // After payment, Paystack redirects the browser here, so Referer is checkout.paystack.com.
-  // We must redirect to YOUR app, not back to Paystack. So when request is from Paystack, use APP_URL only.
+  // Prefer app_origin from callback URL (set by frontend when starting payment) so redirect works
+  // even when APP_URL is not set. After payment, Paystack redirects here so referer is paystack.com.
   const appUrl = Deno.env.get("APP_URL")?.replace(/\/$/, "");
   const referer = req.headers.get("referer")?.replace(/\/$/, "");
   const origin = req.headers.get("origin")?.replace(/\/$/, "");
   const fromPaystack =
     referer?.includes("paystack.com") || origin?.includes("paystack.com");
   const baseUrlRaw =
-    fromPaystack
-      ? (appUrl || "http://localhost:5173")
-      : (appUrl || referer || origin || "http://localhost:5173");
+    appOriginParam ||
+    (fromPaystack ? (appUrl || "http://localhost:5173") : (appUrl || referer || origin || "http://localhost:5173"));
   const baseUrlNormalized = baseUrlRaw.startsWith("http")
     ? baseUrlRaw
     : `https://${baseUrlRaw}`;

@@ -367,25 +367,44 @@ Deno.serve(async (req) => {
     if (event.event === "charge.success") {
       const data = event.data;
       const reference = data.reference;
-      const metadata = data.metadata || {};
+      const eventMetadata = data.metadata || {};
 
-      // Find and update the payment
+      // Fetch existing payment first so we keep permit_type_id, permit_number, motorbike_id (Paystack event may not return them)
+      const { data: existingPayment, error: fetchError } = await supabase
+        .from("payments")
+        .select("id, metadata, rider_id, county_id, amount")
+        .eq("payment_reference", reference)
+        .single();
+
+      if (fetchError || !existingPayment) {
+        console.error("Payment not found for reference:", reference, fetchError);
+        return new Response(
+          JSON.stringify({ error: "Payment not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const existingMeta = (existingPayment.metadata || {}) as Record<string, unknown>;
+      const mergedMetadata = {
+        ...existingMeta,
+        ...eventMetadata,
+        paystack_response: {
+          id: data.id,
+          status: data.status,
+          gateway_response: data.gateway_response,
+          channel: data.channel,
+          fees: data.fees,
+        },
+      };
+
+      // Update payment (status, paid_at, permit_id set later if permit is created)
       const { data: payment, error: paymentError } = await supabase
         .from("payments")
         .update({
           status: "completed",
           paid_at: new Date().toISOString(),
           provider_reference: data.id?.toString(),
-          metadata: {
-            ...metadata,
-            paystack_response: {
-              id: data.id,
-              status: data.status,
-              gateway_response: data.gateway_response,
-              channel: data.channel,
-              fees: data.fees,
-            },
-          },
+          metadata: mergedMetadata,
         })
         .eq("payment_reference", reference)
         .select()
@@ -402,8 +421,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get payment details from metadata
-      const paymentMetadata = (payment.metadata || {}) as Record<string, unknown>;
+      // Get payment details from merged metadata (permit_type_id, permit_number, motorbike_id from DB or event)
+      const paymentMetadata = mergedMetadata as Record<string, unknown>;
       const penaltyId = paymentMetadata?.penalty_id as string | undefined;
       const permitTypeId = paymentMetadata?.permit_type_id as string | undefined;
       const motorbike_id = paymentMetadata?.motorbike_id as string | undefined;

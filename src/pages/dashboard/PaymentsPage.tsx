@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Download, CheckCircle, XCircle, Clock, RefreshCw, Search, Filter, History, TrendingUp } from 'lucide-react';
-import { usePayments } from '@/hooks/usePayments';
+import { usePayments, usePermitTypes, useVerifyPayment } from '@/hooks/usePayments';
+import { usePenalties } from '@/hooks/usePenalties';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { PaymentHistoryDialog } from '@/components/payments/PaymentHistoryDialog';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { exportToCSV } from '@/utils/exportCsv';
@@ -71,12 +74,15 @@ type PaymentRow = {
   created_at: string;
   paid_at: string | null;
   riders: { id: string; full_name: string; phone: string } | null;
-  permits: { permit_number: string } | null;
+  permits: { permit_number: string; permit_types: { name: string } | null } | null;
+  metadata: Record<string, unknown> | null;
 };
 
 export default function PaymentsPage() {
   const { profile, roles } = useAuth();
   const countyId = useEffectiveCountyId();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
   const [selectedRiderName, setSelectedRiderName] = useState<string>('');
@@ -85,14 +91,43 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const { data: payments = [], isLoading } = usePayments(countyId);
+  const { data: permitTypes = [] } = usePermitTypes(countyId ?? undefined);
+  const { data: penalties = [] } = usePenalties(countyId ?? undefined);
+  const verifyPayment = useVerifyPayment();
+  const verifiedRef = useRef<string | null>(null);
+
+  // When returning from Paystack with ?payment_reference=..., verify and refresh so status shows Complete/Paid
+  const paymentReference = searchParams.get('payment_reference');
+  useEffect(() => {
+    if (!paymentReference || verifiedRef.current === paymentReference) return;
+    verifiedRef.current = paymentReference;
+    verifyPayment.mutate(paymentReference, {
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['payments'] });
+        queryClient.invalidateQueries({ queryKey: ['permits'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ['payments'] }), 500);
+        const next = new URLSearchParams(searchParams);
+        next.delete('payment_reference');
+        setSearchParams(next, { replace: true });
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when payment_reference appears
+  }, [paymentReference]);
+
+  const penaltyIdToName = useMemo(() => new Map(penalties.map((p) => [p.id, p.penalty_type])), [penalties]);
+
+  // Treat as paid if status is completed OR paid_at is set (webhook/verify may set paid_at before status)
+  const isPaid = (p: { status: string; paid_at?: string | null }) =>
+    p.status === 'completed' || !!p.paid_at;
 
   // Calculate revenue totals
   const revenueStats = useMemo(() => {
-    const completed = payments.filter(p => p.status === 'completed');
+    const completed = payments.filter(isPaid);
     const totalRevenue = completed.reduce((sum, p) => sum + Number(p.amount), 0);
-    const pendingPayments = payments.filter(p => p.status === 'pending').length;
+    const pendingPayments = payments.filter(p => !isPaid(p) && p.status !== 'failed').length;
     const failedPayments = payments.filter(p => p.status === 'failed').length;
-    
+
     return {
       total: totalRevenue,
       paid: completed.length,
@@ -115,7 +150,11 @@ export default function PaymentsPage() {
         const query = searchQuery.toLowerCase().trim();
         const matchesRider = payment.riders?.full_name.toLowerCase().includes(query) || 
                             payment.riders?.phone.toLowerCase().includes(query);
-        const matchesPermit = payment.permits?.permit_number.toLowerCase().includes(query);
+        const meta = payment.metadata as Record<string, unknown> | null | undefined;
+        const permitNum = payment.permits?.permit_number ?? (meta?.permit_number as string | undefined);
+        const permitName = payment.permits?.permit_types?.name ?? permitTypes.find((pt) => pt.id === meta?.permit_type_id)?.name;
+        const penaltyName = meta?.payment_type === 'penalty' && meta?.penalty_id ? penaltyIdToName.get(meta.penalty_id as string) : undefined;
+        const matchesPermit = permitNum?.toLowerCase().includes(query) || permitName?.toLowerCase().includes(query) || penaltyName?.toLowerCase().includes(query);
         const matchesReference = payment.payment_reference?.toLowerCase().includes(query);
         
         if (!matchesRider && !matchesPermit && !matchesReference) {
@@ -125,7 +164,7 @@ export default function PaymentsPage() {
 
       return true;
     });
-  }, [payments, searchQuery, statusFilter]);
+  }, [payments, searchQuery, statusFilter, permitTypes, penaltyIdToName]);
 
   const handleViewHistory = (riderId: string, riderName: string) => {
     setSelectedRiderId(riderId);
@@ -141,8 +180,17 @@ export default function PaymentsPage() {
       rider_phone: p.riders?.phone ?? '',
       amount: p.amount ?? '',
       payment_method: p.payment_method ?? '',
-      status: p.status ?? '',
-      permit_number: p.permits?.permit_number ?? '',
+      status: isPaid(p) ? 'completed' : (p.status ?? ''),
+      permit_penalty: (() => {
+        const meta = p.metadata as Record<string, unknown> | null | undefined;
+        if (meta?.payment_type === 'penalty' && meta?.penalty_id) {
+          return penaltyIdToName.get(meta.penalty_id as string) ?? 'Penalty';
+        }
+        const name = p.permits?.permit_types?.name;
+        if (name) return name;
+        const typeId = meta?.permit_type_id as string | undefined;
+        return permitTypes.find((pt) => pt.id === typeId)?.name ?? '';
+      })(),
       created_at: p.created_at ?? '',
       paid_at: p.paid_at ?? '',
     }));
@@ -191,14 +239,28 @@ export default function PaymentsPage() {
     {
       accessorKey: 'status',
       header: 'Payment Status',
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      cell: ({ row }) => getStatusBadge(row.original.paid_at ? 'completed' : row.original.status),
     },
     {
-      accessorKey: 'permits.permit_number',
-      header: 'Permit',
-      cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.permits?.permit_number || '-'}</span>
-      ),
+      accessorKey: 'permits.permit_types.name',
+      header: 'Permit / Penalty',
+      cell: ({ row }) => {
+        const meta = row.original.metadata as Record<string, unknown> | null | undefined;
+        const isPenalty = meta?.payment_type === 'penalty';
+        const penaltyId = meta?.penalty_id as string | undefined;
+
+        if (isPenalty && penaltyId) {
+          const penaltyName = penaltyIdToName.get(penaltyId);
+          return <span className="text-sm">{penaltyName ?? 'Penalty'}</span>;
+        }
+
+        const name = row.original.permits?.permit_types?.name;
+        if (name) return <span className="text-sm">{name}</span>;
+        const typeId = meta?.permit_type_id as string | undefined;
+        const pendingName = typeId ? permitTypes.find((pt) => pt.id === typeId)?.name : undefined;
+        if (pendingName) return <span className="text-sm text-muted-foreground">{pendingName}</span>;
+        return <span className="text-muted-foreground">—</span>;
+      },
     },
     {
       accessorKey: 'created_at',
@@ -223,7 +285,7 @@ export default function PaymentsPage() {
         );
       },
     },
-  ], []);
+  ], [permitTypes, penaltyIdToName]);
 
   return (
     <DashboardLayout>

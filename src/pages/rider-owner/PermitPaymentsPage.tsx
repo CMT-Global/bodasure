@@ -88,6 +88,10 @@ function PermitPaymentsContent() {
   const initializePayment = useInitializePayment();
   const verifyPayment = useVerifyPayment();
 
+  // Match county portal: treat as paid if status is completed OR paid_at is set (webhook may set paid_at first)
+  const getPaymentDisplayStatus = (p: PaymentWithPermit) =>
+    p.status === 'completed' || p.paid_at ? 'completed' : p.status;
+
   // When returning from Paystack with ?payment_reference=..., verify and refresh so status shows Completed
   const paymentReference = searchParams.get('payment_reference');
   const verifiedRef = useRef<string | null>(null);
@@ -98,10 +102,13 @@ function PermitPaymentsContent() {
       onSettled: () => {
         queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
         queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
-        // Refetch again after a short delay so we pick up the DB update from verify
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
-        }, 800);
+        // Refetch multiple times to pick up DB update from verify (can be delayed)
+        [800, 1500, 3000].forEach((ms) =>
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+            queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+          }, ms)
+        );
         const next = new URLSearchParams(searchParams);
         next.delete('payment_reference');
         setSearchParams(next, { replace: true });
@@ -400,7 +407,7 @@ function PermitPaymentsContent() {
                             currency: 'KES',
                           }).format(payment.amount)}
                         </span>
-                        <StatusBadge status={payment.status} />
+                        <StatusBadge status={getPaymentDisplayStatus(payment)} />
                       </div>
                       {payment.payment_reference && (
                         <p className="text-xs text-muted-foreground font-mono mt-0.5">
@@ -449,12 +456,25 @@ function PermitPaymentsContent() {
             </DialogTitle>
             <DialogDescription>View or print this receipt.</DialogDescription>
           </DialogHeader>
-          {receiptPayment && (
+          {receiptPayment && (() => {
+            const meta = (receiptPayment.metadata ?? {}) as Record<string, unknown>;
+            const permitTypeId = meta.permit_type_id as string | undefined;
+            const permitTypeName =
+              receiptPayment.permits?.permit_types?.name ??
+              permitTypes.find((pt) => pt.id === permitTypeId)?.name;
+            const permitNumber =
+              receiptPayment.permits?.permit_number ??
+              (meta.permit_number as string | undefined);
+            const durationDays =
+              receiptPayment.permits?.permit_types?.duration_days ??
+              permitTypes.find((pt) => pt.id === permitTypeId)?.duration_days;
+            const isPermitPayment = !!permitTypeId || !!receiptPayment.permits;
+            return (
             <div id="receipt-content" className="space-y-4 py-4">
               <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Reference</span>
-                  <span className="font-mono">{receiptPayment.payment_reference ?? '—'}</span>
+                  <span className="font-mono break-all text-right">{receiptPayment.payment_reference ?? '—'}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between text-sm">
@@ -472,7 +492,7 @@ function PermitPaymentsContent() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Status</span>
-                  <StatusBadge status={receiptPayment.status} />
+                  <StatusBadge status={getPaymentDisplayStatus(receiptPayment)} />
                 </div>
                 {receiptPayment.paid_at && (
                   <div className="flex justify-between text-sm">
@@ -480,17 +500,42 @@ function PermitPaymentsContent() {
                     <span>{format(new Date(receiptPayment.paid_at), 'dd MMM yyyy, HH:mm')}</span>
                   </div>
                 )}
-                {receiptPayment.permits && (
+                {isPermitPayment && (
                   <>
                     <Separator />
+                    <p className="text-xs font-medium text-muted-foreground pt-1">Permit</p>
+                    {permitTypeName && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Type</span>
+                        <span>{permitTypeName}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Permit</span>
-                      <span className="font-mono">{receiptPayment.permits.permit_number}</span>
+                      <span className="text-muted-foreground">Permit number</span>
+                      <span className="font-mono">{permitNumber ?? receiptPayment.permits?.permit_number ?? '—'}</span>
                     </div>
-                    {receiptPayment.permits.expires_at && (
+                    {durationDays != null && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Duration</span>
+                        <span>{durationDays} days</span>
+                      </div>
+                    )}
+                    {receiptPayment.permits?.issued_at && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Issued</span>
+                        <span>{format(new Date(receiptPayment.permits.issued_at), 'dd MMM yyyy')}</span>
+                      </div>
+                    )}
+                    {receiptPayment.permits?.expires_at && (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Expires</span>
                         <span>{format(new Date(receiptPayment.permits.expires_at), 'dd MMM yyyy')}</span>
+                      </div>
+                    )}
+                    {receiptPayment.permits?.status && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Permit status</span>
+                        <StatusBadge status={receiptPayment.permits.status} />
                       </div>
                     )}
                   </>
@@ -506,7 +551,8 @@ function PermitPaymentsContent() {
                 </Button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

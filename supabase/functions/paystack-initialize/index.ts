@@ -18,6 +18,10 @@ interface InitializeRequest {
   /** Penalty payment: when set, this is a penalty payment */
   penalty_id?: string;
   metadata?: Record<string, unknown>;
+  /** Frontend origin for redirect after payment (e.g. https://app.example.com or http://localhost:5173) */
+  app_origin?: string;
+  /** Optional return path after payment (e.g. /dashboard/payments). If not set, defaults to rider-owner paths. */
+  return_path?: string;
 }
 
 Deno.serve(async (req) => {
@@ -61,6 +65,8 @@ Deno.serve(async (req) => {
       county_id,
       penalty_id,
       metadata,
+      app_origin,
+      return_path: requestedReturnPath,
     } = body;
 
     const isPenaltyPayment = !!penalty_id;
@@ -156,14 +162,19 @@ Deno.serve(async (req) => {
     }
 
     // Return path so callback redirects user to the page where they started payment
-    const returnPath = isPenaltyPayment
-      ? "/rider-owner/penalties-payments"
-      : "/rider-owner/permit-payments";
+    const returnPath = requestedReturnPath && requestedReturnPath.startsWith("/")
+      ? requestedReturnPath
+      : isPenaltyPayment
+        ? "/rider-owner/penalties-payments"
+        : "/rider-owner/permit-payments";
     const callbackUrl = new URL(
       `${Deno.env.get("SUPABASE_URL")}/functions/v1/paystack-callback`
     );
     callbackUrl.searchParams.set("reference", reference);
     callbackUrl.searchParams.set("return_path", returnPath);
+    if (app_origin) {
+      callbackUrl.searchParams.set("app_origin", app_origin.replace(/\/$/, ""));
+    }
 
     // Initialize Paystack transaction
     const paystackPayload: Record<string, unknown> = {

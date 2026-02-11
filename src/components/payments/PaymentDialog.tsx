@@ -117,6 +117,7 @@ export function PaymentDialog({
       rider_id: values.rider_id,
       motorbike_id: values.motorbike_id,
       county_id: finalCountyId,
+      return_path: '/dashboard/payments',
     });
   };
 
