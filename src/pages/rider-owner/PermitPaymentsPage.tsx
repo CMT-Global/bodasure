@@ -46,6 +46,7 @@ import {
   Bike,
   FileText,
   Download,
+  Clock,
 } from 'lucide-react';
 import { format, parseISO, addDays } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -92,30 +93,100 @@ function PermitPaymentsContent() {
 
   // Only consider permits that have a valid (completed) payment — so deleted/cancelled payments don't block buying
   const permitsWithValidPayment = useMemo(() => {
-    const paidPermitIds = new Set(
-      payments
-        .filter((p) => p.status === 'completed' || p.paid_at)
-        .map((p) => p.permit_id ?? p.permits?.id)
-        .filter(Boolean) as string[]
-    );
+    const paidPermitIds = new Set<string>();
+    const completedPayments = payments.filter((p) => p.status === 'completed' || p.paid_at);
+    const normalizeId = (id: string | null | undefined) => (id ? String(id).trim() : '');
+    for (const p of completedPayments) {
+      const id = p.permit_id ?? p.permits?.id;
+      if (id) paidPermitIds.add(String(id));
+    }
+    // Fallback 1: match by permit_number from metadata when payment doesn't have permit_id yet
+    for (const p of completedPayments) {
+      if (p.permit_id || p.permits?.id) continue;
+      const meta = (p.metadata ?? {}) as Record<string, unknown>;
+      const metaPermitNumber = (meta.permit_number as string | undefined)?.trim?.();
+      const metaPermitTypeId = normalizeId(meta.permit_type_id as string | undefined);
+      if (metaPermitNumber) {
+        const matched = riderPermits.find(
+          (permit) =>
+            permit.permit_number === metaPermitNumber &&
+            (!metaPermitTypeId || normalizeId(permit.permit_type_id) === metaPermitTypeId)
+        );
+        if (matched) paidPermitIds.add(matched.id);
+      }
+    }
+    // Fallback 2: match by permit_type_id + motorbike_id from metadata (normalize IDs for consistent matching)
+    for (const p of completedPayments) {
+      if (p.permit_id || p.permits?.id) continue;
+      const meta = (p.metadata ?? {}) as Record<string, unknown>;
+      const metaPermitTypeId = normalizeId(meta.permit_type_id as string | undefined);
+      const metaMotorbikeId = normalizeId(meta.motorbike_id as string | undefined);
+      if (metaPermitTypeId && metaMotorbikeId) {
+        riderPermits
+          .filter(
+            (permit) =>
+              normalizeId(permit.permit_type_id) === metaPermitTypeId &&
+              normalizeId(permit.motorbike_id) === metaMotorbikeId
+          )
+          .forEach((permit) => paidPermitIds.add(permit.id));
+      }
+    }
+    // Fallback 3: match by permit_type_id only when motorbike_id missing in metadata — add all permits of that type (rider may have multiple e.g. two monthly permits for two bikes)
+    for (const p of completedPayments) {
+      if (p.permit_id || p.permits?.id) continue;
+      const meta = (p.metadata ?? {}) as Record<string, unknown>;
+      const metaPermitTypeId = normalizeId(meta.permit_type_id as string | undefined);
+      if (metaPermitTypeId) {
+        riderPermits
+          .filter((permit) => normalizeId(permit.permit_type_id) === metaPermitTypeId)
+          .forEach((permit) => paidPermitIds.add(permit.id));
+      }
+    }
     return riderPermits.filter((permit) => paidPermitIds.has(permit.id));
   }, [riderPermits, payments]);
 
-  // Block buying same permit type for same bike until it is "expiring soon" (within EXPIRING_SOON_DAYS). Only block when that permit has a valid payment.
+  // Block permit type for that bike until the permit is "expiring soon" (within EXPIRING_SOON_DAYS). Once expiring soon or expired, rider can renew.
   const activePermitKeys = useMemo(() => {
     const now = new Date();
     const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
     const set = new Set<string>();
+    const normalizeId = (id: string | null | undefined) => (id ? String(id).trim() : '');
+    const key = (motorbikeId: string, permitTypeId: string) =>
+      `${String(motorbikeId).trim()}|${String(permitTypeId).trim()}`;
+    // Only block when permit has more than EXPIRING_SOON_DAYS left — do not add when within "expiring soon" window so renewal is allowed and "Expiring soon" shows
+    const shouldBlock = (expiresAt: Date) =>
+      expiresAt > now && expiresAt > expiringSoonThreshold;
+
+    // 1) From permits with linked payment
     for (const p of permitsWithValidPayment) {
       if (p.status !== 'active' || !p.expires_at) continue;
       const expiresAt = parseISO(p.expires_at);
-      if (expiresAt <= now) continue; // already expired
-      if (expiresAt > expiringSoonThreshold) {
-        set.add(`${p.motorbike_id}|${p.permit_type_id}`);
+      if (shouldBlock(expiresAt)) set.add(key(p.motorbike_id, p.permit_type_id));
+    }
+
+    // 2) From completed transactions (payments) so each bought permit type disables until showing expiry soon
+    const completedPayments = payments.filter((p) => p.status === 'completed' || p.paid_at);
+    for (const payment of completedPayments) {
+      const meta = (payment.metadata ?? {}) as Record<string, unknown>;
+      const metaPermitTypeId = normalizeId(meta.permit_type_id as string | undefined);
+      const metaMotorbikeId = normalizeId(meta.motorbike_id as string | undefined);
+      if (!metaPermitTypeId) continue;
+      const matchingPermits = metaMotorbikeId
+        ? riderPermits.filter(
+            (permit) =>
+              normalizeId(permit.permit_type_id) === metaPermitTypeId &&
+              normalizeId(permit.motorbike_id) === metaMotorbikeId
+          )
+        : riderPermits.filter((permit) => normalizeId(permit.permit_type_id) === metaPermitTypeId);
+      for (const permit of matchingPermits) {
+        if (permit.status !== 'active' || !permit.expires_at) continue;
+        const expiresAt = parseISO(permit.expires_at);
+        if (shouldBlock(expiresAt)) set.add(key(permit.motorbike_id, permit.permit_type_id));
       }
     }
+
     return set;
-  }, [permitsWithValidPayment]);
+  }, [permitsWithValidPayment, payments, riderPermits]);
 
   // Match county portal: treat as paid if status is completed OR paid_at is set (webhook may set paid_at first)
   const getPaymentDisplayStatus = (p: PaymentWithPermit) =>
@@ -177,6 +248,29 @@ function PermitPaymentsContent() {
   const [selectedPermitType, setSelectedPermitType] = useState<PermitType | null>(null);
   const [selectedMotorbikeId, setSelectedMotorbikeId] = useState<string>('');
   const [mpesaPhone, setMpesaPhone] = useState('');
+
+  // When rider has only one bike, pre-select it so "already have active permit" block applies as soon as they pick a permit type
+  useEffect(() => {
+    if (motorbikes.length === 1 && (!selectedMotorbikeId || !motorbikes.some((m) => m.id === selectedMotorbikeId))) {
+      setSelectedMotorbikeId(motorbikes[0].id);
+    }
+  }, [motorbikes, selectedMotorbikeId]);
+
+  // When rider has only one permit, pre-select that permit type and bike so "Already have active" / "You can renew" shows on that permit
+  useEffect(() => {
+    if (
+      permitTypes.length > 0 &&
+      permitsWithValidPayment.length === 1 &&
+      motorbikes.some((m) => m.id === permitsWithValidPayment[0].motorbike_id)
+    ) {
+      const single = permitsWithValidPayment[0];
+      const matchingType = permitTypes.find((pt) => pt.id === single.permit_type_id);
+      if (matchingType && (!selectedMotorbikeId || selectedMotorbikeId === single.motorbike_id)) {
+        setSelectedMotorbikeId(single.motorbike_id);
+        setSelectedPermitType((prev) => (prev?.id === matchingType.id ? prev : matchingType));
+      }
+    }
+  }, [permitTypes, permitsWithValidPayment, motorbikes, selectedMotorbikeId]);
   const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<{
     permit_type_id?: string;
@@ -199,11 +293,11 @@ function PermitPaymentsContent() {
   const riderId = rider?.id ?? '';
   const selectedType = selectedPermitType;
 
-  // Block buying if rider already has an active permit for this bike + permit type
-  const hasActivePermitForSelection =
-    !!selectedMotorbikeId &&
-    !!selectedType &&
-    activePermitKeys.has(`${selectedMotorbikeId}|${selectedType.id}`);
+  // Block buying if rider already has an active permit for this bike + permit type (normalize IDs for consistent match)
+  const activePermitKey = selectedMotorbikeId && selectedType
+    ? `${String(selectedMotorbikeId).trim()}|${String(selectedType.id).trim()}`
+    : '';
+  const hasActivePermitForSelection = !!activePermitKey && activePermitKeys.has(activePermitKey);
 
   const handlePay = () => {
     setFormErrors({});
@@ -282,8 +376,19 @@ function PermitPaymentsContent() {
     );
   }
 
-  const permitPayments = payments.filter(
-    (p) => p.metadata && (p.metadata as Record<string, unknown>)?.permit_type_id
+  // Only show permit payments that resulted in a permit (completed) or are linked to a permit.
+  // This avoids showing e.g. "Quarterly Permit" in history when the rider never completed that payment.
+  const permitPayments = useMemo(
+    () =>
+      payments.filter((p) => {
+        const isPermitPayment =
+          p.metadata && (p.metadata as Record<string, unknown>)?.permit_type_id;
+        if (!isPermitPayment) return false;
+        const hasCompletedOrLinked =
+          p.status === 'completed' || !!p.paid_at || !!p.permit_id || !!p.permits?.id;
+        return hasCompletedOrLinked;
+      }),
+    [payments]
   );
 
   return (
@@ -320,6 +425,27 @@ function PermitPaymentsContent() {
               </div>
             );
           })()}
+          {!hasActivePermitForSelection && selectedType && selectedMotorbikeId && (() => {
+            const expiringPermit = permitsWithValidPayment.find(
+              (p) =>
+                p.motorbike_id === selectedMotorbikeId &&
+                p.permit_type_id === selectedType.id &&
+                p.status === 'active' &&
+                p.expires_at
+            );
+            if (!expiringPermit?.expires_at) return null;
+            const now = new Date();
+            const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
+            const expiresAt = parseISO(expiringPermit.expires_at);
+            const isExpiringSoon = expiresAt > now && expiresAt <= expiringSoonThreshold;
+            if (!isExpiringSoon) return null;
+            return (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-800 dark:text-green-200">
+                Your <strong>{selectedType.name}</strong> permit for this motorbike expires on{' '}
+                <strong>{format(expiresAt, 'dd MMM yyyy')}</strong>. You can renew now.
+              </div>
+            );
+          })()}
           {permitTypesLoading || dashboardLoading || riderPermitsLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-10 w-full" />
@@ -335,33 +461,55 @@ function PermitPaymentsContent() {
               <div className="space-y-2">
                 <Label>Permit type</Label>
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {permitTypes.map((pt) => (
-                    <button
-                      key={pt.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedPermitType(pt);
-                        if (formErrors.permit_type_id) setFormErrors((e) => ({ ...e, permit_type_id: undefined }));
-                      }}
-                      className={cn(
-                        'rounded-lg border-2 p-4 text-left transition-colors min-h-[56px] touch-manipulation w-full',
-                        selectedPermitType?.id === pt.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      )}
-                    >
-                      <p className="font-medium">{pt.name}</p>
-                      <p className="text-lg font-bold text-primary mt-1">
-                        {new Intl.NumberFormat('en-KE', {
-                          style: 'currency',
-                          currency: 'KES',
-                        }).format(pt.amount)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {pt.duration_days} days
-                      </p>
-                    </button>
-                  ))}
+                  {permitTypes.map((pt) => {
+                    const blockKey = selectedMotorbikeId && pt.id
+                      ? `${String(selectedMotorbikeId).trim()}|${String(pt.id).trim()}`
+                      : '';
+                    const isBlocked = !!blockKey && activePermitKeys.has(blockKey);
+                    const activePermit = isBlocked
+                      ? permitsWithValidPayment.find(
+                          (p) =>
+                            p.motorbike_id === selectedMotorbikeId &&
+                            p.permit_type_id === pt.id &&
+                            p.status === 'active' &&
+                            p.expires_at
+                        )
+                      : null;
+                    return (
+                      <button
+                        key={pt.id}
+                        type="button"
+                        disabled={isBlocked}
+                        onClick={() => {
+                          if (isBlocked) return;
+                          setSelectedPermitType(pt);
+                          if (formErrors.permit_type_id) setFormErrors((e) => ({ ...e, permit_type_id: undefined }));
+                        }}
+                        className={cn(
+                          'rounded-lg border-2 p-4 text-left transition-colors min-h-[56px] touch-manipulation w-full',
+                          isBlocked && 'opacity-80 cursor-not-allowed border-amber-500/50 bg-amber-500/5',
+                          !isBlocked && selectedPermitType?.id === pt.id && 'border-primary bg-primary/5',
+                          !isBlocked && selectedPermitType?.id !== pt.id && 'border-border hover:border-primary/50'
+                        )}
+                      >
+                        <p className="font-medium">{pt.name}</p>
+                        <p className="text-lg font-bold text-primary mt-1">
+                          {new Intl.NumberFormat('en-KE', {
+                            style: 'currency',
+                            currency: 'KES',
+                          }).format(pt.amount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {pt.duration_days} days
+                        </p>
+                        {isBlocked && activePermit?.expires_at && (
+                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 font-medium">
+                            Already have active · expires {format(parseISO(activePermit.expires_at), 'dd MMM yyyy')}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
                 {formErrors.permit_type_id && (
                   <p className="text-xs text-destructive">{formErrors.permit_type_id}</p>
@@ -371,7 +519,8 @@ function PermitPaymentsContent() {
               <div className="space-y-2">
                 <Label>Motorbike</Label>
                 <Select
-                  value={selectedMotorbikeId}
+                  key={selectedMotorbikeId || 'none'}
+                  value={selectedMotorbikeId || undefined}
                   onValueChange={(v) => {
                     setSelectedMotorbikeId(v);
                     if (formErrors.motorbike_id) setFormErrors((e) => ({ ...e, motorbike_id: undefined }));
@@ -428,7 +577,10 @@ function PermitPaymentsContent() {
               )}
 
               <Button
-                className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+                className={cn(
+                  'w-full sm:w-auto min-h-[44px] touch-manipulation',
+                  hasActivePermitForSelection && 'opacity-70 cursor-not-allowed'
+                )}
                 disabled={
                   !selectedPermitType ||
                   !selectedMotorbikeId ||
@@ -436,6 +588,11 @@ function PermitPaymentsContent() {
                   !!mpesaPhoneError ||
                   hasActivePermitForSelection ||
                   initializePayment.isPending
+                }
+                title={
+                  hasActivePermitForSelection
+                    ? 'You already have an active permit for this selection. Renew when it is expiring soon or after it expires.'
+                    : undefined
                 }
                 onClick={handlePay}
               >
@@ -480,6 +637,14 @@ function PermitPaymentsContent() {
               <div className="divide-y">
                 {permitsWithValidPayment.map((permit) => {
                   const bikeLabel = motorbikes.find((m) => m.id === permit.motorbike_id)?.registration_number;
+                  const now = new Date();
+                  const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
+                  const expiresAt = permit.expires_at ? parseISO(permit.expires_at) : null;
+                  const isExpiringSoon =
+                    permit.status === 'active' &&
+                    expiresAt &&
+                    expiresAt > now &&
+                    expiresAt <= expiringSoonThreshold;
                   return (
                     <div
                       key={permit.id}
@@ -494,6 +659,12 @@ function PermitPaymentsContent() {
                             <span className="text-muted-foreground text-sm">({bikeLabel})</span>
                           )}
                           <StatusBadge status={permit.status} />
+                          {isExpiringSoon && (
+                            <Badge variant="secondary" className="gap-1 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                              <Clock className="h-3 w-3" />
+                              Expiring soon
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-x-6 gap-y-0 text-sm">
                           <span className="text-muted-foreground">

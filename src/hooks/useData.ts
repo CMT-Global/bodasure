@@ -369,7 +369,7 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
         }
       }
 
-      const [motorbikesRes, permitsRes, penaltiesRes, lastPaymentRes] = await Promise.all([
+      const [motorbikesRes, permitsRes, penaltiesRes, lastPaymentRes, paidPermitsRes] = await Promise.all([
         supabase
           .from('motorbikes')
           .select('id, registration_number')
@@ -391,18 +391,31 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
           .order('paid_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle(),
+        // Only count permits that have a completed payment (exclude cancelled/failed so compliance reflects actual paid permits)
+        supabase
+          .from('payments')
+          .select('permit_id')
+          .eq('rider_id', rider.id)
+          .not('permit_id', 'is', null)
+          .or('status.eq.completed,paid_at.not.is.null'),
       ]);
 
       const motorbikes = (motorbikesRes.data || []).map((m) => ({
         id: m.id,
         registration_number: m.registration_number,
       }));
-      const permits = (permitsRes.data || []).map((p) => ({
+      const paidPermitIds = new Set(
+        (paidPermitsRes.data || [])
+          .map((row: { permit_id: string | null }) => row.permit_id)
+          .filter(Boolean) as string[]
+      );
+      const allPermits = (permitsRes.data || []).map((p) => ({
         id: p.id,
         permit_number: p.permit_number,
         status: p.status as 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled',
         expires_at: p.expires_at,
       }));
+      const permits = allPermits.filter((p) => paidPermitIds.has(p.id));
       const outstandingPenalties = (penaltiesRes.data || []).map((p) => ({
         id: p.id,
         amount: p.amount,

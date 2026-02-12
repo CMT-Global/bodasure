@@ -473,12 +473,21 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {(hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_admin')) && (
-                  <DropdownMenuItem onClick={() => navigate('/rider-owner/profile')} className="min-h-[44px]">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (hasRole('platform_super_admin')) {
+                      navigate('/super-admin/system-settings');
+                    } else if (hasRole('county_super_admin') || hasRole('county_admin')) {
+                      navigate('/dashboard/settings');
+                    } else {
+                      navigate('/rider-owner/profile');
+                    }
+                  }}
+                  className="min-h-[44px]"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive min-h-[44px]">
                   <LogOut className="mr-2 h-4 w-4" />
