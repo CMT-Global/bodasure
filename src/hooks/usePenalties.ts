@@ -230,9 +230,10 @@ export function useCreatePenalty() {
 }
 
 // Update penalty status (mark as paid, waived, etc.)
+// When admin marks as paid without a payment (paymentId null), we create a payment row so it shows on /dashboard/payments.
 export function useUpdatePenaltyStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({
       penaltyId,
@@ -243,12 +244,45 @@ export function useUpdatePenaltyStatus() {
       isPaid: boolean;
       paymentId?: string | null;
     }) => {
+      const paidAt = isPaid ? new Date().toISOString() : null;
+
+      if (isPaid && (paymentId === null || paymentId === undefined)) {
+        // Admin marking as paid without an existing payment: create a payment row so it appears on Payments page
+        const { data: penalty, error: fetchErr } = await supabase
+          .from('penalties')
+          .select('id, county_id, rider_id, amount, penalty_type')
+          .eq('id', penaltyId)
+          .single();
+
+        if (fetchErr || !penalty) {
+          throw new Error(fetchErr?.message ?? 'Penalty not found');
+        }
+
+        const { data: newPayment, error: insertErr } = await supabase
+          .from('payments')
+          .insert({
+            county_id: penalty.county_id,
+            rider_id: penalty.rider_id,
+            amount: Number(penalty.amount),
+            status: 'completed',
+            paid_at: paidAt,
+            payment_reference: `ADMIN-${penaltyId.slice(0, 8)}`,
+            payment_method: 'offline',
+            metadata: { payment_type: 'penalty', penalty_id: penaltyId },
+          })
+          .select('id')
+          .single();
+
+        if (insertErr) throw insertErr;
+        paymentId = newPayment?.id ?? null;
+      }
+
       const { data, error } = await supabase
         .from('penalties')
         .update({
           is_paid: isPaid,
-          payment_id: paymentId,
-          paid_at: isPaid ? new Date().toISOString() : null,
+          payment_id: paymentId ?? null,
+          paid_at: paidAt,
         })
         .eq('id', penaltyId)
         .select()
@@ -259,6 +293,7 @@ export function useUpdatePenaltyStatus() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['penalties'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       toast.success('Penalty status updated');
     },
     onError: (error: Error) => {

@@ -55,16 +55,15 @@ export default function Dashboard() {
     () => revenueByDateRange.reduce((s, r) => s + r.totalRevenue, 0),
     [revenueByDateRange]
   );
+  // Total revenue to show in card: match the graph (period sum when date range has data, else last 6 months sum)
+  const totalRevenueForCard = useMemo(() => {
+    if (revenueByDateRange.length > 0) return revenueInRange;
+    return monthlyRevenue.reduce((s, r) => s + r.amount, 0);
+  }, [revenueByDateRange.length, revenueInRange, monthlyRevenue]);
 
-  // Format revenue for display
-  const formatRevenue = (amount: number) => {
-    if (amount >= 1000000) {
-      return `KES ${(amount / 1000000).toFixed(1)}M`;
-    } else if (amount >= 1000) {
-      return `KES ${(amount / 1000).toFixed(1)}K`;
-    }
-    return `KES ${amount.toLocaleString()}`;
-  };
+  // Format revenue for display (full number, no K/M abbreviation)
+  const formatRevenue = (amount: number) =>
+    `KES ${Number(amount).toLocaleString('en-KE', { maximumFractionDigits: 2, minimumFractionDigits: 0 })}`;
 
   // Determine status colors based on values
   const getStatusColor = (value: number, thresholds: { amber: number; red: number }) => {
@@ -194,13 +193,13 @@ export default function Dashboard() {
               description="Settled"
             />
 
-            {/* Total Revenue Collected */}
+            {/* Total Revenue Collected — matches graph (selected period or last 6 months) */}
             <StatCard
               title="Total Revenue Collected"
-              value={formatRevenue(stats.totalRevenue)}
+              value={formatRevenue(totalRevenueForCard)}
               icon={<CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />}
               statusColor="green"
-              description="All time"
+              description={revenueByDateRange.length > 0 ? `${startDate} – ${endDate}` : 'Last 6 months'}
             />
           </div>
         ) : (

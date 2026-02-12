@@ -2,6 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderWithDetails } from './useData';
 
+type PublicMotorbikePayload = {
+  id: string;
+  registration_number: string;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  year: number | null;
+  chassis_number: string | null;
+  engine_number: string | null;
+} | null;
+
 type PublicRiderPayload = {
   id: string;
   county_id: string;
@@ -15,6 +26,7 @@ type PublicRiderPayload = {
   sacco: { name: string } | null;
   stage: { name: string } | null;
   permit: { id: string; permit_number: string; status: string; expires_at: string | null } | null;
+  motorbike: PublicMotorbikePayload;
 };
 
 function mapPublicRiderPayload(
@@ -37,7 +49,18 @@ function mapPublicRiderPayload(
           expires_at: p.permit.expires_at,
         }
       : null,
-    motorbike: null,
+    motorbike: p.motorbike
+      ? {
+          id: p.motorbike.id,
+          registration_number: p.motorbike.registration_number,
+          make: p.motorbike.make ?? null,
+          model: p.motorbike.model ?? null,
+          color: p.motorbike.color ?? null,
+          year: p.motorbike.year ?? null,
+          chassis_number: p.motorbike.chassis_number ?? null,
+          engine_number: p.motorbike.engine_number ?? null,
+        }
+      : null,
     countyName: p.county_name ?? null,
     compliance_status: (p.compliance_status ?? 'pending_review') as 'compliant' | 'non_compliant' | 'pending_review' | 'blacklisted',
     owner_id: null,
@@ -112,7 +135,7 @@ export function useRiderByQRCode(qrCode: string, countyId?: string) {
       const [motorbikeResult, permitResult] = await Promise.all([
         supabase
           .from('motorbikes')
-          .select('id, registration_number')
+          .select('id, registration_number, make, model, color, year, chassis_number, engine_number')
           .eq('rider_id', data.id)
           .eq('county_id', countyId || data.county_id)
           .maybeSingle(),
@@ -132,6 +155,12 @@ export function useRiderByQRCode(qrCode: string, countyId?: string) {
         motorbike: motorbikeResult.data ? {
           id: motorbikeResult.data.id,
           registration_number: motorbikeResult.data.registration_number,
+          make: motorbikeResult.data.make ?? null,
+          model: motorbikeResult.data.model ?? null,
+          color: motorbikeResult.data.color ?? null,
+          year: motorbikeResult.data.year ?? null,
+          chassis_number: motorbikeResult.data.chassis_number ?? null,
+          engine_number: motorbikeResult.data.engine_number ?? null,
         } : null,
         permit: permitResult.data ? {
           id: permitResult.data.id,
@@ -165,7 +194,7 @@ export function useRiderByPlate(plateNumber: string, countyId?: string) {
       // County-scoped (logged-in user): use direct table queries
       let bikeQuery = supabase
         .from('motorbikes')
-        .select('id, rider_id, registration_number')
+        .select('id, rider_id, registration_number, make, model, color, year, chassis_number, engine_number')
         .ilike('registration_number', `%${trimmed}%`);
 
       if (countyId) {
@@ -211,6 +240,12 @@ export function useRiderByPlate(plateNumber: string, countyId?: string) {
         motorbike: {
           id: bike.id,
           registration_number: bike.registration_number,
+          make: bike.make ?? null,
+          model: bike.model ?? null,
+          color: bike.color ?? null,
+          year: bike.year ?? null,
+          chassis_number: bike.chassis_number ?? null,
+          engine_number: bike.engine_number ?? null,
         },
         permit: permit ? {
           id: permit.id,
@@ -258,7 +293,7 @@ export function useRiderByName(name: string, countyId?: string) {
       const [motorbikeResult, permitResult] = await Promise.all([
         supabase
           .from('motorbikes')
-          .select('id, registration_number')
+          .select('id, registration_number, make, model, color, year, chassis_number, engine_number')
           .eq('rider_id', rider.id)
           .eq('county_id', countyId || rider.county_id)
           .maybeSingle(),
@@ -278,6 +313,12 @@ export function useRiderByName(name: string, countyId?: string) {
         motorbike: motorbikeResult.data ? {
           id: motorbikeResult.data.id,
           registration_number: motorbikeResult.data.registration_number,
+          make: motorbikeResult.data.make ?? null,
+          model: motorbikeResult.data.model ?? null,
+          color: motorbikeResult.data.color ?? null,
+          year: motorbikeResult.data.year ?? null,
+          chassis_number: motorbikeResult.data.chassis_number ?? null,
+          engine_number: motorbikeResult.data.engine_number ?? null,
         } : null,
         permit: permitResult.data ? {
           id: permitResult.data.id,

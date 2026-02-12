@@ -20,14 +20,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, CreditCard, Smartphone } from 'lucide-react';
-import { usePermitTypes, useInitializePayment } from '@/hooks/usePayments';
+import { Loader2, CreditCard, Smartphone, AlertCircle } from 'lucide-react';
+import { usePermitTypes, useInitializePayment, useRiderPermits } from '@/hooks/usePayments';
 import { useRiders, useMotorbikes, useCounties } from '@/hooks/useData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { permitPaymentFormSchema, type PermitPaymentFormValues } from '@/lib/zod';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -97,9 +98,48 @@ export function PaymentDialog({
 
   const selectedType = permitTypes.find(pt => pt.id === form.watch('permit_type_id'));
   const paymentMethod = form.watch('payment_method');
+  const selectedRiderId = form.watch('rider_id');
+  const selectedMotorbikeId = form.watch('motorbike_id');
+  const selectedPermitTypeId = form.watch('permit_type_id');
+
+  const { data: riderPermits = [] } = useRiderPermits(selectedRiderId);
+
+  // Check if rider already has an active permit for this bike + permit type
+  const hasAlreadyPaid = useMemo(() => {
+    if (!selectedRiderId || !selectedMotorbikeId || !selectedPermitTypeId) return false;
+    return riderPermits.some(
+      (p) =>
+        p.motorbike_id === selectedMotorbikeId &&
+        p.permit_type_id === selectedPermitTypeId &&
+        p.status === 'active'
+    );
+  }, [riderPermits, selectedRiderId, selectedMotorbikeId, selectedPermitTypeId]);
+
+  // Filter motorbikes to only show bikes belonging to the selected rider
+  const riderMotorbikes = useMemo(() => {
+    if (!selectedRiderId) return [];
+    return motorbikes.filter((bike) => bike.rider_id === selectedRiderId);
+  }, [motorbikes, selectedRiderId]);
+
+  // Clear motorbike selection when rider changes and current motorbike doesn't belong to new rider
+  useEffect(() => {
+    if (!selectedRiderId) {
+      form.setValue('motorbike_id', '');
+      return;
+    }
+    const currentMotorbikeId = form.getValues('motorbike_id');
+    if (currentMotorbikeId) {
+      const currentBike = motorbikes.find((b) => b.id === currentMotorbikeId);
+      if (currentBike && currentBike.rider_id !== selectedRiderId) {
+        form.setValue('motorbike_id', '');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRiderId]);
 
   const onSubmit = async (values: PermitPaymentFormValues) => {
     if (!selectedType) return;
+    if (hasAlreadyPaid) return;
 
     // Determine the county_id to use
     const finalCountyId = values.county_id || selectedCountyId || countyId;
@@ -117,6 +157,7 @@ export function PaymentDialog({
       rider_id: values.rider_id,
       motorbike_id: values.motorbike_id,
       county_id: finalCountyId,
+      return_path: '/dashboard/payments',
     });
   };
 
@@ -219,20 +260,24 @@ export function PaymentDialog({
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select motorbike" />
+                          <SelectValue placeholder={selectedRiderId ? 'Select motorbike' : 'Select a rider first'} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {loadingMotorbikes ? (
+                        {!selectedRiderId ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            Select a rider first
+                          </div>
+                        ) : loadingMotorbikes ? (
                           <div className="p-2 text-center text-sm text-muted-foreground">
                             Loading motorbikes...
                           </div>
-                        ) : motorbikes.length === 0 ? (
+                        ) : riderMotorbikes.length === 0 ? (
                           <div className="p-2 text-center text-sm text-muted-foreground">
-                            {effectiveCountyId ? 'No motorbikes available' : 'Please select a county first'}
+                            No motorbikes for this rider
                           </div>
                         ) : (
-                          motorbikes.map((bike) => (
+                          riderMotorbikes.map((bike) => (
                             <SelectItem key={bike.id} value={bike.id}>
                               {bike.registration_number} - {bike.make} {bike.model}
                             </SelectItem>
@@ -396,11 +441,20 @@ export function PaymentDialog({
               </Card>
             )}
 
+            {hasAlreadyPaid && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  This rider has already paid for the selected permit type on this motorbike. An active permit exists.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={initializePayment.isPending || !selectedType || !effectiveCountyId}>
+              <Button type="submit" disabled={initializePayment.isPending || !selectedType || !effectiveCountyId || hasAlreadyPaid}>
                 {initializePayment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {paymentMethod === 'mobile_money' ? 'Pay with M-Pesa' : 'Pay with Card'}
               </Button>

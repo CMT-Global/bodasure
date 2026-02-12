@@ -9,21 +9,24 @@ interface RedirectIfAuthenticatedProps {
 }
 
 /**
- * When the user is already logged in and roles are loaded, redirects to their
- * portal dashboard. Use this to wrap Login and Signup so /login and /signup
- * redirect to the correct dashboard when the user is authenticated.
+ * When the user is already logged in and roles are loaded, redirects to
+ * complete-profile if incomplete, else to their portal dashboard.
  */
 export function RedirectIfAuthenticated({ children }: RedirectIfAuthenticatedProps) {
-  const { user, roles, rolesLoaded, isLoading } = useAuth();
+  const { user, profile, roles, rolesLoaded, isLoading, isProfileComplete } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isLoading || !user) return;
     if (!rolesLoaded) return;
 
+    if (!isProfileComplete) {
+      navigate("/complete-profile", { replace: true });
+      return;
+    }
     const dashboard = getDefaultDashboardForRoles(roles);
     navigate(dashboard, { replace: true });
-  }, [user, roles, rolesLoaded, isLoading, navigate]);
+  }, [user, roles, rolesLoaded, isLoading, isProfileComplete, navigate]);
 
   if (!user) {
     return <>{children}</>;

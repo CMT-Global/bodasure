@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Download, CheckCircle, XCircle, Clock, RefreshCw, Search, Filter, History, TrendingUp } from 'lucide-react';
-import { usePayments } from '@/hooks/usePayments';
+import { usePayments, usePermitTypesForPayments, useVerifyPayment } from '@/hooks/usePayments';
+import { usePenalties } from '@/hooks/usePenalties';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { PaymentHistoryDialog } from '@/components/payments/PaymentHistoryDialog';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +22,11 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { exportToCSV } from '@/utils/exportCsv';
+import { cn } from '@/lib/utils';
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -38,24 +42,31 @@ const getStatusIcon = (status: string) => {
 };
 
 const getStatusBadge = (status: string) => {
-  // Map completed to "Paid" for display
+  // Map completed to "Paid" for display; disable hover color change so status stays the same on hover
   if (status === 'completed') {
     return (
-      <Badge variant="default" className="flex items-center gap-1 w-fit bg-success/20 text-success border-success/30">
+      <Badge variant="default" className="flex items-center gap-1 w-fit bg-success/20 text-success border-success/30 hover:bg-success/20 hover:text-success">
         <CheckCircle className="h-3 w-3" />
         Paid
       </Badge>
     );
   }
-  
+
   const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
     pending: 'secondary',
     failed: 'destructive',
     refunded: 'outline',
     cancelled: 'outline',
   };
+  const variant = variants[status] || 'secondary';
+  const hoverFix =
+    variant === 'secondary'
+      ? 'hover:bg-secondary hover:text-secondary-foreground'
+      : variant === 'destructive'
+        ? 'hover:bg-destructive hover:text-destructive-foreground'
+        : 'hover:bg-muted hover:text-muted-foreground';
   return (
-    <Badge variant={variants[status] || 'secondary'} className="flex items-center gap-1 w-fit">
+    <Badge variant={variant} className={cn('flex items-center gap-1 w-fit', hoverFix)}>
       {getStatusIcon(status)}
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
@@ -71,12 +82,52 @@ type PaymentRow = {
   created_at: string;
   paid_at: string | null;
   riders: { id: string; full_name: string; phone: string } | null;
-  permits: { permit_number: string } | null;
+  permits: { permit_number: string; permit_type_id?: string; permit_types: { name: string } | null } | null;
+  metadata: Record<string, unknown> | null;
 };
+
+type PermitTypeRow = { id: string; name: string };
+
+export type PermitPenaltyInfo = { kind: 'permit' | 'penalty' | null; name: string };
+
+function resolvePermitPenaltyInfo(
+  payment: PaymentRow,
+  permitTypes: PermitTypeRow[],
+  penaltyIdToName: Map<string, string>
+): PermitPenaltyInfo {
+  const meta = payment.metadata as Record<string, unknown> | null | undefined;
+  const isPenalty = meta?.payment_type === 'penalty';
+  const penaltyId = meta?.penalty_id as string | undefined;
+  if (isPenalty && penaltyId) {
+    const name = penaltyIdToName.get(penaltyId) ?? 'Penalty';
+    return { kind: 'penalty', name };
+  }
+  const fromPermitType = payment.permits?.permit_types?.name;
+  if (fromPermitType) return { kind: 'permit', name: fromPermitType };
+  const typeId = payment.permits?.permit_type_id ?? (meta?.permit_type_id as string | undefined);
+  if (typeId) {
+    const name = permitTypes.find((pt) => pt.id === typeId)?.name;
+    if (name) return { kind: 'permit', name };
+  }
+  return { kind: null, name: '—' };
+}
+
+/** Full label for search/export: "Permit: Monthly Permit" or "Penalty: Operating without valid permit" or "—" */
+function resolvePermitPenaltyLabel(
+  payment: PaymentRow,
+  permitTypes: PermitTypeRow[],
+  penaltyIdToName: Map<string, string>
+): string {
+  const info = resolvePermitPenaltyInfo(payment, permitTypes, penaltyIdToName);
+  if (info.kind === null || info.name === '—') return '—';
+  return `${info.kind === 'penalty' ? 'Penalty' : 'Permit'}: ${info.name}`;
+}
 
 export default function PaymentsPage() {
   const { profile, roles } = useAuth();
   const countyId = useEffectiveCountyId();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
   const [selectedRiderName, setSelectedRiderName] = useState<string>('');
@@ -84,40 +135,109 @@ export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const { data: payments = [], isLoading } = usePayments(countyId);
+  const { data: payments = [], isLoading: paymentsLoading } = usePayments(countyId);
+  const { data: permitTypes = [] } = usePermitTypesForPayments(countyId);
+  const { data: penalties = [], isLoading: penaltiesLoading } = usePenalties(countyId ?? undefined);
+  const verifyPayment = useVerifyPayment();
+  const verifiedRef = useRef<string | null>(null);
 
-  // Calculate revenue totals
+  // When returning from Paystack with ?payment_reference=..., verify and refresh so status shows Complete/Paid
+  const paymentReference = searchParams.get('payment_reference');
+  useEffect(() => {
+    if (!paymentReference || verifiedRef.current === paymentReference) return;
+    verifiedRef.current = paymentReference;
+    verifyPayment.mutate(paymentReference, {
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['payments'] });
+        queryClient.invalidateQueries({ queryKey: ['permits'] });
+        queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ['payments'] }), 500);
+        const next = new URLSearchParams(searchParams);
+        next.delete('payment_reference');
+        setSearchParams(next, { replace: true });
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when payment_reference appears
+  }, [paymentReference]);
+
+  const penaltyIdToName = useMemo(() => new Map(penalties.map((p) => [p.id, p.penalty_type])), [penalties]);
+
+  // Include penalties that admin marked as paid (no payment row yet) so they show on this page
+  const adminMarkedPenaltyPayments = useMemo(() => {
+    return penalties
+      .filter(
+        (p) =>
+          p.is_paid &&
+          !p.payment_id &&
+          !(p.description && p.description.includes('[WAIVED]'))
+      )
+      .map((p): PaymentRow => ({
+        id: `penalty-${p.id}`,
+        amount: Number(p.amount),
+        status: 'completed',
+        payment_reference: `ADMIN-${p.id.slice(0, 8)}`,
+        payment_method: 'offline',
+        created_at: p.created_at,
+        paid_at: p.paid_at,
+        riders: p.riders
+          ? { id: p.riders.id, full_name: p.riders.full_name, phone: p.riders.phone ?? '' }
+          : null,
+        permits: null,
+        metadata: { payment_type: 'penalty', penalty_id: p.id },
+      }));
+  }, [penalties]);
+
+  // Merge payments table rows with admin-marked penalty-only rows (no duplicate: payment_id null means no row in payments)
+  const paymentsWithAdminMarked = useMemo(() => {
+    const combined = [...payments, ...adminMarkedPenaltyPayments];
+    return combined.sort((a, b) => {
+      const da = a.paid_at || a.created_at;
+      const db = b.paid_at || b.created_at;
+      return new Date(db).getTime() - new Date(da).getTime();
+    });
+  }, [payments, adminMarkedPenaltyPayments]);
+
+  const isLoading = paymentsLoading || penaltiesLoading;
+
+  // Treat as paid if status is completed OR paid_at is set (webhook/verify may set paid_at before status)
+  const isPaid = (p: { status: string; paid_at?: string | null }) =>
+    p.status === 'completed' || !!p.paid_at;
+
+  // Calculate revenue totals from merged list
   const revenueStats = useMemo(() => {
-    const completed = payments.filter(p => p.status === 'completed');
+    const completed = paymentsWithAdminMarked.filter(isPaid);
     const totalRevenue = completed.reduce((sum, p) => sum + Number(p.amount), 0);
-    const pendingPayments = payments.filter(p => p.status === 'pending').length;
-    const failedPayments = payments.filter(p => p.status === 'failed').length;
-    
+    const pendingPayments = paymentsWithAdminMarked.filter((p) => !isPaid(p) && p.status !== 'failed').length;
+    const failedPayments = paymentsWithAdminMarked.filter((p) => p.status === 'failed').length;
+
     return {
       total: totalRevenue,
       paid: completed.length,
       pending: pendingPayments,
       failed: failedPayments,
     };
-  }, [payments]);
+  }, [paymentsWithAdminMarked]);
 
-  // Filter payments
+  // Filter payments (use merged list; status "paid" = isPaid so admin-marked penalties count)
   const filteredPayments = useMemo(() => {
-    return payments.filter((payment) => {
+    return paymentsWithAdminMarked.filter((payment) => {
       // Status filter
       if (statusFilter !== 'all') {
-        if (statusFilter === 'paid' && payment.status !== 'completed') return false;
+        if (statusFilter === 'paid' && !isPaid(payment)) return false;
         if (statusFilter !== 'paid' && payment.status !== statusFilter) return false;
       }
 
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
-        const matchesRider = payment.riders?.full_name.toLowerCase().includes(query) || 
+        const matchesRider = payment.riders?.full_name.toLowerCase().includes(query) ||
                             payment.riders?.phone.toLowerCase().includes(query);
-        const matchesPermit = payment.permits?.permit_number.toLowerCase().includes(query);
+        const meta = payment.metadata as Record<string, unknown> | null | undefined;
+        const permitNum = payment.permits?.permit_number ?? (meta?.permit_number as string | undefined);
+        const permitPenaltyLabel = resolvePermitPenaltyLabel(payment as PaymentRow, permitTypes, penaltyIdToName);
+        const matchesPermit = permitNum?.toLowerCase().includes(query) || permitPenaltyLabel?.toLowerCase().includes(query);
         const matchesReference = payment.payment_reference?.toLowerCase().includes(query);
-        
+
         if (!matchesRider && !matchesPermit && !matchesReference) {
           return false;
         }
@@ -125,7 +245,7 @@ export default function PaymentsPage() {
 
       return true;
     });
-  }, [payments, searchQuery, statusFilter]);
+  }, [paymentsWithAdminMarked, searchQuery, statusFilter, permitTypes, penaltyIdToName]);
 
   const handleViewHistory = (riderId: string, riderName: string) => {
     setSelectedRiderId(riderId);
@@ -141,8 +261,8 @@ export default function PaymentsPage() {
       rider_phone: p.riders?.phone ?? '',
       amount: p.amount ?? '',
       payment_method: p.payment_method ?? '',
-      status: p.status ?? '',
-      permit_number: p.permits?.permit_number ?? '',
+      status: isPaid(p) ? 'completed' : (p.status ?? ''),
+      permit_penalty: resolvePermitPenaltyLabel(p as PaymentRow, permitTypes, penaltyIdToName),
       created_at: p.created_at ?? '',
       paid_at: p.paid_at ?? '',
     }));
@@ -191,14 +311,37 @@ export default function PaymentsPage() {
     {
       accessorKey: 'status',
       header: 'Payment Status',
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      cell: ({ row }) => getStatusBadge(row.original.paid_at ? 'completed' : row.original.status),
     },
     {
-      accessorKey: 'permits.permit_number',
-      header: 'Permit',
-      cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.permits?.permit_number || '-'}</span>
-      ),
+      accessorKey: 'permits.permit_types.name',
+      header: 'Type',
+      cell: ({ row }) => {
+        const info = resolvePermitPenaltyInfo(row.original, permitTypes, penaltyIdToName);
+        if (info.kind === null || info.name === '—') {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const isPermit = info.kind === 'permit';
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className={cn(
+                'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+                isPermit
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
+                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25'
+              )}
+            >
+              {isPermit ? 'Permit' : 'Penalty'}
+            </span>
+            {/* Show specific type name (e.g. "Monthly Permit", penalty type) — uncomment for future use
+            <span className="text-sm text-foreground truncate" title={info.name}>
+              {info.name}
+            </span>
+            */}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'created_at',
@@ -223,7 +366,7 @@ export default function PaymentsPage() {
         );
       },
     },
-  ], []);
+  ], [permitTypes, penaltyIdToName]);
 
   return (
     <DashboardLayout>
@@ -233,7 +376,7 @@ export default function PaymentsPage() {
           <div>
             <h1 className="text-2xl font-bold">Payments</h1>
             <p className="text-muted-foreground">
-              Track revenue and payment transactions • {payments.length} total
+              Track revenue and payment transactions • {paymentsWithAdminMarked.length} total
             </p>
           </div>
           <div className="flex gap-2">

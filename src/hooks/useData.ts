@@ -135,7 +135,7 @@ export interface Motorbike {
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   created_at: string;
   owner?: { full_name: string } | null;
-  rider?: { full_name: string } | null;
+  rider?: { full_name: string; qr_code?: string | null } | null;
 }
 
 // Enhanced rider interface with permit and motorbike info
@@ -143,6 +143,12 @@ export interface RiderWithDetails extends Rider {
   motorbike?: {
     id: string;
     registration_number: string;
+    make?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    chassis_number?: string | null;
+    engine_number?: string | null;
   } | null;
   permit?: {
     id: string;
@@ -224,7 +230,8 @@ export interface RiderOwnerProfileData {
   ownedBikes: RiderOwnerProfileBike[];
 }
 
-const EXPIRING_SOON_DAYS = 30;
+/** Show "Expiring soon" only when within this many days of expiry (e.g. 7 = one week for 1-month permits). */
+const EXPIRING_SOON_DAYS = 7;
 
 /** Escape % and _ for use in ilike so they match literally (case-insensitive email match). */
 function escapeIlike(value: string): string {
@@ -234,6 +241,7 @@ function escapeIlike(value: string): string {
 export function useRiderOwnerDashboard(userId: string | undefined) {
   return useQuery({
     queryKey: ['rider-owner-dashboard', userId],
+    refetchOnMount: 'always', // so permit status and last payment reflect after paying on Permit payments page
     queryFn: async (): Promise<RiderOwnerDashboardData> => {
       if (!userId) {
         return {
@@ -361,7 +369,7 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
         }
       }
 
-      const [motorbikesRes, permitsRes, penaltiesRes, lastPaymentRes] = await Promise.all([
+      const [motorbikesRes, permitsRes, penaltiesRes, lastPaymentRes, paidPermitsRes] = await Promise.all([
         supabase
           .from('motorbikes')
           .select('id, registration_number')
@@ -383,18 +391,31 @@ export function useRiderOwnerDashboard(userId: string | undefined) {
           .order('paid_at', { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle(),
+        // Only count permits that have a completed payment (exclude cancelled/failed so compliance reflects actual paid permits)
+        supabase
+          .from('payments')
+          .select('permit_id')
+          .eq('rider_id', rider.id)
+          .not('permit_id', 'is', null)
+          .or('status.eq.completed,paid_at.not.is.null'),
       ]);
 
       const motorbikes = (motorbikesRes.data || []).map((m) => ({
         id: m.id,
         registration_number: m.registration_number,
       }));
-      const permits = (permitsRes.data || []).map((p) => ({
+      const paidPermitIds = new Set(
+        (paidPermitsRes.data || [])
+          .map((row: { permit_id: string | null }) => row.permit_id)
+          .filter(Boolean) as string[]
+      );
+      const allPermits = (permitsRes.data || []).map((p) => ({
         id: p.id,
         permit_number: p.permit_number,
         status: p.status as 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled',
         expires_at: p.expires_at,
       }));
+      const permits = allPermits.filter((p) => paidPermitIds.has(p.id));
       const outstandingPenalties = (penaltiesRes.data || []).map((p) => ({
         id: p.id,
         amount: p.amount,
@@ -1363,7 +1384,7 @@ export function useMotorbikes(countyId?: string) {
         .select(`
           *,
           owner:owners(full_name),
-          rider:riders(full_name)
+          rider:riders(full_name, qr_code)
         `)
         .order('created_at', { ascending: false });
 
@@ -1413,11 +1434,10 @@ export function useAllCounties() {
 
 // Stats for a single county (used by Super Admin county list)
 export async function fetchDashboardStatsForCounty(countyId: string): Promise<DashboardStats & { complianceRate: number }> {
-  const now = new Date().toISOString();
   let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId);
-  let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('status', 'active');
+  let activePermitsQuery = supabase.from('permits').select('id').eq('county_id', countyId).eq('status', 'active');
   let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('compliance_status', 'non_compliant');
-  let paymentsQuery = supabase.from('payments').select('amount').eq('status', 'completed').eq('county_id', countyId);
+  let paymentsQuery = supabase.from('payments').select('amount, status, paid_at, permit_id').eq('county_id', countyId);
 
   const [riders, activePermits, nonCompliantRiders, payments] = await Promise.all([
     ridersQuery,
@@ -1427,12 +1447,28 @@ export async function fetchDashboardStatsForCounty(countyId: string): Promise<Da
   ]);
 
   const totalRiders = riders.count ?? 0;
-  const totalRevenue = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) ?? 0;
+  const isPaidPayment = (p: { status?: string; paid_at?: string | null }) =>
+    p.status === 'completed' || !!p.paid_at;
+  const validPermitIds = new Set(
+    (payments.data || [])
+      .filter((p: { status?: string; permit_id?: string | null }) =>
+        p.status !== 'cancelled' && p.status !== 'failed' && isPaidPayment(p)
+      )
+      .map((p: { permit_id?: string | null }) => p.permit_id)
+      .filter(Boolean) as string[]
+  );
+  const activePermitsCount = (activePermits.data || []).filter((p: { id: string }) =>
+    validPermitIds.has(p.id)
+  ).length;
+  const totalRevenue =
+    (payments.data || [])
+      .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaidPayment(p))
+      .reduce((sum: number, p: { amount?: number }) => sum + Number(p.amount ?? 0), 0) ?? 0;
   const complianceRate = totalRiders > 0 ? Math.round(((totalRiders - (nonCompliantRiders.count ?? 0)) / totalRiders) * 100) : 100;
 
   return {
     totalRiders,
-    activePermits: activePermits.count ?? 0,
+    activePermits: activePermitsCount,
     expiredPermits: 0,
     nonCompliantRiders: nonCompliantRiders.count ?? 0,
     penaltiesIssued: 0,
@@ -2101,13 +2137,14 @@ export function useDashboardStats(countyId?: string) {
 
       // Build queries
       let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true });
-      let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('status', 'active');
+      let activePermitsQuery = supabase.from('permits').select('id').eq('status', 'active');
       let permitsForExpiryQuery = supabase.from('permits').select('id, status, expires_at');
       let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('compliance_status', 'non_compliant');
       let penaltiesTotalQuery = supabase.from('penalties').select('id', { count: 'exact', head: true });
       let penaltiesUnpaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', false);
-      let penaltiesPaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', true);
-      let paymentsQuery = supabase.from('payments').select('amount').eq('status', 'completed');
+      let penaltiesPaidQuery = supabase.from('penalties').select('id, payment_id').eq('is_paid', true);
+      // Need permit_id and id for permits + penalties: only count when payment exists and is valid
+      let paymentsQuery = supabase.from('payments').select('id, amount, status, paid_at, permit_id');
 
       // Apply county filter if provided
       if (countyId) {
@@ -2142,21 +2179,52 @@ export function useDashboardStats(countyId?: string) {
         paymentsQuery,
       ]);
 
-      // Calculate expired permits (status='expired' OR expires_at < now)
-      const expiredPermitsCount = permitsData.data?.filter(
-        (p) => p.status === 'expired' || (p.expires_at && new Date(p.expires_at) < new Date(now))
-      ).length || 0;
+      // Only count permits that have at least one valid payment (exclude cancelled/failed so deleted payments remove permit from stats)
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
+      const validPermitIds = new Set(
+        (payments.data || [])
+          .filter((p: { status?: string; permit_id?: string | null }) =>
+            p.status !== 'cancelled' && p.status !== 'failed' && isPaid(p)
+          )
+          .map((p: { permit_id?: string | null }) => p.permit_id)
+          .filter(Boolean) as string[]
+      );
+      const activePermitList = (activePermits.data || []).filter((p: { id: string }) =>
+        validPermitIds.has(p.id)
+      );
+      const permitsDataFiltered = (permitsData.data || []).filter((p: { id: string }) =>
+        validPermitIds.has(p.id)
+      );
+      const expiredPermitsCount = permitsDataFiltered.filter(
+        (p: { status: string; expires_at: string | null }) =>
+          p.status === 'expired' || (p.expires_at && new Date(p.expires_at) < new Date(now))
+      ).length;
 
-      const totalRevenue = payments.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+      const totalRevenue =
+        (payments.data || [])
+          .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaid(p))
+          .reduce((sum: number, p: { amount?: number }) => sum + Number(p.amount ?? 0), 0) || 0;
+
+      // Only count penalties paid when payment exists and is valid (or admin-marked with no payment_id)
+      const validPaymentIds = new Set(
+        (payments.data || [])
+          .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaid(p))
+          .map((p: { id?: string }) => p.id)
+          .filter(Boolean) as string[]
+      );
+      const penaltiesPaidCount = (penaltiesPaid.data || []).filter(
+        (p: { payment_id: string | null }) => !p.payment_id || validPaymentIds.has(p.payment_id)
+      ).length;
 
       return {
         totalRiders: riders.count || 0,
-        activePermits: activePermits.count || 0,
+        activePermits: activePermitList.length,
         expiredPermits: expiredPermitsCount,
         nonCompliantRiders: nonCompliantRiders.count || 0,
         penaltiesIssued: penaltiesTotal.count || 0,
         penaltiesUnpaid: penaltiesUnpaid.count || 0,
-        penaltiesPaid: penaltiesPaid.count || 0,
+        penaltiesPaid: penaltiesPaidCount,
         totalRevenue,
       } as DashboardStats;
     },
@@ -2311,16 +2379,17 @@ export function useMonthlyRevenue(countyId?: string, months: number = 6) {
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
 
+      // Match dashboard/payments: revenue = payments with paid_at set (completed or paid_at)
       let paymentsQuery = supabase
         .from('payments')
-        .select('amount, paid_at')
-        .eq('status', 'completed')
+        .select('amount, paid_at, status')
+        .not('paid_at', 'is', null)
         .gte('paid_at', startDate.toISOString())
         .lte('paid_at', now.toISOString());
       if (countyId) paymentsQuery = paymentsQuery.eq('county_id', countyId);
       const { data: payments } = await paymentsQuery;
 
-      // Group by month
+      // Group by month (include payment if status is completed OR paid_at is set)
       const monthMap = new Map<string, number>();
 
       // Initialize all months with 0
@@ -2331,9 +2400,10 @@ export function useMonthlyRevenue(countyId?: string, months: number = 6) {
         monthMap.set(monthKey, 0);
       }
 
-      // Sum payments by month
-      payments?.forEach((payment: any) => {
-        if (payment.paid_at) {
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
+      payments?.forEach((payment: { amount?: number; paid_at?: string | null; status?: string }) => {
+        if (payment.paid_at && isPaid(payment)) {
           const date = new Date(payment.paid_at);
           const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
           const current = monthMap.get(monthKey) || 0;
