@@ -5,7 +5,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Download, CheckCircle, XCircle, Clock, RefreshCw, Search, Filter, History, TrendingUp } from 'lucide-react';
-import { usePayments, usePermitTypes, useVerifyPayment } from '@/hooks/usePayments';
+import { usePayments, usePermitTypesForPayments, useVerifyPayment } from '@/hooks/usePayments';
 import { usePenalties } from '@/hooks/usePenalties';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { PaymentHistoryDialog } from '@/components/payments/PaymentHistoryDialog';
@@ -26,6 +26,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { exportToCSV } from '@/utils/exportCsv';
+import { cn } from '@/lib/utils';
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -41,24 +42,31 @@ const getStatusIcon = (status: string) => {
 };
 
 const getStatusBadge = (status: string) => {
-  // Map completed to "Paid" for display
+  // Map completed to "Paid" for display; disable hover color change so status stays the same on hover
   if (status === 'completed') {
     return (
-      <Badge variant="default" className="flex items-center gap-1 w-fit bg-success/20 text-success border-success/30">
+      <Badge variant="default" className="flex items-center gap-1 w-fit bg-success/20 text-success border-success/30 hover:bg-success/20 hover:text-success">
         <CheckCircle className="h-3 w-3" />
         Paid
       </Badge>
     );
   }
-  
+
   const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
     pending: 'secondary',
     failed: 'destructive',
     refunded: 'outline',
     cancelled: 'outline',
   };
+  const variant = variants[status] || 'secondary';
+  const hoverFix =
+    variant === 'secondary'
+      ? 'hover:bg-secondary hover:text-secondary-foreground'
+      : variant === 'destructive'
+        ? 'hover:bg-destructive hover:text-destructive-foreground'
+        : 'hover:bg-muted hover:text-muted-foreground';
   return (
-    <Badge variant={variants[status] || 'secondary'} className="flex items-center gap-1 w-fit">
+    <Badge variant={variant} className={cn('flex items-center gap-1 w-fit', hoverFix)}>
       {getStatusIcon(status)}
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
@@ -74,9 +82,46 @@ type PaymentRow = {
   created_at: string;
   paid_at: string | null;
   riders: { id: string; full_name: string; phone: string } | null;
-  permits: { permit_number: string; permit_types: { name: string } | null } | null;
+  permits: { permit_number: string; permit_type_id?: string; permit_types: { name: string } | null } | null;
   metadata: Record<string, unknown> | null;
 };
+
+type PermitTypeRow = { id: string; name: string };
+
+export type PermitPenaltyInfo = { kind: 'permit' | 'penalty' | null; name: string };
+
+function resolvePermitPenaltyInfo(
+  payment: PaymentRow,
+  permitTypes: PermitTypeRow[],
+  penaltyIdToName: Map<string, string>
+): PermitPenaltyInfo {
+  const meta = payment.metadata as Record<string, unknown> | null | undefined;
+  const isPenalty = meta?.payment_type === 'penalty';
+  const penaltyId = meta?.penalty_id as string | undefined;
+  if (isPenalty && penaltyId) {
+    const name = penaltyIdToName.get(penaltyId) ?? 'Penalty';
+    return { kind: 'penalty', name };
+  }
+  const fromPermitType = payment.permits?.permit_types?.name;
+  if (fromPermitType) return { kind: 'permit', name: fromPermitType };
+  const typeId = payment.permits?.permit_type_id ?? (meta?.permit_type_id as string | undefined);
+  if (typeId) {
+    const name = permitTypes.find((pt) => pt.id === typeId)?.name;
+    if (name) return { kind: 'permit', name };
+  }
+  return { kind: null, name: '—' };
+}
+
+/** Full label for search/export: "Permit: Monthly Permit" or "Penalty: Operating without valid permit" or "—" */
+function resolvePermitPenaltyLabel(
+  payment: PaymentRow,
+  permitTypes: PermitTypeRow[],
+  penaltyIdToName: Map<string, string>
+): string {
+  const info = resolvePermitPenaltyInfo(payment, permitTypes, penaltyIdToName);
+  if (info.kind === null || info.name === '—') return '—';
+  return `${info.kind === 'penalty' ? 'Penalty' : 'Permit'}: ${info.name}`;
+}
 
 export default function PaymentsPage() {
   const { profile, roles } = useAuth();
@@ -91,7 +136,7 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const { data: payments = [], isLoading } = usePayments(countyId);
-  const { data: permitTypes = [] } = usePermitTypes(countyId ?? undefined);
+  const { data: permitTypes = [] } = usePermitTypesForPayments(countyId);
   const { data: penalties = [] } = usePenalties(countyId ?? undefined);
   const verifyPayment = useVerifyPayment();
   const verifiedRef = useRef<string | null>(null);
@@ -148,15 +193,14 @@ export default function PaymentsPage() {
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
-        const matchesRider = payment.riders?.full_name.toLowerCase().includes(query) || 
+        const matchesRider = payment.riders?.full_name.toLowerCase().includes(query) ||
                             payment.riders?.phone.toLowerCase().includes(query);
         const meta = payment.metadata as Record<string, unknown> | null | undefined;
         const permitNum = payment.permits?.permit_number ?? (meta?.permit_number as string | undefined);
-        const permitName = payment.permits?.permit_types?.name ?? permitTypes.find((pt) => pt.id === meta?.permit_type_id)?.name;
-        const penaltyName = meta?.payment_type === 'penalty' && meta?.penalty_id ? penaltyIdToName.get(meta.penalty_id as string) : undefined;
-        const matchesPermit = permitNum?.toLowerCase().includes(query) || permitName?.toLowerCase().includes(query) || penaltyName?.toLowerCase().includes(query);
+        const permitPenaltyLabel = resolvePermitPenaltyLabel(payment as PaymentRow, permitTypes, penaltyIdToName);
+        const matchesPermit = permitNum?.toLowerCase().includes(query) || permitPenaltyLabel?.toLowerCase().includes(query);
         const matchesReference = payment.payment_reference?.toLowerCase().includes(query);
-        
+
         if (!matchesRider && !matchesPermit && !matchesReference) {
           return false;
         }
@@ -181,16 +225,7 @@ export default function PaymentsPage() {
       amount: p.amount ?? '',
       payment_method: p.payment_method ?? '',
       status: isPaid(p) ? 'completed' : (p.status ?? ''),
-      permit_penalty: (() => {
-        const meta = p.metadata as Record<string, unknown> | null | undefined;
-        if (meta?.payment_type === 'penalty' && meta?.penalty_id) {
-          return penaltyIdToName.get(meta.penalty_id as string) ?? 'Penalty';
-        }
-        const name = p.permits?.permit_types?.name;
-        if (name) return name;
-        const typeId = meta?.permit_type_id as string | undefined;
-        return permitTypes.find((pt) => pt.id === typeId)?.name ?? '';
-      })(),
+      permit_penalty: resolvePermitPenaltyLabel(p as PaymentRow, permitTypes, penaltyIdToName),
       created_at: p.created_at ?? '',
       paid_at: p.paid_at ?? '',
     }));
@@ -243,23 +278,32 @@ export default function PaymentsPage() {
     },
     {
       accessorKey: 'permits.permit_types.name',
-      header: 'Permit / Penalty',
+      header: 'Type',
       cell: ({ row }) => {
-        const meta = row.original.metadata as Record<string, unknown> | null | undefined;
-        const isPenalty = meta?.payment_type === 'penalty';
-        const penaltyId = meta?.penalty_id as string | undefined;
-
-        if (isPenalty && penaltyId) {
-          const penaltyName = penaltyIdToName.get(penaltyId);
-          return <span className="text-sm">{penaltyName ?? 'Penalty'}</span>;
+        const info = resolvePermitPenaltyInfo(row.original, permitTypes, penaltyIdToName);
+        if (info.kind === null || info.name === '—') {
+          return <span className="text-muted-foreground">—</span>;
         }
-
-        const name = row.original.permits?.permit_types?.name;
-        if (name) return <span className="text-sm">{name}</span>;
-        const typeId = meta?.permit_type_id as string | undefined;
-        const pendingName = typeId ? permitTypes.find((pt) => pt.id === typeId)?.name : undefined;
-        if (pendingName) return <span className="text-sm text-muted-foreground">{pendingName}</span>;
-        return <span className="text-muted-foreground">—</span>;
+        const isPermit = info.kind === 'permit';
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className={cn(
+                'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+                isPermit
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
+                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25'
+              )}
+            >
+              {isPermit ? 'Permit' : 'Penalty'}
+            </span>
+            {/* Show specific type name (e.g. "Monthly Permit", penalty type) — uncomment for future use
+            <span className="text-sm text-foreground truncate" title={info.name}>
+              {info.name}
+            </span>
+            */}
+          </div>
+        );
       },
     },
     {

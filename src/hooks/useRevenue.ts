@@ -90,60 +90,49 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
   return useQuery({
     queryKey: ['revenue-by-date-range', countyId, startDate, endDate],
     queryFn: async () => {
-      // Match dashboard/payments: revenue = paid (status completed OR paid_at set); filter by paid_at in range
-      let permitQuery = supabase
-        .from('payments')
-        .select('amount, paid_at, permit_id, status');
-      if (countyId) permitQuery = permitQuery.eq('county_id', countyId);
-      if (startDate) permitQuery = permitQuery.gte('paid_at', `${startDate}T00:00:00.000Z`);
-      if (endDate) permitQuery = permitQuery.lte('paid_at', `${endDate}T23:59:59.999Z`);
-      permitQuery = permitQuery.not('paid_at', 'is', null);
+      // Permit revenue: match dashboard/permits — from permits.amount_paid, grouped by issued_at
+      let permitsQuery = supabase
+        .from('permits')
+        .select('county_id, amount_paid, issued_at');
+      if (countyId) permitsQuery = permitsQuery.eq('county_id', countyId);
+      if (startDate) permitsQuery = permitsQuery.gte('issued_at', `${startDate}T00:00:00.000Z`);
+      if (endDate) permitsQuery = permitsQuery.lte('issued_at', `${endDate}T23:59:59.999Z`);
 
       let penaltyQuery = supabase
         .from('penalties')
-        .select('amount, paid_at, is_paid, created_at')
+        .select('county_id, amount, paid_at, is_paid, created_at, description')
         .eq('is_paid', true);
       if (countyId) penaltyQuery = penaltyQuery.eq('county_id', countyId);
 
-      // Note: We'll filter by date in the code since some penalties might not have paid_at set
-      // We'll use paid_at if available, otherwise created_at for date grouping
-
-      const [permitPayments, penaltyPayments] = await Promise.all([
-        permitQuery,
+      const [permitsResult, penaltyPayments] = await Promise.all([
+        permitsQuery,
         penaltyQuery,
       ]);
 
-      if (permitPayments.error) throw permitPayments.error;
+      if (permitsResult.error) throw permitsResult.error;
       if (penaltyPayments.error) throw penaltyPayments.error;
 
-      // Group by date
       const dateMap = new Map<string, { permit: number; penalty: number }>();
 
-      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
-        p.status === 'completed' || !!p.paid_at;
-      (permitPayments.data || []).forEach((payment: { amount?: number; paid_at?: string; status?: string }) => {
-        if (payment.paid_at && isPaid(payment)) {
-          const paymentDate = payment.paid_at.split('T')[0];
-          if (startDate && paymentDate < startDate) return;
-          if (endDate && paymentDate > endDate) return;
-          const current = dateMap.get(paymentDate) || { permit: 0, penalty: 0 };
-          dateMap.set(paymentDate, { ...current, permit: current.permit + Number(payment.amount || 0) });
-        }
+      (permitsResult.data || []).forEach((p: { amount_paid?: number; issued_at?: string }) => {
+        const permitDate = p.issued_at?.split('T')[0];
+        if (!permitDate) return;
+        if (startDate && permitDate < startDate) return;
+        if (endDate && permitDate > endDate) return;
+        const current = dateMap.get(permitDate) || { permit: 0, penalty: 0 };
+        dateMap.set(permitDate, { ...current, permit: current.permit + Number(p.amount_paid ?? 0) });
       });
 
-      (penaltyPayments.data || []).forEach((penalty: any) => {
-        if (penalty.is_paid) {
-          // Use paid_at if available, otherwise use created_at as fallback
-          const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
-          if (!penaltyDate) return;
-          
-          // Check if penalty date is within range
-          if (startDate && penaltyDate < startDate) return;
-          if (endDate && penaltyDate > endDate) return;
-          
-          const current = dateMap.get(penaltyDate) || { permit: 0, penalty: 0 };
-          dateMap.set(penaltyDate, { ...current, penalty: current.penalty + Number(penalty.amount || 0) });
-        }
+      const isWaived = (desc: string | null | undefined) =>
+        !!desc && desc.includes('[WAIVED]');
+      (penaltyPayments.data || []).forEach((penalty: { county_id?: string; amount: number; paid_at?: string; created_at?: string; description?: string }) => {
+        if (isWaived(penalty.description)) return;
+        const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
+        if (!penaltyDate) return;
+        if (startDate && penaltyDate < startDate) return;
+        if (endDate && penaltyDate > endDate) return;
+        const current = dateMap.get(penaltyDate) || { permit: 0, penalty: 0 };
+        dateMap.set(penaltyDate, { ...current, penalty: current.penalty + Number(penalty.amount || 0) });
       });
 
       return Array.from(dateMap.entries())
@@ -524,40 +513,37 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
       if (!counties?.length) return [] as RevenueByCounty[];
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
-      // Match dashboard/payments: revenue = paid (status completed OR paid_at set); filter by paid_at in range
-      let paymentsQuery = supabase
-        .from('payments')
-        .select('county_id, amount, paid_at, status')
-        .not('paid_at', 'is', null);
-      if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
-      if (endBound) paymentsQuery = paymentsQuery.lte('paid_at', endBound);
-      const { data: payments, error: payError } = await paymentsQuery;
-      if (payError) throw payError;
 
+      // Permit revenue: match dashboard/permits — sum of permits.amount_paid (filter by issued_at in range)
+      let permitsQuery = supabase
+        .from('permits')
+        .select('county_id, amount_paid, issued_at');
+      if (startBound) permitsQuery = permitsQuery.gte('issued_at', startBound);
+      if (endBound) permitsQuery = permitsQuery.lte('issued_at', endBound);
+      const { data: permits, error: permError } = await permitsQuery;
+      if (permError) throw permError;
+
+      // Penalty revenue: match dashboard/penalties — sum of penalty.amount for paid, non-waived penalties
       const { data: penalties, error: penError } = await supabase
         .from('penalties')
-        .select('county_id, amount, is_paid, paid_at, created_at')
+        .select('county_id, amount, is_paid, paid_at, created_at, description')
         .eq('is_paid', true);
       if (penError) throw penError;
 
       const countyMap = new Map<string, { permit: number; penalty: number }>();
       counties.forEach((c: { id: string }) => countyMap.set(c.id, { permit: 0, penalty: 0 }));
 
-      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
-        p.status === 'completed' || !!p.paid_at;
-      (payments || []).forEach((p: { county_id: string; amount: number; paid_at?: string; status?: string }) => {
-        if (!isPaid(p)) return;
+      (permits || []).forEach((p: { county_id: string; amount_paid?: number; issued_at?: string }) => {
         const key = p.county_id;
         if (!key) return;
-        let dateOk = true;
-        if (startDate && p.paid_at && p.paid_at.split('T')[0] < startDate) dateOk = false;
-        if (endDate && p.paid_at && p.paid_at.split('T')[0] > endDate) dateOk = false;
-        if (!dateOk) return;
         const cur = countyMap.get(key);
-        if (cur) cur.permit += Number(p.amount || 0);
+        if (cur) cur.permit += Number(p.amount_paid ?? 0);
       });
 
-      (penalties || []).forEach((p: { county_id: string; amount: number; paid_at?: string; created_at?: string }) => {
+      const isWaived = (desc: string | null | undefined) =>
+        !!desc && desc.includes('[WAIVED]');
+      (penalties || []).forEach((p: { county_id: string; amount: number; paid_at?: string; created_at?: string; description?: string }) => {
+        if (isWaived(p.description)) return;
         const key = p.county_id;
         if (!key) return;
         const dateStr = (p.paid_at || p.created_at)?.split('T')[0];
@@ -610,16 +596,26 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
       if (!counties?.length) return [] as MonetizationSummaryByCounty[];
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      // Match useRevenueByCounty/useRevenueByDateRange: paid = status completed OR paid_at set
       let paymentsQuery = supabase
         .from('payments')
         .select(
-          'county_id, amount, gross_amount, total_deductions, net_to_county, paid_at, platform_fee, processing_fee, penalty_commission, sms_charges'
+          'county_id, amount, gross_amount, total_deductions, net_to_county, paid_at, status, platform_fee, processing_fee, penalty_commission, sms_charges'
         )
-        .eq('status', 'completed');
+        .not('paid_at', 'is', null);
       if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
       if (endBound) paymentsQuery = paymentsQuery.lte('paid_at', endBound);
       const { data: payments, error: payError } = await paymentsQuery;
       if (payError) throw payError;
+
+      const { data: penalties, error: penError } = await supabase
+        .from('penalties')
+        .select('county_id, amount, payment_id, paid_at, created_at')
+        .eq('is_paid', true);
+      if (penError) throw penError;
+
+      const isPaid = (p: { status?: string; paid_at?: string | null }) =>
+        p.status === 'completed' || !!p.paid_at;
 
       const countyMap = new Map<
         string,
@@ -646,6 +642,7 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
       );
 
       (payments || []).forEach((p: any) => {
+        if (!isPaid(p)) return;
         const key = p.county_id;
         if (!key) return;
         const cur = countyMap.get(key);
@@ -658,6 +655,26 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
         cur.smsCharges += Number(p.sms_charges ?? 0);
         cur.totalDeductions += Number(p.total_deductions ?? 0);
         cur.netToCounty += Number(p.net_to_county ?? gross);
+      });
+
+      // Include penalties paid outside payment flow (no payment_id) to match county dashboard revenue
+      const penaltyDateInRange = (dateStr: string) => {
+        if (!dateStr) return false;
+        if (startDate && dateStr < startDate) return false;
+        if (endDate && dateStr > endDate) return false;
+        return true;
+      };
+      (penalties || []).forEach((pen: any) => {
+        if (pen.payment_id) return; // Already counted via payments table (avoids double-counting)
+        const key = pen.county_id;
+        if (!key) return;
+        const dateStr = (pen.paid_at || pen.created_at)?.split('T')[0];
+        if (!penaltyDateInRange(dateStr)) return;
+        const cur = countyMap.get(key);
+        if (!cur) return;
+        const amount = Number(pen.amount || 0);
+        cur.totalGross += amount;
+        cur.netToCounty += amount;
       });
 
       return counties.map((c: { id: string; name: string; code: string }) => {

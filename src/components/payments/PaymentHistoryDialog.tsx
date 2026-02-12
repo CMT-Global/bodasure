@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { useRiderPaymentHistory } from '@/hooks/usePayments';
+import { useRiderPenalties } from '@/hooks/usePenalties';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +30,12 @@ export function PaymentHistoryDialog({
   countyId,
 }: PaymentHistoryDialogProps) {
   const { data: payments, isLoading } = useRiderPaymentHistory(riderId || '', countyId);
+  const { data: riderPenalties = [] } = useRiderPenalties(riderId || '', countyId ?? undefined);
+
+  const penaltyIdToPenalty = useMemo(
+    () => new Map(riderPenalties.map((p) => [p.id, p])),
+    [riderPenalties]
+  );
 
   if (!riderId) return null;
 
@@ -154,6 +162,50 @@ export function PaymentHistoryDialog({
                             </div>
                           </>
                         )}
+
+                        {/* Penalty Details */}
+                        {(() => {
+                          const meta = payment.metadata as Record<string, unknown> | null | undefined;
+                          if (meta?.payment_type !== 'penalty') return null;
+                          const penaltyId = meta.penalty_id as string | undefined;
+                          if (!penaltyId) return null;
+                          const penalty = penaltyIdToPenalty.get(penaltyId);
+                          if (!penalty) return null;
+                          return (
+                            <>
+                              <Separator />
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-muted-foreground">Payment Type</span>
+                                  <span className="font-medium">Penalty</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-muted-foreground">Penalty Type</span>
+                                  <span className="font-medium">{penalty.penalty_type}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-muted-foreground">Amount</span>
+                                  <span className="font-medium">
+                                    {new Intl.NumberFormat('en-KE', {
+                                      style: 'currency',
+                                      currency: 'KES',
+                                    }).format(penalty.amount)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-muted-foreground">Penalty Status</span>
+                                  <StatusBadge status={penalty.is_paid ? 'paid' : 'unpaid'} />
+                                </div>
+                                {penalty.paid_at && (
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">Paid At</span>
+                                    <span>{format(new Date(penalty.paid_at), 'PPP p')}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
 
                         {/* Payment Method */}
                         {payment.payment_method && (

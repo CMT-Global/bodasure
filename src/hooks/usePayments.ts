@@ -79,11 +79,32 @@ export function usePermitTypes(countyId?: string) {
   });
 }
 
-export function usePermits(countyId: string) {
+/** Permit types for the current county, or all counties when countyId is undefined (e.g. super admin). Use on payments page to resolve permit_type_id to name for every payment. */
+export function usePermitTypesForPayments(countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['permit_types_for_payments', countyId],
+    queryFn: async () => {
+      let query = supabase
+        .from('permit_types')
+        .select('id, name, county_id')
+        .eq('is_active', true)
+        .order('amount', { ascending: true });
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []) as Array<Pick<PermitType, 'id' | 'name' | 'county_id'>>;
+    },
+    enabled: true,
+  });
+}
+
+export function usePermits(countyId: string | undefined) {
   return useQuery({
     queryKey: ['permits', countyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('permits')
         .select(`
           *,
@@ -91,13 +112,15 @@ export function usePermits(countyId: string) {
           riders(full_name, phone),
           motorbikes(registration_number, make, model)
         `)
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
-      
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -164,7 +187,7 @@ export function usePayments(countyId: string | undefined) {
         .select(`
           *,
           riders(id, full_name, phone),
-          permits(permit_number, permit_types(name))
+          permits(permit_number, permit_type_id, permit_types(name))
         `)
         .order('created_at', { ascending: false });
       if (countyId) {
@@ -172,7 +195,20 @@ export function usePayments(countyId: string | undefined) {
       }
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      type PaymentWithRelations = Payment & {
+        riders: { id: string; full_name: string; phone: string } | null;
+        permits: { permit_number: string; permit_type_id?: string; permit_types: { name: string } | null } | null;
+      };
+      // Normalize: PostgREST may return permits as object or single-element array in some edge cases
+      const rows = (data || []) as unknown[];
+      return rows.map((row: unknown) => {
+        const r = row as Record<string, unknown>;
+        const permits = r.permits;
+        if (Array.isArray(permits) && permits.length === 1) {
+          return { ...r, permits: permits[0] } as PaymentWithRelations;
+        }
+        return row as PaymentWithRelations;
+      }) as PaymentWithRelations[];
     },
     enabled: true,
   });
