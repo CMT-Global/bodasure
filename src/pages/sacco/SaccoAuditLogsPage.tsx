@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SaccoPortalLayout } from '@/components/layout/SaccoPortalLayout';
+import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
+import { useEffectiveCountyId } from '@/contexts/PlatformSuperAdminCountyContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useSaccos } from '@/hooks/useData';
 import { useSaccoAuditLogs } from '@/hooks/useSaccoAuditLogs';
@@ -49,11 +51,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { saccoAuditLogsFilterFormSchema, type SaccoAuditLogsFilterFormValues } from '@/lib/zod';
 
 export default function SaccoAuditLogsPage() {
-  const { profile, roles } = useAuth();
-  const countyId = useMemo(
-    () => profile?.county_id ?? roles.find((r) => r.county_id)?.county_id ?? undefined,
-    [profile, roles]
-  );
+  const { hasRole } = useAuth();
+  const countyId = useEffectiveCountyId();
+  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
 
   const { data: saccos = [], isLoading: saccosLoading } = useSaccos(countyId);
   const [saccoId, setSaccoId] = useState<string | undefined>(undefined);
@@ -129,7 +129,9 @@ export default function SaccoAuditLogsPage() {
               Track all actions including member approvals, suspensions, stage assignments, role changes, and more.
             </p>
           </div>
-          <div className="w-full sm:w-64">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <CountyFilterBar />
+            <div className="w-full sm:w-48 min-w-0">
             <Select
               value={saccoId ?? ''}
               onValueChange={(v) => setSaccoId(v || undefined)}
@@ -146,12 +148,17 @@ export default function SaccoAuditLogsPage() {
                 ))}
               </SelectContent>
             </Select>
+            </div>
           </div>
         </div>
 
         {!countyId ? (
           <div className="rounded-lg border border-border bg-card p-6 text-center">
-            <p className="text-muted-foreground">No county assigned. Please contact an administrator.</p>
+            <p className="text-muted-foreground">
+              {isPlatformSuperAdmin
+                ? 'Select a county to view audit logs.'
+                : 'No county assigned. Please contact an administrator.'}
+            </p>
           </div>
         ) : (
           <>

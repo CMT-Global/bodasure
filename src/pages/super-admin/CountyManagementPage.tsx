@@ -15,6 +15,7 @@ import {
   CountyInsert,
   CountyUpdate,
 } from '@/hooks/useData';
+import { useRevenueByCounty } from '@/hooks/useRevenue';
 import { useQueries } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -97,6 +98,16 @@ export default function CountyManagementPage() {
     return map;
   }, [countyIds, statsQueries]);
 
+  // Use same revenue source as Super Admin Finance view (permit + penalty, all-time)
+  const { data: revenueByCounty = [] } = useRevenueByCounty();
+  const revenueByCountyId = useMemo(() => {
+    const map: Record<string, number> = {};
+    revenueByCounty.forEach((r) => {
+      map[r.countyId] = r.totalRevenue;
+    });
+    return map;
+  }, [revenueByCounty]);
+
   const createMutation = useCreateCounty();
   const updateMutation = useUpdateCounty();
   const deleteMutation = useDeleteCounty();
@@ -142,8 +153,8 @@ export default function CountyManagementPage() {
       id: 'revenue',
       header: 'Revenue',
       cell: ({ row }) => {
-        const stats = statsMap[row.original.id];
-        return <span className="text-sm">{stats ? formatCurrency(stats.totalRevenue) : '—'}</span>;
+        const revenue = revenueByCountyId[row.original.id];
+        return <span className="text-sm">{revenue != null ? formatCurrency(revenue) : '—'}</span>;
       },
     },
     {
@@ -320,7 +331,7 @@ export default function CountyManagementPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Revenue</span>
-                      <p className="font-medium truncate">{stats ? formatCurrency(stats.totalRevenue) : '—'}</p>
+                      <p className="font-medium truncate">{revenueByCountyId[county.id] != null ? formatCurrency(revenueByCountyId[county.id]) : '—'}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Compliance</span>

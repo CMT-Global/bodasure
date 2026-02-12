@@ -1437,7 +1437,7 @@ export async function fetchDashboardStatsForCounty(countyId: string): Promise<Da
   let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId);
   let activePermitsQuery = supabase.from('permits').select('id').eq('county_id', countyId).eq('status', 'active');
   let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('compliance_status', 'non_compliant');
-  let paymentsQuery = supabase.from('payments').select('amount, status, paid_at, permit_id').eq('county_id', countyId);
+  let paymentsQuery = supabase.from('payments').select('amount, gross_amount, status, paid_at, permit_id').eq('county_id', countyId);
 
   const [riders, activePermits, nonCompliantRiders, payments] = await Promise.all([
     ridersQuery,
@@ -1463,7 +1463,7 @@ export async function fetchDashboardStatsForCounty(countyId: string): Promise<Da
   const totalRevenue =
     (payments.data || [])
       .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaidPayment(p))
-      .reduce((sum: number, p: { amount?: number }) => sum + Number(p.amount ?? 0), 0) ?? 0;
+      .reduce((sum: number, p: { amount?: number; gross_amount?: number | null }) => sum + Number((p.gross_amount ?? p.amount) ?? 0), 0) ?? 0;
   const complianceRate = totalRiders > 0 ? Math.round(((totalRiders - (nonCompliantRiders.count ?? 0)) / totalRiders) * 100) : 100;
 
   return {
