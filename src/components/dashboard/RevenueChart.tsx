@@ -42,7 +42,7 @@ export function RevenueChart({ data, title = 'Revenue Overview', description = '
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                tickFormatter={(value) => value.toLocaleString('en-KE', { maximumFractionDigits: 0 })}
               />
               <Tooltip
                 contentStyle={{

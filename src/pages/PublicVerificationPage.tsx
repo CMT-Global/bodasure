@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, User, Loader2, AlertCircle, QrCode, Hash, MapPin, Building2, MapPinned, CheckCircle2, Home, Search, ClipboardList } from 'lucide-react';
+import { Shield, User, Loader2, AlertCircle, QrCode, Hash, MapPin, Building2, MapPinned, CheckCircle2, Home, Search, ClipboardList, Bike } from 'lucide-react';
 import { RiderWithDetails } from '@/hooks/useData';
 
 type PublicRider = RiderWithDetails & { countyName?: string | null };
@@ -113,6 +113,38 @@ function PublicRiderResult({ rider }: { rider: PublicRider }) {
           />
         </CardContent>
       </Card>
+
+      {rider.motorbike && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <Bike className="h-4 w-4 text-muted-foreground" />
+              Motorbike details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-0">
+            <DetailRow icon={Hash} label="Plate" value={rider.motorbike.registration_number} />
+            {rider.motorbike.make && (
+              <DetailRow icon={Bike} label="Make" value={rider.motorbike.make} />
+            )}
+            {rider.motorbike.model && (
+              <DetailRow icon={Bike} label="Model" value={rider.motorbike.model} />
+            )}
+            {rider.motorbike.color && (
+              <DetailRow icon={Bike} label="Color" value={rider.motorbike.color} />
+            )}
+            {rider.motorbike.year != null && (
+              <DetailRow icon={Bike} label="Year" value={String(rider.motorbike.year)} />
+            )}
+            {rider.motorbike.chassis_number && (
+              <DetailRow icon={Hash} label="Chassis number" value={rider.motorbike.chassis_number} />
+            )}
+            {rider.motorbike.engine_number && (
+              <DetailRow icon={Hash} label="Engine number" value={rider.motorbike.engine_number} />
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

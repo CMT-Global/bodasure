@@ -3,7 +3,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, Shield, AlertTriangle, Clock, Ban, Receipt } from 'lucide-react';
-import { usePermits } from '@/hooks/usePayments';
+import { usePermits, usePayments } from '@/hooks/usePayments';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { PermitPaymentsDialog } from '@/components/permits/PermitPaymentsDialog';
 import { Badge } from '@/components/ui/badge';
@@ -47,19 +47,19 @@ type PermitRow = {
 };
 
 const getStatusBadge = (status: string, expiresAt: string | null) => {
-  const isExpiringSoon = expiresAt && differenceInDays(new Date(expiresAt), new Date()) <= 30;
+  const isExpiringSoon = expiresAt && differenceInDays(new Date(expiresAt), new Date()) <= 7;
   
   if (status === 'active' && isExpiringSoon) {
     return (
-      <Badge variant="secondary" className="flex items-center gap-1 w-fit bg-yellow-500/20 text-yellow-600">
+      <Badge variant="secondary" className="flex items-center gap-1 w-fit bg-yellow-500/20 text-yellow-600 hover:bg-yellow-500/20 hover:text-yellow-600">
         <AlertTriangle className="h-3 w-3" />
         Expiring Soon
       </Badge>
     );
   }
   
-  const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode }> = {
-    active: { variant: 'default', icon: <Shield className="h-3 w-3" /> },
+  const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode; className?: string }> = {
+    active: { variant: 'default', icon: <Shield className="h-3 w-3" />, className: 'bg-green-500/20 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-600' },
     pending: { variant: 'secondary', icon: <Clock className="h-3 w-3" /> },
     expired: { variant: 'destructive', icon: <AlertTriangle className="h-3 w-3" /> },
     suspended: { variant: 'outline', icon: <Ban className="h-3 w-3" /> },
@@ -68,7 +68,7 @@ const getStatusBadge = (status: string, expiresAt: string | null) => {
   
   const config = variants[status] || variants.pending;
   return (
-    <Badge variant={config.variant} className="flex items-center gap-1 w-fit">
+    <Badge variant={config.variant} className={`flex items-center gap-1 w-fit ${config.className ?? ''}`}>
       {config.icon}
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
@@ -117,7 +117,7 @@ const getColumns = (onViewPayments: (permitId: string, permitNumber: string) => 
           <Badge variant={getPermitTypeBadge(type)} className="mb-1">
             {type}
           </Badge>
-          <p className="text-xs text-muted-foreground">{permitType.name}</p>
+          {/* <p className="text-xs text-muted-foreground">{permitType.name}</p> */}
         </div>
       );
     },
@@ -188,16 +188,24 @@ export default function PermitsPage() {
   const [selectedPermitNumber, setSelectedPermitNumber] = useState<string>('');
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
 
-  // Check if user is platform super admin
-  const isPlatformSuperAdmin = hasRole('platform_super_admin') || hasRole('platform_admin');
-
   const countyId = useEffectiveCountyId();
 
-  // Only fetch permits if we have a countyId (for non-super-admins or super-admins with selected county)
-  const { data: permits = [], isLoading } = usePermits(countyId || '');
-  
-  // Show message for super admins without county selection
-  const showCountySelectionMessage = isPlatformSuperAdmin && !countyId;
+  // Fetch permits: when countyId is set, filter by county; when undefined (All counties), show all
+  const { data: allPermits = [], isLoading: permitsLoading } = usePermits(countyId);
+  const { data: payments = [], isLoading: paymentsLoading } = usePayments(countyId);
+
+  // Only show permits that have at least one completed payment (hide permits whose payment was deleted/cancelled)
+  const permits = useMemo(() => {
+    const validPermitIds = new Set(
+      payments
+        .filter((p) => p.status !== 'cancelled' && p.status !== 'failed' && (p.status === 'completed' || !!p.paid_at))
+        .map((p) => p.permit_id)
+        .filter(Boolean) as string[]
+    );
+    return allPermits.filter((permit) => validPermitIds.has(permit.id));
+  }, [allPermits, payments]);
+
+  const isLoading = permitsLoading || paymentsLoading;
 
   const handleViewPayments = (permitId: string, permitNumber: string) => {
     setSelectedPermitId(permitId);
@@ -226,10 +234,11 @@ export default function PermitsPage() {
   const activePermits = permits.filter(p => p.status === 'active').length;
   const expiringSoon = permits.filter(p => {
     if (p.status !== 'active' || !p.expires_at) return false;
-    return differenceInDays(new Date(p.expires_at), new Date()) <= 30;
+    return differenceInDays(new Date(p.expires_at), new Date()) <= 7;
   }).length;
   const expiredPermits = permits.filter(p => p.status === 'expired').length;
   const pendingPermits = permits.filter(p => p.status === 'pending').length;
+  const totalPermitPaid = permits.reduce((sum, p) => sum + (p.amount_paid ?? 0), 0);
 
   return (
     <DashboardLayout>
@@ -258,7 +267,19 @@ export default function PermitsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">Total Paid</CardTitle>
+              <Receipt className="h-4 w-4 text-primary shrink-0" />
+            </CardHeader>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-xl sm:text-2xl font-bold">
+                {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalPermitPaid)}
+              </div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">total permit amount paid</p>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
               <CardTitle className="text-xs sm:text-sm font-medium">Active</CardTitle>
@@ -276,7 +297,7 @@ export default function PermitsPage() {
             </CardHeader>
             <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
               <div className="text-xl sm:text-2xl font-bold text-yellow-500">{expiringSoon}</div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">within 30 days</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">within 7 days</p>
             </CardContent>
           </Card>
           <Card>
@@ -302,28 +323,12 @@ export default function PermitsPage() {
         </div>
 
         {/* Data Table */}
-        {showCountySelectionMessage ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  Select a county when creating a permit to view permits for that county.
-                </p>
-                <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Issue Permit
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <DataTable
-            columns={getColumns(handleViewPayments)}
-            data={permits as PermitRow[]}
-            searchPlaceholder="Search by permit number, rider..."
-            isLoading={isLoading}
-          />
-        )}
+        <DataTable
+          columns={getColumns(handleViewPayments)}
+          data={permits as PermitRow[]}
+          searchPlaceholder="Search by permit number, rider..."
+          isLoading={isLoading}
+        />
 
         {/* Payment Dialog for new permits */}
         <PaymentDialog

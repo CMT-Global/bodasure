@@ -71,7 +71,7 @@ function RiderOwnerDashboardContent() {
     ? format(parseISO(latestPermit.expires_at), 'dd MMM yyyy')
     : null;
   const permitDaysLeft =
-    latestPermit?.expires_at && permitStatus === 'active'
+    latestPermit?.expires_at && (permitStatus === 'active' || permitStatus === 'expiring_soon')
       ? Math.max(
           0,
           Math.ceil(
@@ -258,44 +258,53 @@ function RiderOwnerDashboardContent() {
         />
       </div>
 
-      {/* Permit status + Payments – single col mobile, two on sm+ */}
+      {/* Permit status + Payments – same layout for visual balance */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 min-w-0">
-        {/* Permit status card – orange border, orange CTA */}
+        {/* Permit status card – mirrors Payments card layout */}
         <Card className="overflow-hidden rounded-xl border border-gray-600/50 dark:border-gray-500/40 bg-card transition-all hover:border-orange-500">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1 min-w-0">
                 <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-orange-500" />
+                  <Shield
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      permitStatus === 'active' && 'text-green-600 dark:text-green-400',
+                      (permitStatus === 'expiring_soon' || permitStatus === 'none' || permitStatus === 'pending') && 'text-orange-500',
+                      permitStatus === 'expired' && 'text-red-500'
+                    )}
+                  />
                   Permit status
                 </p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      'font-semibold rounded-full bg-muted text-muted-foreground border-0',
-                      permitStatus === 'active' && 'bg-green-500/15 text-green-600 dark:text-green-400',
-                      permitStatus === 'expiring_soon' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
-                      permitStatus === 'expired' && 'bg-red-500/15 text-red-600 dark:text-red-400'
-                    )}
-                  >
-                    {permitStatus === 'active'
-                      ? 'Active'
-                      : permitStatus === 'expiring_soon'
-                        ? 'Expiring soon'
-                        : permitStatus === 'expired'
-                          ? 'Expired'
-                          : permitStatus === 'pending'
-                            ? 'Pending'
-                            : 'Not set'}
-                  </Badge>
-                  {permitDaysLeft != null && permitStatus === 'active' && (
-                    <span className="text-xs text-muted-foreground">
-                      {permitDaysLeft} days left
-                    </span>
+                <p
+                  className={cn(
+                    'text-xl sm:text-2xl font-bold',
+                    permitStatus === 'active' && 'text-green-600 dark:text-green-400',
+                    permitStatus === 'expiring_soon' && 'text-amber-600 dark:text-amber-400',
+                    permitStatus === 'expired' && 'text-red-600 dark:text-red-400',
+                    (permitStatus === 'pending' || permitStatus === 'none') && 'text-muted-foreground'
                   )}
-                </div>
-                {(permitStatus === 'expired' || permitStatus === 'expiring_soon' || permitStatus === 'none') && (
+                >
+                  {permitStatus === 'active'
+                    ? 'Active'
+                    : permitStatus === 'expiring_soon'
+                      ? 'Expiring soon'
+                      : permitStatus === 'expired'
+                        ? 'Expired'
+                        : permitStatus === 'pending'
+                          ? 'Pending'
+                          : 'Not set'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {permitDaysLeft != null && (permitStatus === 'active' || permitStatus === 'expiring_soon')
+                    ? `${permitDaysLeft} days left`
+                    : permitStatus === 'expired'
+                      ? 'Renew to stay compliant'
+                      : permitStatus === 'pending'
+                        ? 'Payment being processed'
+                        : 'Get or renew your permit'}
+                </p>
+                {(permitStatus === 'expired' || permitStatus === 'expiring_soon' || permitStatus === 'none') ? (
                   <Button
                     size="sm"
                     className="mt-3 gap-2 bg-orange-500 hover:bg-orange-600 text-white border-0 min-h-[44px] touch-manipulation"
@@ -304,16 +313,33 @@ function RiderOwnerDashboardContent() {
                     <CreditCard className="h-4 w-4" />
                     {permitStatus === 'expired' ? 'Renew permit' : 'Pay permit'}
                   </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-3 gap-2 bg-muted hover:bg-muted/80 text-foreground min-h-[44px] touch-manipulation"
+                    onClick={() => navigate('/rider-owner/compliance-status')}
+                  >
+                    <Shield className="h-4 w-4" />
+                    View compliance
+                  </Button>
                 )}
               </div>
-              <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl flex-shrink-0 bg-orange-500/10 text-orange-500">
+              <div
+                className={cn(
+                  'flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl flex-shrink-0',
+                  permitStatus === 'active' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                  (permitStatus === 'expiring_soon' || permitStatus === 'none' || permitStatus === 'pending') && 'bg-orange-500/10 text-orange-500',
+                  permitStatus === 'expired' && 'bg-red-500/10 text-red-500'
+                )}
+              >
                 <Shield className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Payments card – dark border, Ksh amount, View receipts only */}
+        {/* Payments card */}
         <Card className="overflow-hidden rounded-xl border border-gray-600/50 dark:border-gray-500/40 bg-card transition-all hover:border-orange-500">
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-4">

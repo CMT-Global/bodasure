@@ -141,6 +141,12 @@ export default function PenaltiesPage() {
       penalties.filter(p => p.repeat_offender).map(p => p.rider_id)
     ).size;
     const totalAmount = penalties.filter(p => !p.is_paid).reduce((sum, p) => sum + Number(p.amount), 0);
+    const paidPenalties = penalties.filter(p => {
+      if (!p.is_paid) return false;
+      if (p.payment_id) return true;
+      return !(p.description && p.description.includes('[WAIVED]'));
+    });
+    const paidAmount = paidPenalties.reduce((sum, p) => sum + Number(p.amount), 0);
 
     return {
       unpaid,
@@ -148,6 +154,7 @@ export default function PenaltiesPage() {
       waived,
       repeatOffenders,
       totalAmount,
+      paidAmount,
     };
   }, [penalties]);
 
@@ -447,7 +454,13 @@ export default function PenaltiesPage() {
             </CardHeader>
             <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
               <div className="text-xl sm:text-2xl font-bold text-green-500">{stats.paid}</div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">settled</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                {new Intl.NumberFormat('en-KE', {
+                  style: 'currency',
+                  currency: 'KES',
+                  maximumFractionDigits: 0,
+                }).format(stats.paidAmount)} collected
+              </p>
             </CardContent>
           </Card>
           <Card>

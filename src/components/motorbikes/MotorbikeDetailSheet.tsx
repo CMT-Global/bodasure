@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Bike, Calendar, QrCode, Edit, User, Hash, Palette, Wrench } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { QRCodeCanvas } from 'qrcode.react';
 
 interface MotorbikeDetailSheetProps {
   open: boolean;
@@ -152,19 +153,27 @@ export function MotorbikeDetailSheet({ open, onOpenChange, motorbike, onEdit }: 
             </div>
           </div>
 
-          {/* QR Code */}
-          {motorbike.qr_code && (
+          {/* QR Code (assigned rider's QR when rider is set) */}
+          {(motorbike.rider?.qr_code || motorbike.qr_code) && (
             <>
               <Separator />
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-muted-foreground">QR Code</h4>
-                <div className="flex items-center gap-3 rounded-lg border border-border p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <QrCode className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-mono font-medium">{motorbike.qr_code}</p>
-                    <p className="text-xs text-muted-foreground">Scan to verify motorbike</p>
+                <div className="flex items-center gap-4 rounded-lg border border-border p-4">
+                  {(motorbike.rider?.qr_code || motorbike.qr_code) && typeof window !== 'undefined' && (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border bg-white p-1.5">
+                      <QRCodeCanvas
+                        value={`${window.location.origin}/verify/${encodeURIComponent(motorbike.rider?.qr_code ?? motorbike.qr_code ?? '')}`}
+                        size={72}
+                        level="M"
+                      />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono font-medium break-all">{motorbike.rider?.qr_code ?? motorbike.qr_code}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {motorbike.rider?.qr_code ? 'Assigned rider’s QR — scan to verify rider' : 'Scan to verify'}
+                    </p>
                   </div>
                 </div>
               </div>

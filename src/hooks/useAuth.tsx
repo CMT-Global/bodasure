@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
+import { User, Session, AuthError, FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 /** County portal roles that carry county_id — must match backend get_user_county_id(). Use role's county as source of truth for county users. */
@@ -39,7 +39,11 @@ interface AuthContextType {
   isLoadingRoles: boolean;
   rolesLoaded: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ data: { user: User } | null; error: AuthError | null }>;
+  /** Request OTP for phone login. Call verifyOtp after user receives SMS. */
+  requestOtp: (phone: string) => Promise<{ error: string | null; retryAfterSeconds?: number }>;
+  /** Verify OTP and complete phone login/signup; on success redirects via magic link. Optional fullName for new-account signup. */
+  verifyOtp: (phone: string, otp: string, fullName?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: string) => boolean;
   isPlatformAdmin: () => boolean;
@@ -48,6 +52,10 @@ interface AuthContextType {
   countyId: string | undefined;
   /** County name from the user's county portal role (same source as countyId). Fetched with roles. */
   countyName: string | undefined;
+  /** True when profile has full_name and phone set. Required before accessing app; redirect to /complete-profile if false. */
+  isProfileComplete: boolean;
+  /** Re-fetch profile from DB (e.g. after completing profile). */
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -270,7 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -278,7 +286,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: { full_name: fullName }
       }
     });
-    return { error };
+    return { data: data?.user ? { user: data.user } : null, error };
+  };
+
+  const requestOtp = async (phone: string): Promise<{ error: string | null; retryAfterSeconds?: number }> => {
+    const invoke = () =>
+      supabase.functions.invoke('request-otp', {
+        body: { phone: phone.trim() },
+      });
+    const edgeUnreachableMsg =
+      'Unable to reach the server. If you just set up phone login, deploy the request-otp Edge Function (see docs/PHONE_LOGIN_SETUP.md) and try again.';
+    try {
+      let lastError: string | null = null;
+      let retryAfter: number | undefined;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await invoke();
+        const { data, error, response } = result;
+
+        // On 502/429 the client returns { data: null, error } and the body is on the Response
+        if (error && response && error instanceof FunctionsHttpError) {
+          try {
+            const body = await response.json();
+            if (typeof body?.error === 'string') lastError = body.error;
+            if (typeof body?.retryAfterSeconds === 'number') retryAfter = body.retryAfterSeconds;
+          } catch {
+            lastError = error?.message ?? null;
+          }
+        }
+        if (!lastError && data?.error) {
+          lastError = data.error as string;
+          retryAfter = typeof data.retryAfterSeconds === 'number' ? data.retryAfterSeconds : undefined;
+        }
+        if (!lastError) lastError = error?.message ?? null;
+        if (!error && !data?.error) return { error: null };
+        if (lastError === 'SMS service not configured') {
+          return { error: 'SMS service not configured. Add SMSLEOPARD_API_KEY and SMSLEOPARD_API_SECRET_KEY in Supabase Dashboard → Project Settings → Edge Functions → Secrets.' };
+        }
+        // Only treat as unreachable when we have no server message and error suggests network/fetch
+        const hasServerMessage = lastError && lastError !== 'Edge Function returned a non-2xx status code';
+        const isUnreachable =
+          !hasServerMessage &&
+          (lastError?.toLowerCase().includes('edge function') || lastError?.toLowerCase().includes('fetch'));
+        if (isUnreachable) {
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
+          else return { error: edgeUnreachableMsg };
+        } else {
+          break;
+        }
+      }
+      return { error: lastError || 'Failed to send OTP', retryAfterSeconds: retryAfter };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to send OTP';
+      if (msg.toLowerCase().includes('edge function') || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')) {
+        return { error: edgeUnreachableMsg };
+      }
+      return { error: msg };
+    }
+  };
+
+  const verifyOtp = async (phone: string, otp: string, fullName?: string): Promise<{ error: string | null }> => {
+    const body: { phone: string; otp: string; full_name?: string } = { phone: phone.trim(), otp: otp.trim() };
+    if (fullName?.trim()) body.full_name = fullName.trim();
+    const invoke = () => supabase.functions.invoke('verify-otp', { body });
+    const edgeUnreachableMsg =
+      'Unable to reach the server. Ensure the verify-otp Edge Function is deployed (see docs/PHONE_LOGIN_SETUP.md) and try again.';
+    try {
+      let result = await invoke();
+      if (result.error?.message?.toLowerCase().includes('edge function') || result.error?.message?.toLowerCase().includes('fetch')) {
+        await new Promise((r) => setTimeout(r, 800));
+        result = await invoke();
+      }
+      const { data, error } = result;
+      if (error) {
+        if (error.message?.toLowerCase().includes('edge function') || error.message?.toLowerCase().includes('fetch')) {
+          return { error: edgeUnreachableMsg };
+        }
+        return { error: error.message || 'Verification failed' };
+      }
+      if (data?.error) return { error: data.error };
+      if (data?.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return { error: null };
+      }
+      return { error: 'Verification failed' };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Verification failed';
+      if (msg.toLowerCase().includes('edge function') || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')) {
+        return { error: edgeUnreachableMsg };
+      }
+      return { error: msg };
+    }
   };
 
   const signOut = async () => {
@@ -308,18 +405,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
   const countyId = countyPortalRoleWithCounty?.county_id ?? profile?.county_id ?? undefined;
   const countyName = countyPortalRoleWithCounty?.county_name ?? undefined;
+  const isProfileComplete = !!(profile?.full_name?.trim() && profile?.phone?.trim());
+
+  const refreshProfile = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    if (data) setProfile(data as Profile);
+  };
 
   return (
     <AuthContext.Provider value={{
       user,
       session,
       profile,
+      isProfileComplete,
+      refreshProfile,
       roles,
       isLoading,
       isLoadingRoles,
       rolesLoaded,
       signIn,
       signUp,
+      requestOtp,
+      verifyOtp,
       signOut,
       hasRole,
       isPlatformAdmin,
