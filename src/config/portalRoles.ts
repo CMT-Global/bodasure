@@ -215,15 +215,22 @@ export const SACCO_PORTAL_ROLE_KEYS = [
 ] as const;
 
 /**
- * Role values that exist in the base app_role enum (before migration 20260202130000).
- * Use for Supabase .in('role', ...) filters so the request works even when extended
- * official roles (chairman, vice_chairman, etc.) have not been added to the DB yet.
+ * Role values used for querying user_roles when loading sacco/welfare officials.
+ * Includes all org-level official roles so the officials table shows chairman,
+ * vice_chairman, secretary, etc. (Requires app_role enum to include these values.)
  */
 export const SACCO_OFFICIAL_ROLES_QUERY_FILTER = [
   'sacco_admin',
   'sacco_officer',
   'welfare_admin',
   'welfare_officer',
+  'chairman',
+  'vice_chairman',
+  'secretary',
+  'vice_secretary',
+  'treasurer',
+  'vice_treasurer',
+  'general_official',
   'stage_chairman',
   'stage_secretary',
   'stage_treasurer',

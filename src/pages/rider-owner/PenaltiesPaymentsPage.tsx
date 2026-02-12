@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RiderOwnerLayout } from '@/components/layout/RiderOwnerLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useRiderOwnerDashboard } from '@/hooks/useData';
 import { useRiderPenalties } from '@/hooks/usePenalties';
-import { useInitializePenaltyPayment } from '@/hooks/usePayments';
+import { useInitializePenaltyPayment, useVerifyPayment, useRiderPaymentHistory } from '@/hooks/usePayments';
+import { PenaltyDetailsDialog } from '@/components/payments/PenaltyDetailsDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, CreditCard, Loader2, Receipt } from 'lucide-react';
+import { AlertCircle, CreditCard, Eye, Loader2, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -24,16 +26,53 @@ function getPenaltyStatus(penalty: Penalty): 'unpaid' | 'paid' | 'waived' {
 
 function PenaltiesPaymentsContent() {
   const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: dashboardData, isLoading: dashboardLoading, error } = useRiderOwnerDashboard(user?.id);
   const rider = dashboardData?.rider ?? null;
   const countyId = rider?.county_id ?? undefined;
   const { data: penalties = [], isLoading: penaltiesLoading } = useRiderPenalties(rider?.id ?? '', countyId);
+  const { data: paymentHistory = [] } = useRiderPaymentHistory(rider?.id ?? '', countyId);
   const initializePenaltyPayment = useInitializePenaltyPayment();
+  const verifyPayment = useVerifyPayment();
 
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaPhoneError, setMpesaPhoneError] = useState<string | null>(null);
   const [payingPenaltyId, setPayingPenaltyId] = useState<string | null>(null);
+  const [selectedPenalty, setSelectedPenalty] = useState<Penalty | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // Map penalty_id -> payment for method lookup (Paystack-paid penalties)
+  const penaltyIdToPayment = useMemo(() => {
+    const map = new Map<string, { payment_method: string | null; payment_reference: string | null }>();
+    for (const p of paymentHistory) {
+      const meta = p.metadata as Record<string, unknown> | null | undefined;
+      const penaltyId = meta?.penalty_id as string | undefined;
+      if (penaltyId) {
+        map.set(penaltyId, { payment_method: p.payment_method, payment_reference: p.payment_reference });
+      }
+    }
+    return map;
+  }, [paymentHistory]);
+
+  const paymentReference = searchParams.get('payment_reference');
+  const verifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!paymentReference || verifiedRef.current === paymentReference) return;
+    verifiedRef.current = paymentReference;
+    verifyPayment.mutate(paymentReference, {
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['rider-penalties', rider?.id ?? '', countyId] });
+        queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['rider-penalties', rider?.id ?? '', countyId] });
+        }, 800);
+        const next = new URLSearchParams(searchParams);
+        next.delete('payment_reference');
+        setSearchParams(next, { replace: true });
+      },
+    });
+  }, [paymentReference]);
 
   const handleMpesaPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -109,7 +148,7 @@ function PenaltiesPaymentsContent() {
   return (
     <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold break-words">Penalties & Payments</h1>
+        <h1 className="text-xl sm:text-2xl font-bold break-words">Penalties Payments</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-1">
           View all penalties issued to you and pay via Paystack (KES + M-Pesa).
         </p>
@@ -202,21 +241,35 @@ function PenaltiesPaymentsContent() {
                         <p className="text-xs text-muted-foreground mt-1">{penalty.description}</p>
                       )}
                     </div>
-                    {canPay && (
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
+                        variant="outline"
                         size="sm"
-                        className="shrink-0 gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
-                        onClick={() => handlePayPenalty(penalty)}
-                        disabled={initializePenaltyPayment.isPending || isPaying || !!mpesaPhoneError}
+                        className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
+                        onClick={() => {
+                          setSelectedPenalty(penalty);
+                          setIsDetailsOpen(true);
+                        }}
                       >
-                        {isPaying ? (
-                          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                        ) : (
-                          <CreditCard className="h-4 w-4 shrink-0" />
-                        )}
-                        Pay with Paystack
+                        <Eye className="h-4 w-4 shrink-0" />
+                        View
                       </Button>
-                    )}
+                      {canPay && (
+                        <Button
+                          size="sm"
+                          className="gap-2 min-h-[44px] touch-manipulation w-full sm:w-auto"
+                          onClick={() => handlePayPenalty(penalty)}
+                          disabled={initializePenaltyPayment.isPending || isPaying || !!mpesaPhoneError}
+                        >
+                          {isPaying ? (
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                          ) : (
+                            <CreditCard className="h-4 w-4 shrink-0" />
+                          )}
+                          Pay with Paystack
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 );
               })}
@@ -224,6 +277,35 @@ function PenaltiesPaymentsContent() {
           )}
         </CardContent>
       </Card>
+
+      <PenaltyDetailsDialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) setSelectedPenalty(null);
+        }}
+        penalty={selectedPenalty}
+        paymentMethod={
+          selectedPenalty
+            ? penaltyIdToPayment.get(selectedPenalty.id)?.payment_method ??
+              (!selectedPenalty.payment_id &&
+              selectedPenalty.is_paid &&
+              !selectedPenalty.description?.includes('[WAIVED]')
+                ? 'offline'
+                : undefined)
+            : undefined
+        }
+        reference={
+          selectedPenalty
+            ? penaltyIdToPayment.get(selectedPenalty.id)?.payment_reference ??
+              (!selectedPenalty.payment_id &&
+              selectedPenalty.is_paid &&
+              !selectedPenalty.description?.includes('[WAIVED]')
+                ? `ADMIN-${selectedPenalty.id.slice(0, 8)}`
+                : undefined)
+            : undefined
+        }
+      />
     </div>
   );
 }

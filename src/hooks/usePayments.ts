@@ -79,11 +79,32 @@ export function usePermitTypes(countyId?: string) {
   });
 }
 
-export function usePermits(countyId: string) {
+/** Permit types for the current county, or all counties when countyId is undefined (e.g. super admin). Use on payments page to resolve permit_type_id to name for every payment. */
+export function usePermitTypesForPayments(countyId: string | undefined) {
+  return useQuery({
+    queryKey: ['permit_types_for_payments', countyId],
+    queryFn: async () => {
+      let query = supabase
+        .from('permit_types')
+        .select('id, name, county_id')
+        .eq('is_active', true)
+        .order('amount', { ascending: true });
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []) as Array<Pick<PermitType, 'id' | 'name' | 'county_id'>>;
+    },
+    enabled: true,
+  });
+}
+
+export function usePermits(countyId: string | undefined) {
   return useQuery({
     queryKey: ['permits', countyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('permits')
         .select(`
           *,
@@ -91,13 +112,78 @@ export function usePermits(countyId: string) {
           riders(full_name, phone),
           motorbikes(registration_number, make, model)
         `)
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
-      
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: !!countyId,
+    enabled: true,
+  });
+}
+
+/** Single permit by id with permit_types (for PermitPaymentsDialog) */
+export function usePermit(permitId: string | null) {
+  return useQuery({
+    queryKey: ['permit', permitId],
+    queryFn: async () => {
+      if (!permitId) return null;
+      const { data, error } = await supabase
+        .from('permits')
+        .select(`
+          id,
+          permit_number,
+          status,
+          issued_at,
+          expires_at,
+          amount_paid,
+          permit_types(name, amount, duration_days)
+        `)
+        .eq('id', permitId)
+        .single();
+      if (error) throw error;
+      return data as {
+        id: string;
+        permit_number: string;
+        status: string;
+        issued_at: string | null;
+        expires_at: string | null;
+        amount_paid: number | null;
+        permit_types: { name: string; amount: number; duration_days: number } | null;
+      } | null;
+    },
+    enabled: !!permitId,
+  });
+}
+
+/** Rider's permits with type and bike for duplicate-purchase check and expiry display */
+export interface RiderPermitRow {
+  id: string;
+  permit_number: string;
+  status: string;
+  issued_at: string | null;
+  expires_at: string | null;
+  permit_type_id: string;
+  motorbike_id: string;
+  permit_types: { name: string; duration_days: number } | null;
+}
+
+export function useRiderPermits(riderId: string | undefined) {
+  return useQuery({
+    queryKey: ['rider-permits', riderId],
+    queryFn: async () => {
+      if (!riderId) return [];
+      const { data, error } = await supabase
+        .from('permits')
+        .select('id, permit_number, status, issued_at, expires_at, permit_type_id, motorbike_id, permit_types(name, duration_days)')
+        .eq('rider_id', riderId)
+        .order('expires_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as RiderPermitRow[];
+    },
+    enabled: !!riderId,
   });
 }
 
@@ -127,24 +213,39 @@ export function usePermitPayments(permitId: string) {
   });
 }
 
-export function usePayments(countyId: string) {
+export function usePayments(countyId: string | undefined) {
   return useQuery({
     queryKey: ['payments', countyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('payments')
         .select(`
           *,
           riders(id, full_name, phone),
-          permits(permit_number)
+          permits(permit_number, permit_type_id, permit_types(name))
         `)
-        .eq('county_id', countyId)
         .order('created_at', { ascending: false });
-      
+      if (countyId) {
+        query = query.eq('county_id', countyId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
-      return data;
+      type PaymentWithRelations = Payment & {
+        riders: { id: string; full_name: string; phone: string } | null;
+        permits: { permit_number: string; permit_type_id?: string; permit_types: { name: string } | null } | null;
+      };
+      // Normalize: PostgREST may return permits as object or single-element array in some edge cases
+      const rows = (data || []) as unknown[];
+      return rows.map((row: unknown) => {
+        const r = row as Record<string, unknown>;
+        const permits = r.permits;
+        if (Array.isArray(permits) && permits.length === 1) {
+          return { ...r, permits: permits[0] } as PaymentWithRelations;
+        }
+        return row as PaymentWithRelations;
+      }) as PaymentWithRelations[];
     },
-    enabled: !!countyId,
+    enabled: true,
   });
 }
 
@@ -175,7 +276,7 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as Array<Payment & {
+      type RiderPaymentRow = Payment & {
         permits: {
           id: string;
           permit_number: string;
@@ -188,9 +289,29 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
             amount: number;
           } | null;
         } | null;
-      }>;
+      };
+      // Normalize: PostgREST may return permits as object or single-element array
+      const rows = (data || []) as unknown[];
+      const normalized = rows.map((row: unknown) => {
+        const r = row as Record<string, unknown>;
+        const permits = r.permits;
+        if (Array.isArray(permits) && permits.length >= 1) {
+          return { ...r, permits: permits[0] } as RiderPaymentRow;
+        }
+        return row as RiderPaymentRow;
+      }) as RiderPaymentRow[];
+      // Exclude cancelled and failed payments so "Permit history" / "All payments" only show valid ones
+      return normalized.filter((p) => p.status !== 'cancelled' && p.status !== 'failed');
     },
     enabled: !!riderId,
+    // When there are pending payments, poll so we pick up webhook updates (county shows paid; rider should too)
+    refetchInterval: (query) => {
+      const list = (query.state.data ?? []) as Payment[];
+      const hasPending = list.some(
+        (p) => p.status !== 'completed' && !p.paid_at
+      );
+      return hasPending ? 5000 : false;
+    },
   });
 }
 
@@ -202,6 +323,8 @@ interface InitializePaymentParams {
   rider_id: string;
   motorbike_id: string;
   county_id: string;
+  /** Return path after payment (e.g. /dashboard/payments). Omit for rider-owner defaults. */
+  return_path?: string;
 }
 
 export interface InitializePenaltyPaymentParams {
@@ -211,6 +334,8 @@ export interface InitializePenaltyPaymentParams {
   phone?: string;
   rider_id: string;
   county_id: string;
+  /** Return path after payment (e.g. /dashboard/payments). Omit for rider-owner defaults. */
+  return_path?: string;
 }
 
 export function useInitializePayment() {
@@ -219,19 +344,32 @@ export function useInitializePayment() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(params),
-        }
-      );
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`;
+      const body = {
+        ...params,
+        app_origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(body),
+      });
 
-      const data = await response.json();
+      let data: { error?: string; data?: { authorization_url?: string }; success?: boolean };
+      try {
+        data = await response.json();
+      } catch {
+        const msg = response.status === 404
+          ? 'Payment service unavailable. Deploy the paystack-initialize function to your Supabase project.'
+          : response.status === 502 || response.status === 503
+            ? 'Payment service temporarily unavailable. Try again in a moment.'
+            : `Failed to initialize payment (${response.status})`;
+        throw new Error(msg);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to initialize payment');
       }
@@ -256,19 +394,32 @@ export function useInitializePenaltyPayment() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(params),
-        }
-      );
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/paystack-initialize`;
+      const body = {
+        ...params,
+        app_origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(body),
+      });
 
-      const data = await response.json();
+      let data: { error?: string; data?: { authorization_url?: string }; success?: boolean };
+      try {
+        data = await response.json();
+      } catch {
+        const msg = response.status === 404
+          ? 'Payment service unavailable. Deploy the paystack-initialize function to your Supabase project.'
+          : response.status === 502 || response.status === 503
+            ? 'Payment service temporarily unavailable. Try again in a moment.'
+            : `Failed to initialize payment (${response.status})`;
+        throw new Error(msg);
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to initialize payment');
       }
@@ -312,9 +463,32 @@ export function useVerifyPayment() {
     onSuccess: (data) => {
       if (data.data?.status === 'success') {
         toast.success('Payment verified successfully!');
-        queryClient.invalidateQueries({ queryKey: ['payments'] });
-        queryClient.invalidateQueries({ queryKey: ['permits'] });
-        queryClient.invalidateQueries({ queryKey: ['riders'] });
+        const keysToInvalidate = [
+          ['payments'],
+          ['permits'],
+          ['permit'],
+          ['permit-payments'],
+          ['rider-permits'],
+          ['rider-penalties'],
+          ['riders'],
+          ['rider-payment-history'],
+          ['rider-owner-dashboard'],
+          ['dashboard-stats'],
+          ['monthly-revenue'],
+          ['revenue-by-date-range'],
+          ['revenue-by-county'],
+        ] as const;
+        keysToInvalidate.forEach((queryKey) => {
+          queryClient.invalidateQueries({ queryKey });
+        });
+        // Delayed refetch so UI updates after DB commit (penalty is_paid, payment status, etc.)
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+          queryClient.invalidateQueries({ queryKey: ['permit-payments'] });
+          queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+          queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
+          queryClient.invalidateQueries({ queryKey: ['rider-penalties'] });
+        }, 800);
       }
     },
     onError: (error: Error) => {

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useMonetizationSummary, type MonetizationSummaryByCounty } from '@/hooks/useRevenue';
+import { useMonetizationSummary, useRevenueByCounty, type MonetizationSummaryByCounty } from '@/hooks/useRevenue';
 import { superAdminFinanceDateRangeSchema } from '@/lib/zod';
 import { format } from 'date-fns';
 import { Loader2, Download, FileSpreadsheet, Calendar } from 'lucide-react';
@@ -19,7 +19,7 @@ function formatKES(n: number) {
   }).format(n);
 }
 
-function exportMonetizationCSV(data: MonetizationSummaryByCounty[], startDate: string, endDate: string) {
+function exportMonetizationCSV(data: (MonetizationSummaryByCounty & { permitRevenue?: number; penaltyRevenue?: number })[], startDate: string, endDate: string) {
   if (!data?.length) {
     toast.error('No data to export.');
     return;
@@ -27,6 +27,8 @@ function exportMonetizationCSV(data: MonetizationSummaryByCounty[], startDate: s
   const headers = [
     'County',
     'County Code',
+    'Permit Revenue (KES)',
+    'Penalty Revenue (KES)',
     'Total Gross (KES)',
     'Platform Fees (KES)',
     'Processing Fees (KES)',
@@ -38,6 +40,8 @@ function exportMonetizationCSV(data: MonetizationSummaryByCounty[], startDate: s
   const rows = data.map((row) => [
     row.countyName,
     row.countyCode,
+    (row.permitRevenue ?? 0).toFixed(2),
+    (row.penaltyRevenue ?? 0).toFixed(2),
     row.totalGross.toFixed(2),
     row.platformFees.toFixed(2),
     row.processingFees.toFixed(2),
@@ -56,7 +60,7 @@ function exportMonetizationCSV(data: MonetizationSummaryByCounty[], startDate: s
   toast.success('CSV exported.');
 }
 
-function exportMonetizationExcel(data: MonetizationSummaryByCounty[], startDate: string, endDate: string) {
+function exportMonetizationExcel(data: (MonetizationSummaryByCounty & { permitRevenue?: number; penaltyRevenue?: number })[], startDate: string, endDate: string) {
   if (!data?.length) {
     toast.error('No data to export.');
     return;
@@ -64,6 +68,8 @@ function exportMonetizationExcel(data: MonetizationSummaryByCounty[], startDate:
   const headers = [
     'County',
     'County Code',
+    'Permit Revenue (KES)',
+    'Penalty Revenue (KES)',
     'Total Gross (KES)',
     'Platform Fees (KES)',
     'Processing Fees (KES)',
@@ -80,6 +86,8 @@ function exportMonetizationExcel(data: MonetizationSummaryByCounty[], startDate:
     [
       row.countyName,
       row.countyCode,
+      (row.permitRevenue ?? 0).toFixed(2),
+      (row.penaltyRevenue ?? 0).toFixed(2),
       row.totalGross.toFixed(2),
       row.platformFees.toFixed(2),
       row.processingFees.toFixed(2),
@@ -132,7 +140,29 @@ export default function SuperAdminFinanceViewPage() {
   })();
   const effectiveEnd = isValid ? validation.data.endDate : getTodayISO();
 
-  const { data: summaryByCounty = [], isLoading } = useMonetizationSummary(effectiveStart, effectiveEnd);
+  const { data: monetizationSummary = [], isLoading: monetizationLoading } = useMonetizationSummary(effectiveStart, effectiveEnd);
+  const { data: revenueByCounty = [], isLoading: revenueLoading } = useRevenueByCounty(effectiveStart, effectiveEnd);
+
+  const isLoading = monetizationLoading || revenueLoading;
+
+  // Merge revenue: use totalRevenue from useRevenueByCounty for "Total gross collected" to match county dashboard
+  const summaryByCounty = useMemo(() => {
+    const revenueMap = new Map(revenueByCounty.map((r) => [r.countyId, r]));
+    return monetizationSummary.map((row) => {
+      const matched = revenueMap.get(row.countyId);
+      const totalGross = matched?.totalRevenue ?? row.totalGross;
+      const permitRevenue = matched?.permitRevenue ?? 0;
+      const penaltyRevenue = matched?.penaltyRevenue ?? 0;
+      const netToCounty = totalGross - row.totalDeductions;
+      return {
+        ...row,
+        totalGross,
+        permitRevenue,
+        penaltyRevenue,
+        netToCounty: Math.round(netToCounty * 100) / 100,
+      };
+    });
+  }, [monetizationSummary, revenueByCounty]);
 
   return (
     <SuperAdminLayout>
@@ -235,8 +265,16 @@ export default function SuperAdminFinanceViewPage() {
                 <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
                   <div className="rounded-lg border bg-muted/30 p-3 font-mono text-xs sm:p-4 sm:text-sm">
                     <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2">
+                      <span className="text-muted-foreground">Permit revenue</span>
+                      <span className="sm:text-right">{formatKES(county.permitRevenue ?? 0)}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2">
+                      <span className="text-muted-foreground">Penalty revenue</span>
+                      <span className="sm:text-right">{formatKES(county.penaltyRevenue ?? 0)}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2 font-medium">
                       <span className="text-muted-foreground">Total gross collected</span>
-                      <span className="font-medium sm:text-right">{formatKES(county.totalGross)}</span>
+                      <span className="sm:text-right">{formatKES(county.totalGross)}</span>
                     </div>
                     <div className="mt-2 border-t pt-2">
                       <span className="text-muted-foreground text-xs uppercase tracking-wide">Deductions by category</span>
