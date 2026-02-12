@@ -24,6 +24,7 @@ import {
   useCheckExpiredPermits,
   PenaltyWithRepeatInfo,
 } from '@/hooks/usePenalties';
+import { useCountySettings } from '@/hooks/useCountySettings';
 import { PenaltyIssuanceDialog } from '@/components/penalties/PenaltyIssuanceDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
@@ -90,8 +91,8 @@ const getPenaltyStatusBadge = (penalty: PenaltyWithRepeatInfo) => {
   return <StatusBadge status={status} />;
 };
 
-// Predefined penalty types - always show these in the filter
-const PENALTY_TYPES = [
+// Fallback penalty type labels when county has none configured
+const FALLBACK_PENALTY_TYPES = [
   'Expired permit',
   'No permit',
   'Other county-defined violations',
@@ -118,6 +119,19 @@ export default function PenaltiesPage() {
   const checkExpiredPermits = useCheckExpiredPermits(countyId);
 
   const { data: penalties = [], isLoading } = usePenalties(countyId);
+  const { data: countySettings } = useCountySettings(countyId || undefined);
+
+  // All penalty types: from county settings (dashboard/settings) + any types that appear in issued penalties
+  const penaltyTypeOptions = useMemo(() => {
+    const fromSettings = (countySettings?.penaltySettings?.penaltyTypes ?? [])
+      .filter((pt) => pt.isActive !== false)
+      .map((pt) => pt.name);
+    const fromPenalties = Array.from(
+      new Set(penalties.map((p) => p.penalty_type).filter(Boolean))
+    ) as string[];
+    const combined = Array.from(new Set([...fromSettings, ...fromPenalties]));
+    return combined.length > 0 ? combined.sort() : FALLBACK_PENALTY_TYPES;
+  }, [countySettings?.penaltySettings?.penaltyTypes, penalties]);
 
   // Platform/county super admins have full rights; enforcement officer and county admin can also issue
   const canIssuePenalties = hasRole('platform_super_admin') || hasRole('county_super_admin') || hasRole('county_enforcement_officer') || hasRole('county_admin');
@@ -535,7 +549,7 @@ export default function PenaltiesPage() {
               </SelectTrigger>
               <SelectContent className="w-[var(--radix-select-trigger-width)]">
                 <SelectItem value="all">All Types</SelectItem>
-                {PENALTY_TYPES.map((type) => (
+                {penaltyTypeOptions.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>
@@ -570,6 +584,7 @@ export default function PenaltiesPage() {
             open={isIssuanceOpen}
             onOpenChange={setIsIssuanceOpen}
             countyId={countyId}
+            penaltyTypes={countySettings?.penaltySettings?.penaltyTypes ?? []}
           />
         )}
 
