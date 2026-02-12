@@ -135,9 +135,9 @@ export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const { data: payments = [], isLoading } = usePayments(countyId);
+  const { data: payments = [], isLoading: paymentsLoading } = usePayments(countyId);
   const { data: permitTypes = [] } = usePermitTypesForPayments(countyId);
-  const { data: penalties = [] } = usePenalties(countyId ?? undefined);
+  const { data: penalties = [], isLoading: penaltiesLoading } = usePenalties(countyId ?? undefined);
   const verifyPayment = useVerifyPayment();
   const verifiedRef = useRef<string | null>(null);
 
@@ -162,16 +162,53 @@ export default function PaymentsPage() {
 
   const penaltyIdToName = useMemo(() => new Map(penalties.map((p) => [p.id, p.penalty_type])), [penalties]);
 
+  // Include penalties that admin marked as paid (no payment row yet) so they show on this page
+  const adminMarkedPenaltyPayments = useMemo(() => {
+    return penalties
+      .filter(
+        (p) =>
+          p.is_paid &&
+          !p.payment_id &&
+          !(p.description && p.description.includes('[WAIVED]'))
+      )
+      .map((p): PaymentRow => ({
+        id: `penalty-${p.id}`,
+        amount: Number(p.amount),
+        status: 'completed',
+        payment_reference: `ADMIN-${p.id.slice(0, 8)}`,
+        payment_method: 'offline',
+        created_at: p.created_at,
+        paid_at: p.paid_at,
+        riders: p.riders
+          ? { id: p.riders.id, full_name: p.riders.full_name, phone: p.riders.phone ?? '' }
+          : null,
+        permits: null,
+        metadata: { payment_type: 'penalty', penalty_id: p.id },
+      }));
+  }, [penalties]);
+
+  // Merge payments table rows with admin-marked penalty-only rows (no duplicate: payment_id null means no row in payments)
+  const paymentsWithAdminMarked = useMemo(() => {
+    const combined = [...payments, ...adminMarkedPenaltyPayments];
+    return combined.sort((a, b) => {
+      const da = a.paid_at || a.created_at;
+      const db = b.paid_at || b.created_at;
+      return new Date(db).getTime() - new Date(da).getTime();
+    });
+  }, [payments, adminMarkedPenaltyPayments]);
+
+  const isLoading = paymentsLoading || penaltiesLoading;
+
   // Treat as paid if status is completed OR paid_at is set (webhook/verify may set paid_at before status)
   const isPaid = (p: { status: string; paid_at?: string | null }) =>
     p.status === 'completed' || !!p.paid_at;
 
-  // Calculate revenue totals
+  // Calculate revenue totals from merged list
   const revenueStats = useMemo(() => {
-    const completed = payments.filter(isPaid);
+    const completed = paymentsWithAdminMarked.filter(isPaid);
     const totalRevenue = completed.reduce((sum, p) => sum + Number(p.amount), 0);
-    const pendingPayments = payments.filter(p => !isPaid(p) && p.status !== 'failed').length;
-    const failedPayments = payments.filter(p => p.status === 'failed').length;
+    const pendingPayments = paymentsWithAdminMarked.filter((p) => !isPaid(p) && p.status !== 'failed').length;
+    const failedPayments = paymentsWithAdminMarked.filter((p) => p.status === 'failed').length;
 
     return {
       total: totalRevenue,
@@ -179,14 +216,14 @@ export default function PaymentsPage() {
       pending: pendingPayments,
       failed: failedPayments,
     };
-  }, [payments]);
+  }, [paymentsWithAdminMarked]);
 
-  // Filter payments
+  // Filter payments (use merged list; status "paid" = isPaid so admin-marked penalties count)
   const filteredPayments = useMemo(() => {
-    return payments.filter((payment) => {
+    return paymentsWithAdminMarked.filter((payment) => {
       // Status filter
       if (statusFilter !== 'all') {
-        if (statusFilter === 'paid' && payment.status !== 'completed') return false;
+        if (statusFilter === 'paid' && !isPaid(payment)) return false;
         if (statusFilter !== 'paid' && payment.status !== statusFilter) return false;
       }
 
@@ -208,7 +245,7 @@ export default function PaymentsPage() {
 
       return true;
     });
-  }, [payments, searchQuery, statusFilter, permitTypes, penaltyIdToName]);
+  }, [paymentsWithAdminMarked, searchQuery, statusFilter, permitTypes, penaltyIdToName]);
 
   const handleViewHistory = (riderId: string, riderName: string) => {
     setSelectedRiderId(riderId);
@@ -339,7 +376,7 @@ export default function PaymentsPage() {
           <div>
             <h1 className="text-2xl font-bold">Payments</h1>
             <p className="text-muted-foreground">
-              Track revenue and payment transactions • {payments.length} total
+              Track revenue and payment transactions • {paymentsWithAdminMarked.length} total
             </p>
           </div>
           <div className="flex gap-2">

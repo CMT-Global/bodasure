@@ -598,6 +598,18 @@ function PermitPaymentsContent() {
                   <span className="text-muted-foreground">Status</span>
                   <StatusBadge status={getPaymentDisplayStatus(receiptPayment)} />
                 </div>
+                {receiptPayment.payment_method && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Method of payment</span>
+                    <span>
+                      {receiptPayment.payment_method === 'mobile_money'
+                        ? 'M-Pesa'
+                        : receiptPayment.payment_method === 'card'
+                          ? 'Card'
+                          : receiptPayment.payment_method}
+                    </span>
+                  </div>
+                )}
                 {receiptPayment.paid_at && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Paid at</span>

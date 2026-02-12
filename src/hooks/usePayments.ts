@@ -124,6 +124,40 @@ export function usePermits(countyId: string | undefined) {
   });
 }
 
+/** Single permit by id with permit_types (for PermitPaymentsDialog) */
+export function usePermit(permitId: string | null) {
+  return useQuery({
+    queryKey: ['permit', permitId],
+    queryFn: async () => {
+      if (!permitId) return null;
+      const { data, error } = await supabase
+        .from('permits')
+        .select(`
+          id,
+          permit_number,
+          status,
+          issued_at,
+          expires_at,
+          amount_paid,
+          permit_types(name, amount, duration_days)
+        `)
+        .eq('id', permitId)
+        .single();
+      if (error) throw error;
+      return data as {
+        id: string;
+        permit_number: string;
+        status: string;
+        issued_at: string | null;
+        expires_at: string | null;
+        amount_paid: number | null;
+        permit_types: { name: string; amount: number; duration_days: number } | null;
+      } | null;
+    },
+    enabled: !!permitId,
+  });
+}
+
 /** Rider's permits with type and bike for duplicate-purchase check and expiry display */
 export interface RiderPermitRow {
   id: string;
