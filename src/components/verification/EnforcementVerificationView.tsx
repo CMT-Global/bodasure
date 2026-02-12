@@ -276,6 +276,80 @@ export function EnforcementVerificationView({
           </CardContent>
         </Card>
 
+        {/* Motorbike details card (when rider is assigned to a bike) */}
+        {rider.motorbike && (
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Bike className="h-5 w-5 shrink-0" />
+                Motorbike details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <span className="text-sm text-muted-foreground">Plate</span>
+                  <span className="font-mono font-medium">{rider.motorbike.registration_number}</span>
+                </div>
+                {rider.motorbike.make && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="text-sm text-muted-foreground">Make</span>
+                      <span className="font-medium">{rider.motorbike.make}</span>
+                    </div>
+                  </>
+                )}
+                {rider.motorbike.model && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="text-sm text-muted-foreground">Model</span>
+                      <span className="font-medium">{rider.motorbike.model}</span>
+                    </div>
+                  </>
+                )}
+                {rider.motorbike.color && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="text-sm text-muted-foreground">Color</span>
+                      <span className="font-medium capitalize">{rider.motorbike.color}</span>
+                    </div>
+                  </>
+                )}
+                {rider.motorbike.year != null && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="text-sm text-muted-foreground">Year</span>
+                      <span className="font-medium">{rider.motorbike.year}</span>
+                    </div>
+                  </>
+                )}
+                {rider.motorbike.chassis_number && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="text-sm text-muted-foreground">Chassis number</span>
+                      <span className="font-mono font-medium text-sm break-all">{rider.motorbike.chassis_number}</span>
+                    </div>
+                  </>
+                )}
+                {rider.motorbike.engine_number && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="text-sm text-muted-foreground">Engine number</span>
+                      <span className="font-mono font-medium text-sm break-all">{rider.motorbike.engine_number}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Penalty History Card */}
         <Card className="min-w-0 overflow-hidden">
           <CardHeader className="p-4 sm:p-6">

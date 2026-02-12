@@ -135,7 +135,7 @@ export interface Motorbike {
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   created_at: string;
   owner?: { full_name: string } | null;
-  rider?: { full_name: string } | null;
+  rider?: { full_name: string; qr_code?: string | null } | null;
 }
 
 // Enhanced rider interface with permit and motorbike info
@@ -143,6 +143,12 @@ export interface RiderWithDetails extends Rider {
   motorbike?: {
     id: string;
     registration_number: string;
+    make?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    chassis_number?: string | null;
+    engine_number?: string | null;
   } | null;
   permit?: {
     id: string;
@@ -1365,7 +1371,7 @@ export function useMotorbikes(countyId?: string) {
         .select(`
           *,
           owner:owners(full_name),
-          rider:riders(full_name)
+          rider:riders(full_name, qr_code)
         `)
         .order('created_at', { ascending: false });
 

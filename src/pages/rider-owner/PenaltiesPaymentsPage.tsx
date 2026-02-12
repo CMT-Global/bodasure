@@ -148,7 +148,7 @@ function PenaltiesPaymentsContent() {
   return (
     <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold break-words">Penalties & Payments</h1>
+        <h1 className="text-xl sm:text-2xl font-bold break-words">Penalties Payments</h1>
         <p className="text-muted-foreground text-sm sm:text-base mt-1">
           View all penalties issued to you and pay via Paystack (KES + M-Pesa).
         </p>

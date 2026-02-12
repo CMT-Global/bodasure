@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAllCounties } from '@/hooks/useData';
+import { useMaintenanceSettings } from '@/hooks/useMaintenanceSettings';
 import { Cog, Loader2, Save, Bell, FileCheck, UserPlus, Wrench, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -82,9 +83,21 @@ export default function SystemSettingsPage() {
   const [selectedCountyForFeatures, setSelectedCountyForFeatures] = useState<string | null>(null);
   const [countyFeatureOverrides, setCountyFeatureOverrides] = useState<Record<string, Record<string, boolean>>>({});
 
+  const {
+    data: maintenanceData,
+    isLoading: maintenanceLoading,
+    save: saveMaintenanceSettings,
+    isSaving: maintenanceSaving,
+  } = useMaintenanceSettings();
+
   useEffect(() => {
     if (counties.length > 0 && !selectedCountyForFeatures) setSelectedCountyForFeatures(counties[0].id);
   }, [counties, selectedCountyForFeatures]);
+
+  useEffect(() => {
+    setMaintenanceGlobal(maintenanceData.global);
+    setMaintenanceCountyIds(new Set(maintenanceData.countyIds));
+  }, [maintenanceData.global, maintenanceData.countyIds]);
 
   const countyFeatureToggles = useMemo(() => {
     const cid = selectedCountyForFeatures;
@@ -126,8 +139,11 @@ export default function SystemSettingsPage() {
     toast.success('Onboarding workflows saved');
   };
 
-  const handleSaveMaintenance = () => {
-    toast.success('Maintenance mode settings saved');
+  const handleSaveMaintenance = async () => {
+    await saveMaintenanceSettings({
+      global: maintenanceGlobal,
+      countyIds: Array.from(maintenanceCountyIds),
+    });
   };
 
   const handleSaveCountyFeatures = () => {
@@ -347,10 +363,10 @@ export default function SystemSettingsPage() {
               <p className="text-sm text-muted-foreground mb-3">
                 Enable maintenance for specific counties only (ignored when global maintenance is on).
               </p>
-              {countiesLoading ? (
+              {countiesLoading || maintenanceLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading counties…
+                  Loading…
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -367,8 +383,12 @@ export default function SystemSettingsPage() {
                 </div>
               )}
             </div>
-            <Button onClick={handleSaveMaintenance}>
-              <Save className="h-4 w-4 mr-2" />
+            <Button onClick={handleSaveMaintenance} disabled={maintenanceLoading || maintenanceSaving}>
+              {maintenanceSaving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
               Save maintenance settings
             </Button>
           </CardContent>

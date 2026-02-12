@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Eye, Edit, QrCode, Trash2, Bike } from 'lucide-react';
+import { MoreHorizontal, Eye, Edit, Trash2, Bike } from 'lucide-react';
 
 interface MotorbikeColumnsProps {
   onEdit: (motorbike: Motorbike) => void;
@@ -73,16 +73,17 @@ export function getMotorbikeColumns({ onEdit, onView, onDelete }: MotorbikeColum
     {
       accessorKey: 'qr_code',
       header: 'QR Code',
-      cell: ({ row }) => (
-        row.original.qr_code ? (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <QrCode className="h-3 w-3" />
-            {row.original.qr_code}
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">Not issued</span>
-        )
-      ),
+      cell: ({ row }) => {
+        const riderQr = row.original.rider?.qr_code;
+        if (riderQr) {
+          return (
+            <span className="text-xs font-mono text-muted-foreground" title={riderQr}>
+              {riderQr}
+            </span>
+          );
+        }
+        return <span className="text-xs text-muted-foreground">Not issued</span>;
+      },
     },
     {
       id: 'actions',

@@ -1,5 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useMaintenanceSettings, isUserUnderMaintenance } from '@/hooks/useMaintenanceSettings';
+import MaintenancePage from '@/pages/MaintenancePage';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -8,7 +10,8 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, roles, isLoading, isLoadingRoles, rolesLoaded, hasRole, isProfileComplete } = useAuth();
+  const { user, roles, isLoading, isLoadingRoles, rolesLoaded, hasRole, isProfileComplete, countyId, isPlatformAdmin } = useAuth();
+  const { data: maintenanceSettings, isLoading: maintenanceLoading } = useMaintenanceSettings();
   const location = useLocation();
   const pathname = location.pathname;
 
@@ -43,6 +46,11 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
   // Mandatory profile completion before accessing any protected route (except /complete-profile)
   if (!isProfileComplete && pathname !== '/complete-profile') {
     return <Navigate to="/complete-profile" replace />;
+  }
+
+  // Maintenance mode: show full-page message for affected users (platform admins always bypass)
+  if (!maintenanceLoading && isUserUnderMaintenance(maintenanceSettings, { countyId, isPlatformAdmin: isPlatformAdmin() })) {
+    return <MaintenancePage />;
   }
 
   // When requiredRoles is specified, enforce them strictly (no bypass) — e.g. Super Admin Portal only for platform_super_admin/platform_admin

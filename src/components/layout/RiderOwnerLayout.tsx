@@ -204,7 +204,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
               )}
             >
               <Receipt className={cn('h-5 w-5 shrink-0', location.pathname === '/rider-owner/penalties-payments' && 'text-primary')} />
-              {!isCollapsed && <span className="truncate">Penalties &amp; Payments</span>}
+              {!isCollapsed && <span className="truncate">Penalties Payments</span>}
             </Link>
             <Link
               to="/rider-owner/notifications"
