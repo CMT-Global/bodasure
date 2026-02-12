@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { calculatePaymentDeductions } from '@/utils/paymentCalculation';
+import type { PaymentCalculationMonetization, SubscriptionPeriodKey } from '@/utils/paymentCalculation';
 
 /** Normalize date strings for Supabase: include full start/end of day for proper filtering */
 function toDateRangeBounds(startDate?: string, endDate?: string) {
@@ -90,42 +92,74 @@ export function useRevenueByDateRange(countyId?: string, startDate?: string, end
   return useQuery({
     queryKey: ['revenue-by-date-range', countyId, startDate, endDate],
     queryFn: async () => {
-      // Permit revenue: match dashboard/permits — from permits.amount_paid, grouped by issued_at
-      let permitsQuery = supabase
-        .from('permits')
-        .select('county_id, amount_paid, issued_at');
-      if (countyId) permitsQuery = permitsQuery.eq('county_id', countyId);
-      if (startDate) permitsQuery = permitsQuery.gte('issued_at', `${startDate}T00:00:00.000Z`);
-      if (endDate) permitsQuery = permitsQuery.lte('issued_at', `${endDate}T23:59:59.999Z`);
+      // Permit revenue: from payments (so deleted/cancelled payments are excluded)
+      const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
+      let permitPaymentsQuery = supabase
+        .from('payments')
+        .select('county_id, amount, paid_at, status, permit_id')
+        .not('permit_id', 'is', null)
+        .not('paid_at', 'is', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'failed');
+      if (countyId) permitPaymentsQuery = permitPaymentsQuery.eq('county_id', countyId);
+      if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
+      if (endBound) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endBound);
 
-      let penaltyQuery = supabase
+      // Penalty revenue: from payments (penalty type, valid) so deleted/cancelled payments are excluded; plus admin-marked penalties (no payment_id)
+      let allPaidPaymentsQuery = supabase
+        .from('payments')
+        .select('county_id, amount, paid_at, status, metadata, payment_type')
+        .not('paid_at', 'is', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'failed');
+      if (countyId) allPaidPaymentsQuery = allPaidPaymentsQuery.eq('county_id', countyId);
+      if (startBound) allPaidPaymentsQuery = allPaidPaymentsQuery.gte('paid_at', startBound);
+      if (endBound) allPaidPaymentsQuery = allPaidPaymentsQuery.lte('paid_at', endBound);
+
+      let adminMarkedPenaltiesQuery = supabase
         .from('penalties')
-        .select('county_id, amount, paid_at, is_paid, created_at, description')
-        .eq('is_paid', true);
-      if (countyId) penaltyQuery = penaltyQuery.eq('county_id', countyId);
+        .select('county_id, amount, paid_at, created_at, description, payment_id')
+        .eq('is_paid', true)
+        .is('payment_id', null);
+      if (countyId) adminMarkedPenaltiesQuery = adminMarkedPenaltiesQuery.eq('county_id', countyId);
 
-      const [permitsResult, penaltyPayments] = await Promise.all([
-        permitsQuery,
-        penaltyQuery,
+      const [permitPaymentsResult, allPaidPaymentsResult, adminMarkedPenalties] = await Promise.all([
+        permitPaymentsQuery,
+        allPaidPaymentsQuery,
+        adminMarkedPenaltiesQuery,
       ]);
 
-      if (permitsResult.error) throw permitsResult.error;
-      if (penaltyPayments.error) throw penaltyPayments.error;
+      if (permitPaymentsResult.error) throw permitPaymentsResult.error;
+      if (allPaidPaymentsResult.error) throw allPaidPaymentsResult.error;
 
       const dateMap = new Map<string, { permit: number; penalty: number }>();
 
-      (permitsResult.data || []).forEach((p: { amount_paid?: number; issued_at?: string }) => {
-        const permitDate = p.issued_at?.split('T')[0];
+      (permitPaymentsResult.data || []).forEach((p: { county_id?: string; amount?: number; paid_at?: string | null }) => {
+        const permitDate = (p.paid_at ?? '').split('T')[0];
         if (!permitDate) return;
         if (startDate && permitDate < startDate) return;
         if (endDate && permitDate > endDate) return;
         const current = dateMap.get(permitDate) || { permit: 0, penalty: 0 };
-        dateMap.set(permitDate, { ...current, permit: current.permit + Number(p.amount_paid ?? 0) });
+        dateMap.set(permitDate, { ...current, permit: current.permit + Number(p.amount ?? 0) });
+      });
+
+      const isPenaltyPayment = (p: { metadata?: unknown; payment_type?: string }) => {
+        const meta = (p.metadata as Record<string, unknown>) ?? {};
+        return p.payment_type === 'PENALTY' || meta.payment_type === 'penalty';
+      };
+      (allPaidPaymentsResult.data || []).forEach((p: { county_id?: string; amount?: number; paid_at?: string | null; metadata?: unknown; payment_type?: string }) => {
+        if (!isPenaltyPayment(p)) return;
+        const penaltyDate = (p.paid_at ?? '').split('T')[0];
+        if (!penaltyDate) return;
+        if (startDate && penaltyDate < startDate) return;
+        if (endDate && penaltyDate > endDate) return;
+        const current = dateMap.get(penaltyDate) || { permit: 0, penalty: 0 };
+        dateMap.set(penaltyDate, { ...current, penalty: current.penalty + Number(p.amount ?? 0) });
       });
 
       const isWaived = (desc: string | null | undefined) =>
         !!desc && desc.includes('[WAIVED]');
-      (penaltyPayments.data || []).forEach((penalty: { county_id?: string; amount: number; paid_at?: string; created_at?: string; description?: string }) => {
+      (adminMarkedPenalties.data || []).forEach((penalty: { county_id?: string; amount: number; paid_at?: string; created_at?: string; description?: string }) => {
         if (isWaived(penalty.description)) return;
         const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
         if (!penaltyDate) return;
@@ -177,7 +211,10 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
       let permitPaymentsQuery = supabase
         .from('payments')
         .select('amount, rider_id, paid_at')
-        .eq('status', 'completed')
+        .not('permit_id', 'is', null)
+        .not('paid_at', 'is', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'failed')
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
       if (countyId) permitPaymentsQuery = permitPaymentsQuery.eq('county_id', countyId);
       if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
@@ -186,10 +223,21 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
 
       let penaltyPaymentsQuery = supabase
         .from('penalties')
-        .select('amount, rider_id, paid_at, is_paid, created_at')
+        .select('amount, rider_id, paid_at, created_at, payment_id')
         .eq('is_paid', true)
         .in('rider_id', riderIds.length > 0 ? riderIds : ['00000000-0000-0000-0000-000000000000']);
       if (countyId) penaltyPaymentsQuery = penaltyPaymentsQuery.eq('county_id', countyId);
+
+      let validPaymentIdsQuery = supabase
+        .from('payments')
+        .select('id')
+        .not('paid_at', 'is', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'failed');
+      if (startBound) validPaymentIdsQuery = validPaymentIdsQuery.gte('paid_at', startBound);
+      if (endBound) validPaymentIdsQuery = validPaymentIdsQuery.lte('paid_at', endBound);
+      const { data: validPayments } = await validPaymentIdsQuery;
+      const validPaymentIds = new Set((validPayments || []).map((p: { id: string }) => p.id));
 
       const { data: penaltyPayments } = await penaltyPaymentsQuery;
 
@@ -212,17 +260,14 @@ export function useRevenueBySacco(countyId?: string, startDate?: string, endDate
         }
       });
 
-      (penaltyPayments || []).forEach((penalty: any) => {
-        // Use paid_at if available, otherwise created_at for date check
+      (penaltyPayments || []).forEach((penalty: { amount: number; rider_id: string; paid_at?: string; created_at?: string; payment_id?: string | null }) => {
+        if (penalty.payment_id != null && !validPaymentIds.has(penalty.payment_id)) return;
         const penaltyDate = (penalty.paid_at || penalty.created_at)?.split('T')[0];
         if (!penaltyDate) return;
-        
-        // Check if penalty date is within range
         if (startDate && penaltyDate < startDate) return;
         if (endDate && penaltyDate > endDate) return;
-        
-        for (const [saccoId, riderIds] of saccoToRiders.entries()) {
-          if (riderIds.includes(penalty.rider_id)) {
+        for (const [saccoId, saccoRiderIds] of saccoToRiders.entries()) {
+          if (saccoRiderIds.includes(penalty.rider_id)) {
             const current = saccoRevenue.get(saccoId);
             if (current) {
               current.penalty += Number(penalty.amount || 0);
@@ -514,35 +559,71 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
 
-      // Permit revenue: match dashboard/permits — sum of permits.amount_paid (filter by issued_at in range)
-      let permitsQuery = supabase
-        .from('permits')
-        .select('county_id, amount_paid, issued_at');
-      if (startBound) permitsQuery = permitsQuery.gte('issued_at', startBound);
-      if (endBound) permitsQuery = permitsQuery.lte('issued_at', endBound);
-      const { data: permits, error: permError } = await permitsQuery;
+      // Permit revenue: from payments (so deleted/cancelled payments are excluded)
+      let permitPaymentsQuery = supabase
+        .from('payments')
+        .select('county_id, amount, paid_at, status, permit_id')
+        .not('permit_id', 'is', null)
+        .not('paid_at', 'is', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'failed');
+      if (startBound) permitPaymentsQuery = permitPaymentsQuery.gte('paid_at', startBound);
+      if (endBound) permitPaymentsQuery = permitPaymentsQuery.lte('paid_at', endBound);
+      const { data: permitPayments, error: permError } = await permitPaymentsQuery;
       if (permError) throw permError;
 
-      // Penalty revenue: match dashboard/penalties — sum of penalty.amount for paid, non-waived penalties
-      const { data: penalties, error: penError } = await supabase
+      // Penalty revenue: from payments (penalty type, valid) + admin-marked penalties (payment_id null)
+      let penaltyPaymentsQuery = supabase
+        .from('payments')
+        .select('county_id, amount, paid_at, status, metadata, payment_type')
+        .not('paid_at', 'is', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'failed');
+      if (startBound) penaltyPaymentsQuery = penaltyPaymentsQuery.gte('paid_at', startBound);
+      if (endBound) penaltyPaymentsQuery = penaltyPaymentsQuery.lte('paid_at', endBound);
+      const { data: allPaidPaymentsForPenalty, error: payPenError } = await penaltyPaymentsQuery;
+      if (payPenError) throw payPenError;
+
+      const { data: adminMarkedPenalties, error: penError } = await supabase
         .from('penalties')
-        .select('county_id, amount, is_paid, paid_at, created_at, description')
-        .eq('is_paid', true);
+        .select('county_id, amount, paid_at, created_at, description, payment_id')
+        .eq('is_paid', true)
+        .is('payment_id', null);
       if (penError) throw penError;
 
       const countyMap = new Map<string, { permit: number; penalty: number }>();
       counties.forEach((c: { id: string }) => countyMap.set(c.id, { permit: 0, penalty: 0 }));
 
-      (permits || []).forEach((p: { county_id: string; amount_paid?: number; issued_at?: string }) => {
+      (permitPayments || []).forEach((p: { county_id: string; amount?: number; paid_at?: string | null }) => {
         const key = p.county_id;
         if (!key) return;
+        const dateStr = (p.paid_at ?? '').split('T')[0];
+        if (!dateStr) return;
+        if (startDate && dateStr < startDate) return;
+        if (endDate && dateStr > endDate) return;
         const cur = countyMap.get(key);
-        if (cur) cur.permit += Number(p.amount_paid ?? 0);
+        if (cur) cur.permit += Number(p.amount ?? 0);
+      });
+
+      const isPenaltyPayment = (p: { metadata?: unknown; payment_type?: string }) => {
+        const meta = (p.metadata as Record<string, unknown>) ?? {};
+        return p.payment_type === 'PENALTY' || meta.payment_type === 'penalty';
+      };
+      (allPaidPaymentsForPenalty || []).forEach((p: { county_id: string; amount?: number; paid_at?: string | null; metadata?: unknown; payment_type?: string }) => {
+        if (!isPenaltyPayment(p)) return;
+        const key = p.county_id;
+        if (!key) return;
+        const dateStr = (p.paid_at ?? '').split('T')[0];
+        if (!dateStr) return;
+        if (startDate && dateStr < startDate) return;
+        if (endDate && dateStr > endDate) return;
+        const cur = countyMap.get(key);
+        if (cur) cur.penalty += Number(p.amount ?? 0);
       });
 
       const isWaived = (desc: string | null | undefined) =>
         !!desc && desc.includes('[WAIVED]');
-      (penalties || []).forEach((p: { county_id: string; amount: number; paid_at?: string; created_at?: string; description?: string }) => {
+      (adminMarkedPenalties || []).forEach((p: { county_id: string; amount: number; paid_at?: string; created_at?: string; description?: string }) => {
         if (isWaived(p.description)) return;
         const key = p.county_id;
         if (!key) return;
@@ -584,23 +665,65 @@ export interface MonetizationSummaryByCounty {
   netToCounty: number;
 }
 
+function defaultMonetization(): PaymentCalculationMonetization {
+  return {
+    platformServiceFee: { feeType: 'fixed', fixedFeeCents: 0, periods: [], proportionalByWeeks: true, periodDiscounts: [] },
+    paymentConvenienceFee: { includedInPlatformFee: true, feeType: 'fixed', fixedFeeCents: 0 },
+    penaltyCommission: { feeType: 'percentage', percentageFee: 0 },
+  };
+}
+
+function monetizationFromCounty(settings: Record<string, unknown> | null | undefined): PaymentCalculationMonetization {
+  const mon = settings?.monetizationSettings as Record<string, unknown> | undefined;
+  if (!mon) return defaultMonetization();
+  const def = defaultMonetization();
+  const pf = (mon.platformServiceFee ?? {}) as Record<string, unknown>;
+  const pcf = (mon.paymentConvenienceFee ?? {}) as Record<string, unknown>;
+  const pc = (mon.penaltyCommission ?? {}) as Record<string, unknown>;
+  return {
+    platformServiceFee: {
+      feeType: (pf.feeType ?? def.platformServiceFee.feeType) as 'fixed' | 'percentage',
+      fixedFeeCents: (pf.fixedFeeCents ?? def.platformServiceFee.fixedFeeCents) as number,
+      percentageFee: (pf.percentageFee ?? def.platformServiceFee.percentageFee) as number,
+      periods: (Array.isArray(pf.periods) ? pf.periods : def.platformServiceFee.periods) as { period: SubscriptionPeriodKey; enabled: boolean }[],
+      proportionalByWeeks: (pf.proportionalByWeeks ?? true) as boolean,
+      periodDiscounts: (Array.isArray(pf.periodDiscounts) ? pf.periodDiscounts : def.platformServiceFee.periodDiscounts) as { period: SubscriptionPeriodKey; discountCents?: number; discountPercent?: number }[],
+    },
+    paymentConvenienceFee: {
+      includedInPlatformFee: (pcf.includedInPlatformFee ?? def.paymentConvenienceFee.includedInPlatformFee) as boolean,
+      feeType: (pcf.feeType ?? def.paymentConvenienceFee.feeType) as 'fixed' | 'percentage',
+      fixedFeeCents: (pcf.fixedFeeCents ?? def.paymentConvenienceFee.fixedFeeCents) as number,
+      percentageFee: (pcf.percentageFee ?? def.paymentConvenienceFee.percentageFee) as number,
+    },
+    penaltyCommission: {
+      feeType: (pc.feeType ?? def.penaltyCommission.feeType) as 'fixed' | 'percentage',
+      fixedFeeCents: (pc.fixedFeeCents ?? def.penaltyCommission.fixedFeeCents) as number,
+      percentageFee: (pc.percentageFee ?? def.penaltyCommission.percentageFee) as number,
+    },
+  };
+}
+
 export function useMonetizationSummary(startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['monetization-summary', startDate, endDate],
     queryFn: async () => {
       const { data: counties, error: countiesError } = await supabase
         .from('counties')
-        .select('id, name, code')
+        .select('id, name, code, settings')
         .order('name');
       if (countiesError) throw countiesError;
       if (!counties?.length) return [] as MonetizationSummaryByCounty[];
 
+      const countySettingsMap = new Map<string, PaymentCalculationMonetization>();
+      (counties as { id: string; settings?: Record<string, unknown> }[]).forEach((c) => {
+        countySettingsMap.set(c.id, monetizationFromCounty(c.settings));
+      });
+
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
-      // Match useRevenueByCounty/useRevenueByDateRange: paid = status completed OR paid_at set
       let paymentsQuery = supabase
         .from('payments')
         .select(
-          'county_id, amount, gross_amount, total_deductions, net_to_county, paid_at, status, platform_fee, processing_fee, penalty_commission, sms_charges'
+          'county_id, amount, gross_amount, total_deductions, net_to_county, paid_at, status, platform_fee, processing_fee, penalty_commission, sms_charges, payment_type, period, metadata, permit_id'
         )
         .not('paid_at', 'is', null);
       if (startBound) paymentsQuery = paymentsQuery.gte('paid_at', startBound);
@@ -616,6 +739,8 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
 
       const isPaid = (p: { status?: string; paid_at?: string | null }) =>
         p.status === 'completed' || !!p.paid_at;
+      const isValidPayment = (p: { status?: string }) =>
+        p.status !== 'cancelled' && p.status !== 'failed';
 
       const countyMap = new Map<
         string,
@@ -629,7 +754,7 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
           netToCounty: number;
         }
       >();
-      counties.forEach((c: { id: string }) =>
+      (counties as { id: string }[]).forEach((c) =>
         countyMap.set(c.id, {
           totalGross: 0,
           platformFees: 0,
@@ -641,20 +766,56 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
         })
       );
 
-      (payments || []).forEach((p: any) => {
-        if (!isPaid(p)) return;
-        const key = p.county_id;
+      (payments || []).forEach((p: Record<string, unknown>) => {
+        if (!isValidPayment(p as { status?: string })) return;
+        if (!isPaid(p as { status?: string; paid_at?: string | null })) return;
+        const key = p.county_id as string;
         if (!key) return;
         const cur = countyMap.get(key);
         if (!cur) return;
         const gross = Number(p.gross_amount ?? p.amount ?? 0);
         cur.totalGross += gross;
-        cur.platformFees += Number(p.platform_fee ?? 0);
-        cur.processingFees += Number(p.processing_fee ?? 0);
-        cur.penaltyCommission += Number(p.penalty_commission ?? 0);
         cur.smsCharges += Number(p.sms_charges ?? 0);
-        cur.totalDeductions += Number(p.total_deductions ?? 0);
-        cur.netToCounty += Number(p.net_to_county ?? gross);
+
+        const hasStoredFees =
+          (p.platform_fee != null && Number(p.platform_fee) > 0) ||
+          (p.processing_fee != null && Number(p.processing_fee) > 0) ||
+          (p.penalty_commission != null && Number(p.penalty_commission) > 0);
+
+        if (hasStoredFees) {
+          cur.platformFees += Number(p.platform_fee ?? 0);
+          cur.processingFees += Number(p.processing_fee ?? 0);
+          cur.penaltyCommission += Number(p.penalty_commission ?? 0);
+          cur.totalDeductions += Number(p.total_deductions ?? 0);
+          cur.netToCounty += Number(p.net_to_county ?? gross);
+        } else if (gross > 0) {
+          const meta = (p.metadata as Record<string, unknown>) ?? {};
+          const paymentType =
+            p.payment_type === 'PENALTY' || meta.payment_type === 'penalty'
+              ? 'PENALTY'
+              : p.payment_type === 'PERMIT' || meta.payment_type === 'permit' || p.permit_id
+                ? 'PERMIT'
+                : 'PERMIT';
+          const period = (p.period ?? meta.period) as SubscriptionPeriodKey | undefined | null;
+          const monetization = countySettingsMap.get(key) ?? defaultMonetization();
+          const breakdown = calculatePaymentDeductions({
+            grossAmountKES: gross,
+            paymentType,
+            period: period ?? null,
+            monetization,
+          });
+          cur.platformFees += breakdown.platformFeeKES;
+          cur.processingFees += breakdown.processingFeeKES;
+          cur.penaltyCommission += breakdown.penaltyCommissionKES;
+          cur.totalDeductions += breakdown.totalDeductionsKES;
+          cur.netToCounty += breakdown.netToCountyKES;
+        } else {
+          cur.platformFees += Number(p.platform_fee ?? 0);
+          cur.processingFees += Number(p.processing_fee ?? 0);
+          cur.penaltyCommission += Number(p.penalty_commission ?? 0);
+          cur.totalDeductions += Number(p.total_deductions ?? 0);
+          cur.netToCounty += Number(p.net_to_county ?? gross);
+        }
       });
 
       // Include penalties paid outside payment flow (no payment_id) to match county dashboard revenue

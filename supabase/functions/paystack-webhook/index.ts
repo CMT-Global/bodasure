@@ -60,7 +60,7 @@ interface MonetizationConfig {
     fixedFeeCents?: number;
     percentageFee?: number;
   };
-  penaltyCommission?: { percentageFee?: number };
+  penaltyCommission?: { feeType?: 'fixed' | 'percentage'; fixedFeeCents?: number; percentageFee?: number };
 }
 
 function round2(x: number): number {
@@ -79,7 +79,7 @@ function computePaymentBreakdown(
   paymentType: 'PERMIT' | 'PENALTY',
   period: PeriodKey | null,
   mon: MonetizationConfig
-): { grossAmount: number; totalDeductions: number; netToCounty: number } {
+): { grossAmount: number; totalDeductions: number; netToCounty: number; platformFee: number; processingFee: number; penaltyCommission: number } {
   const gross = round2(Number(grossKES) || 0);
   const pf = mon.platformServiceFee ?? {};
   const pcf = mon.paymentConvenienceFee ?? {};
@@ -108,14 +108,18 @@ function computePaymentBreakdown(
   processingFee = round2(processingFee);
 
   let penaltyCommission = 0;
-  if (paymentType === 'PENALTY' && pc.percentageFee != null) {
-    penaltyCommission = round2((gross * pc.percentageFee) / 100);
+  if (paymentType === 'PENALTY') {
+    if (pc.feeType === 'fixed' && pc.fixedFeeCents != null) {
+      penaltyCommission = round2(pc.fixedFeeCents / 100);
+    } else if (pc.percentageFee != null) {
+      penaltyCommission = round2((gross * pc.percentageFee) / 100);
+    }
   }
 
   let totalDeductions = round2(platformFee + processingFee + penaltyCommission);
   if (totalDeductions > gross) totalDeductions = gross;
   const netToCounty = round2(gross - totalDeductions);
-  return { grossAmount: gross, totalDeductions, netToCounty };
+  return { grossAmount: gross, totalDeductions, netToCounty, platformFee, processingFee, penaltyCommission };
 }
 
 function durationDaysToPeriod(days: number): PeriodKey {
@@ -149,17 +153,20 @@ async function applyPaymentCalculation(supabase: any, payment: any) {
     if (pt?.duration_days != null) period = durationDaysToPeriod(Number(pt.duration_days));
   }
   const grossKES = Number(payment.amount) || 0;
-  const { grossAmount, totalDeductions, netToCounty } = computePaymentBreakdown(grossKES, paymentType, period, mon);
+  const { grossAmount, totalDeductions, netToCounty, platformFee, processingFee, penaltyCommission } = computePaymentBreakdown(grossKES, paymentType, period, mon);
   const update: Record<string, unknown> = {
     payment_type: paymentType,
     period: period,
     gross_amount: grossAmount,
     total_deductions: totalDeductions,
     net_to_county: netToCounty,
+    platform_fee: platformFee,
+    processing_fee: processingFee,
+    penalty_commission: penaltyCommission,
   };
   const { error } = await supabase.from("payments").update(update).eq("id", payment.id);
   if (error) console.error("Calculation engine: failed to update payment", error);
-  else console.log("Calculation engine: stored breakdown", { grossAmount, totalDeductions, netToCounty });
+  else console.log("Calculation engine: stored breakdown", { grossAmount, totalDeductions, netToCounty, platformFee, processingFee, penaltyCommission });
 }
 
 async function calculateRevenueShare(supabase: any, payment: any) {

@@ -90,22 +90,32 @@ function PermitPaymentsContent() {
   const initializePayment = useInitializePayment();
   const verifyPayment = useVerifyPayment();
 
-  // Block buying same permit type for same bike until it is "expiring soon" (within EXPIRING_SOON_DAYS). Once expiring soon or expired, rider can buy again.
+  // Only consider permits that have a valid (completed) payment — so deleted/cancelled payments don't block buying
+  const permitsWithValidPayment = useMemo(() => {
+    const paidPermitIds = new Set(
+      payments
+        .filter((p) => p.status === 'completed' || p.paid_at)
+        .map((p) => p.permit_id ?? p.permits?.id)
+        .filter(Boolean) as string[]
+    );
+    return riderPermits.filter((permit) => paidPermitIds.has(permit.id));
+  }, [riderPermits, payments]);
+
+  // Block buying same permit type for same bike until it is "expiring soon" (within EXPIRING_SOON_DAYS). Only block when that permit has a valid payment.
   const activePermitKeys = useMemo(() => {
     const now = new Date();
     const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
     const set = new Set<string>();
-    for (const p of riderPermits) {
+    for (const p of permitsWithValidPayment) {
       if (p.status !== 'active' || !p.expires_at) continue;
       const expiresAt = parseISO(p.expires_at);
       if (expiresAt <= now) continue; // already expired
-      // Block only if expiry is after the "expiring soon" window (more than EXPIRING_SOON_DAYS left)
       if (expiresAt > expiringSoonThreshold) {
         set.add(`${p.motorbike_id}|${p.permit_type_id}`);
       }
     }
     return set;
-  }, [riderPermits]);
+  }, [permitsWithValidPayment]);
 
   // Match county portal: treat as paid if status is completed OR paid_at is set (webhook may set paid_at first)
   const getPaymentDisplayStatus = (p: PaymentWithPermit) =>
@@ -292,7 +302,7 @@ function PermitPaymentsContent() {
         </CardHeader>
         <CardContent className="space-y-4">
           {hasActivePermitForSelection && selectedType && selectedMotorbikeId && (() => {
-            const activePermit = riderPermits.find(
+            const activePermit = permitsWithValidPayment.find(
               (p) =>
                 p.motorbike_id === selectedMotorbikeId &&
                 p.permit_type_id === selectedType.id &&
@@ -459,7 +469,7 @@ function PermitPaymentsContent() {
                 <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
-          ) : riderPermits.length === 0 ? (
+          ) : permitsWithValidPayment.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>No permits yet</p>
@@ -468,7 +478,7 @@ function PermitPaymentsContent() {
           ) : (
             <ScrollArea className="rounded-md border">
               <div className="divide-y">
-                {riderPermits.map((permit) => {
+                {permitsWithValidPayment.map((permit) => {
                   const bikeLabel = motorbikes.find((m) => m.id === permit.motorbike_id)?.registration_number;
                   return (
                     <div

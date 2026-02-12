@@ -3,7 +3,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, Shield, AlertTriangle, Clock, Ban, Receipt } from 'lucide-react';
-import { usePermits } from '@/hooks/usePayments';
+import { usePermits, usePayments } from '@/hooks/usePayments';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { PermitPaymentsDialog } from '@/components/permits/PermitPaymentsDialog';
 import { Badge } from '@/components/ui/badge';
@@ -191,7 +191,21 @@ export default function PermitsPage() {
   const countyId = useEffectiveCountyId();
 
   // Fetch permits: when countyId is set, filter by county; when undefined (All counties), show all
-  const { data: permits = [], isLoading } = usePermits(countyId);
+  const { data: allPermits = [], isLoading: permitsLoading } = usePermits(countyId);
+  const { data: payments = [], isLoading: paymentsLoading } = usePayments(countyId);
+
+  // Only show permits that have at least one completed payment (hide permits whose payment was deleted/cancelled)
+  const permits = useMemo(() => {
+    const validPermitIds = new Set(
+      payments
+        .filter((p) => p.status !== 'cancelled' && p.status !== 'failed' && (p.status === 'completed' || !!p.paid_at))
+        .map((p) => p.permit_id)
+        .filter(Boolean) as string[]
+    );
+    return allPermits.filter((permit) => validPermitIds.has(permit.id));
+  }, [allPermits, payments]);
+
+  const isLoading = permitsLoading || paymentsLoading;
 
   const handleViewPayments = (permitId: string, permitNumber: string) => {
     setSelectedPermitId(permitId);

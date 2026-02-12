@@ -1421,12 +1421,10 @@ export function useAllCounties() {
 
 // Stats for a single county (used by Super Admin county list)
 export async function fetchDashboardStatsForCounty(countyId: string): Promise<DashboardStats & { complianceRate: number }> {
-  const now = new Date().toISOString();
   let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId);
-  let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('status', 'active');
+  let activePermitsQuery = supabase.from('permits').select('id').eq('county_id', countyId).eq('status', 'active');
   let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('county_id', countyId).eq('compliance_status', 'non_compliant');
-  // Match dashboard/payments: count as paid if status is 'completed' OR paid_at is set
-  let paymentsQuery = supabase.from('payments').select('amount, status, paid_at').eq('county_id', countyId);
+  let paymentsQuery = supabase.from('payments').select('amount, status, paid_at, permit_id').eq('county_id', countyId);
 
   const [riders, activePermits, nonCompliantRiders, payments] = await Promise.all([
     ridersQuery,
@@ -1438,13 +1436,26 @@ export async function fetchDashboardStatsForCounty(countyId: string): Promise<Da
   const totalRiders = riders.count ?? 0;
   const isPaidPayment = (p: { status?: string; paid_at?: string | null }) =>
     p.status === 'completed' || !!p.paid_at;
+  const validPermitIds = new Set(
+    (payments.data || [])
+      .filter((p: { status?: string; permit_id?: string | null }) =>
+        p.status !== 'cancelled' && p.status !== 'failed' && isPaidPayment(p)
+      )
+      .map((p: { permit_id?: string | null }) => p.permit_id)
+      .filter(Boolean) as string[]
+  );
+  const activePermitsCount = (activePermits.data || []).filter((p: { id: string }) =>
+    validPermitIds.has(p.id)
+  ).length;
   const totalRevenue =
-    payments.data?.filter(isPaidPayment).reduce((sum, p) => sum + Number(p.amount), 0) ?? 0;
+    (payments.data || [])
+      .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaidPayment(p))
+      .reduce((sum: number, p: { amount?: number }) => sum + Number(p.amount ?? 0), 0) ?? 0;
   const complianceRate = totalRiders > 0 ? Math.round(((totalRiders - (nonCompliantRiders.count ?? 0)) / totalRiders) * 100) : 100;
 
   return {
     totalRiders,
-    activePermits: activePermits.count ?? 0,
+    activePermits: activePermitsCount,
     expiredPermits: 0,
     nonCompliantRiders: nonCompliantRiders.count ?? 0,
     penaltiesIssued: 0,
@@ -2113,14 +2124,14 @@ export function useDashboardStats(countyId?: string) {
 
       // Build queries
       let ridersQuery = supabase.from('riders').select('id', { count: 'exact', head: true });
-      let activePermitsQuery = supabase.from('permits').select('id', { count: 'exact', head: true }).eq('status', 'active');
+      let activePermitsQuery = supabase.from('permits').select('id').eq('status', 'active');
       let permitsForExpiryQuery = supabase.from('permits').select('id, status, expires_at');
       let nonCompliantRidersQuery = supabase.from('riders').select('id', { count: 'exact', head: true }).eq('compliance_status', 'non_compliant');
       let penaltiesTotalQuery = supabase.from('penalties').select('id', { count: 'exact', head: true });
       let penaltiesUnpaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', false);
-      let penaltiesPaidQuery = supabase.from('penalties').select('id', { count: 'exact', head: true }).eq('is_paid', true);
-      // Match dashboard/payments: count as paid if status is 'completed' OR paid_at is set
-      let paymentsQuery = supabase.from('payments').select('amount, status, paid_at');
+      let penaltiesPaidQuery = supabase.from('penalties').select('id, payment_id').eq('is_paid', true);
+      // Need permit_id and id for permits + penalties: only count when payment exists and is valid
+      let paymentsQuery = supabase.from('payments').select('id, amount, status, paid_at, permit_id');
 
       // Apply county filter if provided
       if (countyId) {
@@ -2155,24 +2166,52 @@ export function useDashboardStats(countyId?: string) {
         paymentsQuery,
       ]);
 
-      // Calculate expired permits (status='expired' OR expires_at < now)
-      const expiredPermitsCount = permitsData.data?.filter(
-        (p) => p.status === 'expired' || (p.expires_at && new Date(p.expires_at) < new Date(now))
-      ).length || 0;
-
+      // Only count permits that have at least one valid payment (exclude cancelled/failed so deleted payments remove permit from stats)
       const isPaid = (p: { status?: string; paid_at?: string | null }) =>
         p.status === 'completed' || !!p.paid_at;
+      const validPermitIds = new Set(
+        (payments.data || [])
+          .filter((p: { status?: string; permit_id?: string | null }) =>
+            p.status !== 'cancelled' && p.status !== 'failed' && isPaid(p)
+          )
+          .map((p: { permit_id?: string | null }) => p.permit_id)
+          .filter(Boolean) as string[]
+      );
+      const activePermitList = (activePermits.data || []).filter((p: { id: string }) =>
+        validPermitIds.has(p.id)
+      );
+      const permitsDataFiltered = (permitsData.data || []).filter((p: { id: string }) =>
+        validPermitIds.has(p.id)
+      );
+      const expiredPermitsCount = permitsDataFiltered.filter(
+        (p: { status: string; expires_at: string | null }) =>
+          p.status === 'expired' || (p.expires_at && new Date(p.expires_at) < new Date(now))
+      ).length;
+
       const totalRevenue =
-        payments.data?.filter(isPaid).reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+        (payments.data || [])
+          .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaid(p))
+          .reduce((sum: number, p: { amount?: number }) => sum + Number(p.amount ?? 0), 0) || 0;
+
+      // Only count penalties paid when payment exists and is valid (or admin-marked with no payment_id)
+      const validPaymentIds = new Set(
+        (payments.data || [])
+          .filter((p: { status?: string }) => p.status !== 'cancelled' && p.status !== 'failed' && isPaid(p))
+          .map((p: { id?: string }) => p.id)
+          .filter(Boolean) as string[]
+      );
+      const penaltiesPaidCount = (penaltiesPaid.data || []).filter(
+        (p: { payment_id: string | null }) => !p.payment_id || validPaymentIds.has(p.payment_id)
+      ).length;
 
       return {
         totalRiders: riders.count || 0,
-        activePermits: activePermits.count || 0,
+        activePermits: activePermitList.length,
         expiredPermits: expiredPermitsCount,
         nonCompliantRiders: nonCompliantRiders.count || 0,
         penaltiesIssued: penaltiesTotal.count || 0,
         penaltiesUnpaid: penaltiesUnpaid.count || 0,
-        penaltiesPaid: penaltiesPaid.count || 0,
+        penaltiesPaid: penaltiesPaidCount,
         totalRevenue,
       } as DashboardStats;
     },

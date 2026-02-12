@@ -292,7 +292,7 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
       };
       // Normalize: PostgREST may return permits as object or single-element array
       const rows = (data || []) as unknown[];
-      return rows.map((row: unknown) => {
+      const normalized = rows.map((row: unknown) => {
         const r = row as Record<string, unknown>;
         const permits = r.permits;
         if (Array.isArray(permits) && permits.length >= 1) {
@@ -300,6 +300,8 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
         }
         return row as RiderPaymentRow;
       }) as RiderPaymentRow[];
+      // Exclude cancelled and failed payments so "Permit history" / "All payments" only show valid ones
+      return normalized.filter((p) => p.status !== 'cancelled' && p.status !== 'failed');
     },
     enabled: !!riderId,
     // When there are pending payments, poll so we pick up webhook updates (county shows paid; rider should too)
