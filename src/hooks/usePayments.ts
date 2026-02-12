@@ -163,6 +163,7 @@ export interface RiderPermitRow {
   id: string;
   permit_number: string;
   status: string;
+  issued_at: string | null;
   expires_at: string | null;
   permit_type_id: string;
   motorbike_id: string;
@@ -176,7 +177,7 @@ export function useRiderPermits(riderId: string | undefined) {
       if (!riderId) return [];
       const { data, error } = await supabase
         .from('permits')
-        .select('id, permit_number, status, expires_at, permit_type_id, motorbike_id, permit_types(name, duration_days)')
+        .select('id, permit_number, status, issued_at, expires_at, permit_type_id, motorbike_id, permit_types(name, duration_days)')
         .eq('rider_id', riderId)
         .order('expires_at', { ascending: false });
       if (error) throw error;
@@ -275,7 +276,7 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as Array<Payment & {
+      type RiderPaymentRow = Payment & {
         permits: {
           id: string;
           permit_number: string;
@@ -288,7 +289,17 @@ export function useRiderPaymentHistory(riderId: string, countyId?: string) {
             amount: number;
           } | null;
         } | null;
-      }>;
+      };
+      // Normalize: PostgREST may return permits as object or single-element array
+      const rows = (data || []) as unknown[];
+      return rows.map((row: unknown) => {
+        const r = row as Record<string, unknown>;
+        const permits = r.permits;
+        if (Array.isArray(permits) && permits.length >= 1) {
+          return { ...r, permits: permits[0] } as RiderPaymentRow;
+        }
+        return row as RiderPaymentRow;
+      }) as RiderPaymentRow[];
     },
     enabled: !!riderId,
     // When there are pending payments, poll so we pick up webhook updates (county shows paid; rider should too)
@@ -450,16 +461,32 @@ export function useVerifyPayment() {
     onSuccess: (data) => {
       if (data.data?.status === 'success') {
         toast.success('Payment verified successfully!');
-        queryClient.invalidateQueries({ queryKey: ['payments'] });
-        queryClient.invalidateQueries({ queryKey: ['permits'] });
-        queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
-        queryClient.invalidateQueries({ queryKey: ['riders'] });
-        queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
-        queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['monthly-revenue'] });
-        queryClient.invalidateQueries({ queryKey: ['revenue-by-date-range'] });
-        queryClient.invalidateQueries({ queryKey: ['revenue-by-county'] });
+        const keysToInvalidate = [
+          ['payments'],
+          ['permits'],
+          ['permit'],
+          ['permit-payments'],
+          ['rider-permits'],
+          ['rider-penalties'],
+          ['riders'],
+          ['rider-payment-history'],
+          ['rider-owner-dashboard'],
+          ['dashboard-stats'],
+          ['monthly-revenue'],
+          ['revenue-by-date-range'],
+          ['revenue-by-county'],
+        ] as const;
+        keysToInvalidate.forEach((queryKey) => {
+          queryClient.invalidateQueries({ queryKey });
+        });
+        // Delayed refetch so UI updates after DB commit (penalty is_paid, payment status, etc.)
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['rider-payment-history'] });
+          queryClient.invalidateQueries({ queryKey: ['permit-payments'] });
+          queryClient.invalidateQueries({ queryKey: ['rider-owner-dashboard'] });
+          queryClient.invalidateQueries({ queryKey: ['rider-permits'] });
+          queryClient.invalidateQueries({ queryKey: ['rider-penalties'] });
+        }, 800);
       }
     },
     onError: (error: Error) => {

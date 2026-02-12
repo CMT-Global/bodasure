@@ -107,22 +107,6 @@ function PermitPaymentsContent() {
     return set;
   }, [riderPermits]);
 
-  // Latest permit for expiry display (most recent by expires_at) — include type name and bike so we can show "which" permit
-  const latestPermitForExpiry = useMemo(() => {
-    const withExpiry = riderPermits.filter((p) => p.expires_at);
-    if (withExpiry.length === 0) return null;
-    const sorted = [...withExpiry].sort(
-      (a, b) => parseISO(b.expires_at!).getTime() - parseISO(a.expires_at!).getTime()
-    );
-    const p = sorted[0];
-    const bikeLabel = motorbikes.find((m) => m.id === p.motorbike_id)?.registration_number ?? null;
-    return {
-      expires_at: p.expires_at!,
-      permitTypeName: p.permit_types?.name ?? 'Permit',
-      motorbikeRegistration: bikeLabel,
-    };
-  }, [riderPermits, motorbikes]);
-
   // Match county portal: treat as paid if status is completed OR paid_at is set (webhook may set paid_at first)
   const getPaymentDisplayStatus = (p: PaymentWithPermit) =>
     p.status === 'completed' || p.paid_at ? 'completed' : p.status;
@@ -305,16 +289,6 @@ function PermitPaymentsContent() {
             Choose a permit option and pay via Paystack (card or M-Pesa). On success your permit
             becomes active and expiry updates.
           </CardDescription>
-          {latestPermitForExpiry && (
-            <p className="text-sm font-medium text-foreground mt-2">
-              <span className="text-primary font-medium">{latestPermitForExpiry.permitTypeName}</span>
-              {latestPermitForExpiry.motorbikeRegistration && (
-                <> <span className="text-muted-foreground">({latestPermitForExpiry.motorbikeRegistration})</span></>
-              )}
-              {' — expires '}
-              <span className="text-primary">{format(parseISO(latestPermitForExpiry.expires_at), 'dd MMM yyyy')}</span>
-            </p>
-          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {hasActivePermitForSelection && selectedType && selectedMotorbikeId && (() => {
@@ -467,6 +441,73 @@ function PermitPaymentsContent() {
         </CardContent>
       </Card>
 
+      {/* All permits */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            All permits
+          </CardTitle>
+          <CardDescription>
+            Permit name, issued date, and expiry for each permit.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {riderPermitsLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
+          ) : riderPermits.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>No permits yet</p>
+              <p className="text-xs mt-1">Pay for a permit above to see it here.</p>
+            </div>
+          ) : (
+            <ScrollArea className="rounded-md border">
+              <div className="divide-y">
+                {riderPermits.map((permit) => {
+                  const bikeLabel = motorbikes.find((m) => m.id === permit.motorbike_id)?.registration_number;
+                  return (
+                    <div
+                      key={permit.id}
+                      className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">
+                            {permit.permit_types?.name ?? 'Permit'}
+                          </span>
+                          {bikeLabel && (
+                            <span className="text-muted-foreground text-sm">({bikeLabel})</span>
+                          )}
+                          <StatusBadge status={permit.status} />
+                        </div>
+                        <div className="flex flex-wrap gap-x-6 gap-y-0 text-sm">
+                          <span className="text-muted-foreground">
+                            Issued: {permit.issued_at ? format(parseISO(permit.issued_at), 'dd MMM yyyy') : '—'}
+                          </span>
+                          <span className={permit.status === 'active' ? 'text-primary font-medium' : 'text-muted-foreground'}>
+                            Expires: {permit.expires_at ? format(parseISO(permit.expires_at), 'dd MMM yyyy') : '—'}
+                          </span>
+                        </div>
+                        {permit.permit_number && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            #{permit.permit_number}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Permit history */}
       <Card>
         <CardHeader>
@@ -493,7 +534,12 @@ function PermitPaymentsContent() {
           ) : (
             <ScrollArea className="rounded-md border">
               <div className="divide-y">
-                {permitPayments.map((payment) => (
+                {permitPayments.map((payment) => {
+                  const meta = (payment.metadata ?? {}) as Record<string, unknown>;
+                  const permitNumber = payment.permits?.permit_number ?? (meta.permit_number as string | undefined);
+                  const permitTypeName = payment.permits?.permit_types?.name ?? permitTypes.find((pt) => pt.id === meta.permit_type_id)?.name;
+                  const expiresAt = payment.permits?.expires_at ?? null;
+                  return (
                   <div
                     key={payment.id}
                     className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4"
@@ -508,6 +554,11 @@ function PermitPaymentsContent() {
                         </span>
                         <StatusBadge status={getPaymentDisplayStatus(payment)} />
                       </div>
+                      {(permitNumber || permitTypeName) && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {[permitTypeName, permitNumber].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
                       {payment.payment_reference && (
                         <p className="text-xs text-muted-foreground font-mono mt-0.5">
                           Ref: {payment.payment_reference}
@@ -516,9 +567,9 @@ function PermitPaymentsContent() {
                       <p className="text-sm text-muted-foreground mt-0.5">
                         {format(new Date(payment.created_at), 'dd MMM yyyy, HH:mm')}
                       </p>
-                      {payment.permits?.expires_at && (
+                      {expiresAt && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Expires: {format(new Date(payment.permits.expires_at), 'dd MMM yyyy')}
+                          Expires: {format(new Date(expiresAt), 'dd MMM yyyy')}
                         </p>
                       )}
                     </div>
@@ -543,7 +594,8 @@ function PermitPaymentsContent() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           )}
