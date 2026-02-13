@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreatePenalty } from '@/hooks/usePenalties';
 import { useRiders } from '@/hooks/useData';
+import type { PenaltyType } from '@/hooks/useCountySettings';
 import {
   Dialog,
   DialogContent,
@@ -39,9 +40,11 @@ interface PenaltyIssuanceDialogProps {
   onOpenChange: (open: boolean) => void;
   countyId: string;
   preselectedRiderId?: string;
+  /** County-defined penalty types from dashboard/settings; used for type dropdown and auto-fill amount */
+  penaltyTypes?: PenaltyType[];
 }
 
-const PENALTY_TYPES = [
+const FALLBACK_PENALTY_TYPE_LABELS = [
   'Expired permit',
   'No permit',
   'Other county-defined violations',
@@ -52,10 +55,17 @@ export function PenaltyIssuanceDialog({
   onOpenChange,
   countyId,
   preselectedRiderId,
+  penaltyTypes = [],
 }: PenaltyIssuanceDialogProps) {
   const { data: riders = [], isLoading: ridersLoading } = useRiders(countyId);
   const createPenalty = useCreatePenalty();
   const [amountInput, setAmountInput] = useState<string>('');
+
+  const activePenaltyTypes = penaltyTypes.filter((pt) => pt.isActive !== false);
+  const typeOptions =
+    activePenaltyTypes.length > 0
+      ? activePenaltyTypes.map((pt) => ({ value: pt.name, amount: pt.amount }))
+      : FALLBACK_PENALTY_TYPE_LABELS.map((label) => ({ value: label, amount: 0 }));
 
   const form = useForm<PenaltyIssuanceFormValues>({
     resolver: zodResolver(penaltyIssuanceFormSchema),
@@ -86,6 +96,16 @@ export function PenaltyIssuanceDialog({
       setAmountInput(formAmount === 0 ? '' : formAmount.toString());
     }
   }, [open, form]);
+
+  // When penalty type changes, auto-fill amount from county penalty type if available
+  const handlePenaltyTypeChange = (value: string) => {
+    form.setValue('penalty_type', value);
+    const option = typeOptions.find((o) => o.value === value);
+    if (option && option.amount > 0) {
+      form.setValue('amount', option.amount);
+      setAmountInput(option.amount.toString());
+    }
+  };
 
   const onSubmit = async (values: PenaltyIssuanceFormValues) => {
     try {
@@ -158,16 +178,20 @@ export function PenaltyIssuanceDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Penalty Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    onValueChange={handlePenaltyTypeChange}
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select penalty type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {PENALTY_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
+                      {typeOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.value}
+                          {opt.amount > 0 ? ` — KES ${opt.amount.toLocaleString()}` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getCountyConfigFromSettings } from '@/hooks/useData';
 import { calculatePaymentDeductions } from '@/utils/paymentCalculation';
 import type { PaymentCalculationMonetization, SubscriptionPeriodKey } from '@/utils/paymentCalculation';
 
@@ -673,33 +674,15 @@ function defaultMonetization(): PaymentCalculationMonetization {
   };
 }
 
-function monetizationFromCounty(settings: Record<string, unknown> | null | undefined): PaymentCalculationMonetization {
-  const mon = settings?.monetizationSettings as Record<string, unknown> | undefined;
+/** Build payment-calculation monetization from county settings. Uses same config source as monetization settings page (getCountyConfigFromSettings) so finance view matches the calculator. */
+function monetizationForCalculation(settings: Record<string, unknown> | null | undefined): PaymentCalculationMonetization {
+  const config = getCountyConfigFromSettings(settings);
+  const mon = config.monetizationSettings;
   if (!mon) return defaultMonetization();
-  const def = defaultMonetization();
-  const pf = (mon.platformServiceFee ?? {}) as Record<string, unknown>;
-  const pcf = (mon.paymentConvenienceFee ?? {}) as Record<string, unknown>;
-  const pc = (mon.penaltyCommission ?? {}) as Record<string, unknown>;
   return {
-    platformServiceFee: {
-      feeType: (pf.feeType ?? def.platformServiceFee.feeType) as 'fixed' | 'percentage',
-      fixedFeeCents: (pf.fixedFeeCents ?? def.platformServiceFee.fixedFeeCents) as number,
-      percentageFee: (pf.percentageFee ?? def.platformServiceFee.percentageFee) as number,
-      periods: (Array.isArray(pf.periods) ? pf.periods : def.platformServiceFee.periods) as { period: SubscriptionPeriodKey; enabled: boolean }[],
-      proportionalByWeeks: (pf.proportionalByWeeks ?? true) as boolean,
-      periodDiscounts: (Array.isArray(pf.periodDiscounts) ? pf.periodDiscounts : def.platformServiceFee.periodDiscounts) as { period: SubscriptionPeriodKey; discountCents?: number; discountPercent?: number }[],
-    },
-    paymentConvenienceFee: {
-      includedInPlatformFee: (pcf.includedInPlatformFee ?? def.paymentConvenienceFee.includedInPlatformFee) as boolean,
-      feeType: (pcf.feeType ?? def.paymentConvenienceFee.feeType) as 'fixed' | 'percentage',
-      fixedFeeCents: (pcf.fixedFeeCents ?? def.paymentConvenienceFee.fixedFeeCents) as number,
-      percentageFee: (pcf.percentageFee ?? def.paymentConvenienceFee.percentageFee) as number,
-    },
-    penaltyCommission: {
-      feeType: (pc.feeType ?? def.penaltyCommission.feeType) as 'fixed' | 'percentage',
-      fixedFeeCents: (pc.fixedFeeCents ?? def.penaltyCommission.fixedFeeCents) as number,
-      percentageFee: (pc.percentageFee ?? def.penaltyCommission.percentageFee) as number,
-    },
+    platformServiceFee: mon.platformServiceFee,
+    paymentConvenienceFee: mon.paymentConvenienceFee,
+    penaltyCommission: mon.penaltyCommission,
   };
 }
 
@@ -716,7 +699,7 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
 
       const countySettingsMap = new Map<string, PaymentCalculationMonetization>();
       (counties as { id: string; settings?: Record<string, unknown> }[]).forEach((c) => {
-        countySettingsMap.set(c.id, monetizationFromCounty(c.settings));
+        countySettingsMap.set(c.id, monetizationForCalculation(c.settings));
       });
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
@@ -774,21 +757,11 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
         const cur = countyMap.get(key);
         if (!cur) return;
         const gross = Number(p.gross_amount ?? p.amount ?? 0);
+        const smsCharge = Number(p.sms_charges ?? 0);
         cur.totalGross += gross;
-        cur.smsCharges += Number(p.sms_charges ?? 0);
+        cur.smsCharges += smsCharge;
 
-        const hasStoredFees =
-          (p.platform_fee != null && Number(p.platform_fee) > 0) ||
-          (p.processing_fee != null && Number(p.processing_fee) > 0) ||
-          (p.penalty_commission != null && Number(p.penalty_commission) > 0);
-
-        if (hasStoredFees) {
-          cur.platformFees += Number(p.platform_fee ?? 0);
-          cur.processingFees += Number(p.processing_fee ?? 0);
-          cur.penaltyCommission += Number(p.penalty_commission ?? 0);
-          cur.totalDeductions += Number(p.total_deductions ?? 0);
-          cur.netToCounty += Number(p.net_to_county ?? gross);
-        } else if (gross > 0) {
+        if (gross > 0) {
           const meta = (p.metadata as Record<string, unknown>) ?? {};
           const paymentType =
             p.payment_type === 'PENALTY' || meta.payment_type === 'penalty'
@@ -804,11 +777,16 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
             period: period ?? null,
             monetization,
           });
-          cur.platformFees += breakdown.platformFeeKES;
-          cur.processingFees += breakdown.processingFeeKES;
-          cur.penaltyCommission += breakdown.penaltyCommissionKES;
-          cur.totalDeductions += breakdown.totalDeductionsKES;
-          cur.netToCounty += breakdown.netToCountyKES;
+          // Use stored fee when present, otherwise use computed (fixes platform fee missing when stored as null/0)
+          const platformFee = p.platform_fee != null ? Number(p.platform_fee) : breakdown.platformFeeKES;
+          const processingFee = p.processing_fee != null ? Number(p.processing_fee) : breakdown.processingFeeKES;
+          const penaltyComm = p.penalty_commission != null ? Number(p.penalty_commission) : breakdown.penaltyCommissionKES;
+          const totalDed = platformFee + processingFee + penaltyComm + smsCharge;
+          cur.platformFees += platformFee;
+          cur.processingFees += processingFee;
+          cur.penaltyCommission += penaltyComm;
+          cur.totalDeductions += totalDed;
+          cur.netToCounty += gross - totalDed;
         } else {
           cur.platformFees += Number(p.platform_fee ?? 0);
           cur.processingFees += Number(p.processing_fee ?? 0);

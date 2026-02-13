@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getCountyConfigFromSettings } from '@/hooks/useData';
 
 export interface PermitSettings {
   gracePeriodDays: number; // Grace period before penalties apply for expired permits
@@ -86,19 +87,43 @@ export function useCountySettings(countyId?: string) {
 
       if (error) throw error;
 
-      const settings = (county?.settings as any) || {};
-      
+      const settings = (county?.settings as Record<string, unknown>) || {};
+      const countyConfig = getCountyConfigFromSettings(settings);
+
+      // Prefer penalty and escalation from super-admin county-config when present
+      let penaltySettings: PenaltySettings = {
+        ...defaultPenaltySettings,
+        ...(settings.penaltySettings as Partial<PenaltySettings> | undefined),
+      };
+      if (countyConfig.penaltyConfig.categories?.length > 0) {
+        penaltySettings = {
+          autoPenaltyEnabled: countyConfig.penaltyConfig.autoPenaltyEnabled ?? penaltySettings.autoPenaltyEnabled,
+          penaltyTypes: countyConfig.penaltyConfig.categories.map((c) => ({
+            id: c.id,
+            name: c.name,
+            description: c.description ?? '',
+            amount: c.amountCents / 100,
+            isActive: true,
+          })),
+          escalationRules:
+            countyConfig.penaltyConfig.escalationLogic?.length > 0
+              ? countyConfig.penaltyConfig.escalationLogic.map((r) => ({
+                  offenseCount: r.repeatCount,
+                  multiplier: r.multiplier,
+                  description: `Repeat ${r.repeatCount}: ${r.multiplier}x${r.maxAmountCents != null ? ` (max KES ${r.maxAmountCents / 100})` : ''}`,
+                }))
+              : penaltySettings.escalationRules,
+        };
+      }
+
       return {
         permitSettings: {
           ...defaultPermitSettings,
-          ...settings.permitSettings,
+          ...(settings.permitSettings as Partial<PermitSettings> | undefined),
         },
-        penaltySettings: {
-          ...defaultPenaltySettings,
-          ...settings.penaltySettings,
-        },
+        penaltySettings,
         revenueSharingSettings: {
-          rules: settings.revenueSharingSettings?.rules || [],
+          rules: (settings.revenueSharingSettings as { rules?: RevenueShareRule[] } | undefined)?.rules || [],
         },
       } as CountySettings;
     },

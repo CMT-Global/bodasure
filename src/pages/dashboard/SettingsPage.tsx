@@ -274,8 +274,18 @@ export default function SettingsPage() {
     },
   });
 
-  // Add/Update Penalty Type (validated form values)
-  const handleSavePenaltyType = (values: SettingsPenaltyTypeFormValues) => {
+  // Persist penalty settings to backend (so new penalty types show on Penalties page / Issue Penalty)
+  const persistPenaltySettings = async (nextPenaltySettings: PenaltySettings) => {
+    if (!countyId) return;
+    setPenaltySettings(nextPenaltySettings);
+    await updateSettings.mutateAsync({
+      countyId,
+      settings: { penaltySettings: nextPenaltySettings },
+    });
+  };
+
+  // Add/Update Penalty Type (validated form values) — save immediately so it shows in penalty type list
+  const handleSavePenaltyType = async (values: SettingsPenaltyTypeFormValues) => {
     const newPenaltyType: PenaltyType = {
       id: selectedPenaltyType?.id || Date.now().toString(),
       name: values.name,
@@ -288,22 +298,32 @@ export default function SettingsPage() {
       ? penaltySettings.penaltyTypes.map(t => t.id === selectedPenaltyType.id ? newPenaltyType : t)
       : [...penaltySettings.penaltyTypes, newPenaltyType];
 
-    setPenaltySettings({ ...penaltySettings, penaltyTypes: updatedTypes });
+    const nextPenaltySettings: PenaltySettings = { ...penaltySettings, penaltyTypes: updatedTypes };
     setIsPenaltyTypeDialogOpen(false);
     penaltyTypeForm.reset({ name: '', description: '', amount: 0 });
     setSelectedPenaltyType(null);
+    try {
+      await persistPenaltySettings(nextPenaltySettings);
+    } catch {
+      setPenaltySettings(penaltySettings);
+    }
   };
 
-  // Delete Penalty Type
-  const handleDeletePenaltyType = (id: string) => {
-    setPenaltySettings({
+  // Delete Penalty Type — persist immediately
+  const handleDeletePenaltyType = async (id: string) => {
+    const nextPenaltySettings: PenaltySettings = {
       ...penaltySettings,
       penaltyTypes: penaltySettings.penaltyTypes.filter(t => t.id !== id),
-    });
+    };
+    try {
+      await persistPenaltySettings(nextPenaltySettings);
+    } catch {
+      // state unchanged on error
+    }
   };
 
-  // Add/Update Escalation Rule (validated form values)
-  const handleSaveEscalationRule = (values: SettingsEscalationFormValues) => {
+  // Add/Update Escalation Rule (validated form values) — save immediately
+  const handleSaveEscalationRule = async (values: SettingsEscalationFormValues) => {
     const newRule: EscalationRule = {
       offenseCount: values.offenseCount,
       multiplier: values.multiplier,
@@ -314,18 +334,28 @@ export default function SettingsPage() {
       ? penaltySettings.escalationRules.map((r, i) => i === selectedEscalationIndex ? newRule : r)
       : [...penaltySettings.escalationRules, newRule].sort((a, b) => a.offenseCount - b.offenseCount);
 
-    setPenaltySettings({ ...penaltySettings, escalationRules: updatedRules });
+    const nextPenaltySettings: PenaltySettings = { ...penaltySettings, escalationRules: updatedRules };
     setIsEscalationDialogOpen(false);
     escalationForm.reset({ offenseCount: 2, multiplier: 1, description: '' });
     setSelectedEscalationIndex(null);
+    try {
+      await persistPenaltySettings(nextPenaltySettings);
+    } catch {
+      setPenaltySettings(penaltySettings);
+    }
   };
 
-  // Delete Escalation Rule
-  const handleDeleteEscalationRule = (index: number) => {
-    setPenaltySettings({
+  // Delete Escalation Rule — persist immediately
+  const handleDeleteEscalationRule = async (index: number) => {
+    const nextPenaltySettings: PenaltySettings = {
       ...penaltySettings,
       escalationRules: penaltySettings.escalationRules.filter((_, i) => i !== index),
-    });
+    };
+    try {
+      await persistPenaltySettings(nextPenaltySettings);
+    } catch {
+      // state unchanged on error
+    }
   };
 
   // Open edit dialogs
