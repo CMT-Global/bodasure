@@ -38,7 +38,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertCircle, CheckCircle, XCircle, Loader2, FileEdit } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -74,7 +73,7 @@ function requestUserName(req: RiderUpdateRequestWithNames): string {
 
 export default function SaccoUpdateRequestsPage() {
   const { user } = useAuth();
-  const [statusFilterValue, setStatusFilterValue] = useState<string>('pending');
+  const [statusFilterValue, setStatusFilterValue] = useState<string>('all');
   const { data: requests = [], isLoading, error } = useRiderUpdateRequestsForSacco(
     statusFilterValue === 'all' ? undefined : (statusFilterValue as 'pending' | 'approved' | 'rejected')
   );
@@ -169,22 +168,22 @@ export default function SaccoUpdateRequestsPage() {
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <Select value={statusFilterValue} onValueChange={setStatusFilterValue}>
-                <SelectTrigger className="w-[160px] min-h-[44px]">
-                  <SelectValue placeholder="Status" />
+                <SelectTrigger className="w-[140px] min-h-[44px] rounded-lg">
+                  <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {isLoading ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                  <Skeleton key={i} className="h-[88px] w-full rounded-xl" />
                 ))}
               </div>
             ) : requests.length === 0 ? (
@@ -194,87 +193,88 @@ export default function SaccoUpdateRequestsPage() {
                   : 'No requests match the selected filter.'}
               </p>
             ) : (
-              <ScrollArea className="h-[400px] sm:h-[500px] rounded-lg border border-border/60">
-                <div className="p-3 space-y-2">
-                  {requests.map((r) => (
+              <div className="space-y-3">
+                {requests.map((r) => (
+                  <div
+                    key={r.id}
+                    className={cn(
+                      'flex items-start sm:items-center justify-between gap-4 rounded-xl border border-border/60 bg-card px-4 py-4',
+                      detailRequest?.id === r.id && 'ring-2 ring-primary/50'
+                    )}
+                  >
                     <div
-                      key={r.id}
-                      className={cn(
-                        'flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-4 py-3',
-                        detailRequest?.id === r.id && 'ring-2 ring-primary/50'
-                      )}
+                      className="min-w-0 flex-1 cursor-pointer"
+                      onClick={() => setDetailRequest(detailRequest?.id === r.id ? null : r)}
                     >
-                      <div
-                        className="min-w-0 flex-1 cursor-pointer"
-                        onClick={() => setDetailRequest(detailRequest?.id === r.id ? null : r)}
-                      >
-                        <span className="font-medium text-foreground">
-                          {REQUEST_TYPE_LABELS[r.request_type]}
-                        </span>
-                        <p className="text-sm text-foreground/90 mt-0.5">
-                          {requestUserName(r)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Summary: {payloadSummary(r)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge
-                          variant={
-                            r.status === 'approved'
-                              ? 'default'
-                              : r.status === 'rejected'
-                                ? 'destructive'
-                                : 'secondary'
-                          }
-                          className="capitalize"
-                        >
-                          {r.status}
-                        </Badge>
-                        {r.status === 'pending' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="min-h-[36px]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleApprove(r);
-                              }}
-                              disabled={reviewMutation.isPending}
-                            >
-                              {reviewMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Accept
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="min-h-[36px]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleReject(r);
-                              }}
-                              disabled={reviewMutation.isPending}
-                            >
-                              <XCircle className="h-4 w-4 mr-1" />
-                              Decline
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <p className="font-semibold text-foreground">
+                        {REQUEST_TYPE_LABELS[r.request_type]}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {requestUserName(r)}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Summary: {payloadSummary(r)}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant={
+                          r.status === 'approved'
+                            ? 'default'
+                            : r.status === 'rejected'
+                              ? 'destructive'
+                              : 'secondary'
+                        }
+                        className={cn(
+                          'capitalize',
+                          r.status === 'approved' && 'bg-orange-500/90 text-white border-0 hover:bg-orange-500/90 hover:text-white'
+                        )}
+                      >
+                        {r.status}
+                      </Badge>
+                      {r.status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="min-h-[36px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(r);
+                            }}
+                            disabled={reviewMutation.isPending}
+                          >
+                            {reviewMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Accept
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="min-h-[36px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReject(r);
+                            }}
+                            disabled={reviewMutation.isPending}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Decline
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
