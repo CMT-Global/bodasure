@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getCountyConfigFromSettings, type PlatformFeeModelConfig } from '@/hooks/useData';
+import { getCountyConfigFromSettings, type BulkSmsCostRecoveryConfig, type PlatformFeeModelConfig } from '@/hooks/useData';
 import { calculatePaymentDeductions } from '@/utils/paymentCalculation';
 import type { PaymentCalculationMonetization, SubscriptionPeriodKey } from '@/utils/paymentCalculation';
 
@@ -27,6 +27,29 @@ function platformFeeFromRevenueModel(grossKES: number, model: PlatformFeeModelCo
     if (model.hybridPercentage != null) fee += (grossKES * model.hybridPercentage) / 100;
   }
   return Math.round(fee * 100) / 100;
+}
+
+/** Estimated SMS charges (KES) for one payment using county bulk SMS config. Uses stored value when present; otherwise 1 SMS for payment confirmation and/or penalty alert when enabled. */
+function estimatedSmsChargesForPayment(
+  paymentType: 'PERMIT' | 'PENALTY',
+  storedSmsCharges: number,
+  bulkSms: BulkSmsCostRecoveryConfig | undefined
+): number {
+  if (storedSmsCharges > 0) return storedSmsCharges;
+  if (!bulkSms || (bulkSms.costPerSmsCents ?? 0) <= 0) return 0;
+  const categories = bulkSms.messageCategories ?? {};
+  let smsCount = 0;
+  if (paymentType === 'PERMIT' && categories.paymentConfirmation) smsCount += 1;
+  if (paymentType === 'PENALTY') {
+    if (categories.paymentConfirmation) smsCount += 1;
+    if (categories.penaltyAlerts) smsCount += 1;
+  }
+  if (smsCount === 0) return 0;
+  const costPerSmsKES = (bulkSms.costPerSmsCents ?? 0) / 100;
+  const markupCents = bulkSms.markupPerSmsCents ?? 0;
+  const markupPct = bulkSms.markupPercent ?? 0;
+  const totalPerSmsKES = (costPerSmsKES + markupCents / 100) * (1 + markupPct / 100);
+  return Math.round(smsCount * totalPerSmsKES * 100) / 100;
 }
 
 /** Normalize date strings for Supabase: include full start/end of day for proper filtering */
@@ -734,7 +757,12 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
 
       const countyConfigMap = new Map<
         string,
-        { monetization: PaymentCalculationMonetization; platformFeeModel?: PlatformFeeModelConfig; countyRevenueModel?: CountyRevenueModelDisplay }
+        {
+          monetization: PaymentCalculationMonetization;
+          platformFeeModel?: PlatformFeeModelConfig;
+          countyRevenueModel?: CountyRevenueModelDisplay;
+          bulkSmsCostRecovery?: BulkSmsCostRecoveryConfig;
+        }
       >();
       (counties as { id: string; settings?: Record<string, unknown> }[]).forEach((c) => {
         const config = getCountyConfigFromSettings(c.settings);
@@ -742,6 +770,7 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
           monetization: monetizationForCalculation(c.settings),
           platformFeeModel: config.revenueCommercialConfig?.platformFeeModel,
           countyRevenueModel: config.revenueCommercialConfig?.countyRevenueModel,
+          bulkSmsCostRecovery: config.monetizationSettings?.bulkSmsCostRecovery,
         });
       });
 
@@ -800,9 +829,8 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
         const cur = countyMap.get(key);
         if (!cur) return;
         const gross = Number(p.gross_amount ?? p.amount ?? 0);
-        const smsCharge = Number(p.sms_charges ?? 0);
+        const storedSmsCharge = Number(p.sms_charges ?? 0);
         cur.totalGross += gross;
-        cur.smsCharges += smsCharge;
 
         const meta = (p.metadata as Record<string, unknown>) ?? {};
         const paymentType: 'PERMIT' | 'PENALTY' =
@@ -810,34 +838,34 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
             ? 'PENALTY'
             : 'PERMIT';
 
+        const countyConfig = countyConfigMap.get(key);
+        const smsCharge = estimatedSmsChargesForPayment(
+          paymentType,
+          storedSmsCharge,
+          countyConfig?.bulkSmsCostRecovery
+        );
+        cur.smsCharges += smsCharge;
+
         if (gross > 0) {
-          const period = (p.period ?? meta.period) as SubscriptionPeriodKey | undefined | null;
-          const countyConfig = countyConfigMap.get(key);
+          const periodRaw = (p.period ?? meta.period) as SubscriptionPeriodKey | undefined | null;
+          // PERMIT platform fee requires a period; use 'monthly' when missing so 10% (or fixed) from monetization-settings is still applied
+          const period =
+            paymentType === 'PERMIT' && !periodRaw ? ('monthly' as SubscriptionPeriodKey) : periodRaw ?? null;
           const monetization = countyConfig?.monetization ?? defaultMonetization();
-          const platformFeeModel = countyConfig?.platformFeeModel;
-          const useRevenueConfigPlatformFee =
-            paymentType === 'PERMIT' && isPlatformFeeModelEffective(platformFeeModel);
-          const platformFeeOverride =
-            useRevenueConfigPlatformFee && platformFeeModel
-              ? platformFeeFromRevenueModel(gross, platformFeeModel)
-              : undefined;
+          // Finance View uses only Monetization Settings (platformServiceFee) for platform fee so it matches
+          // the calculator on super-admin/monetization-settings (e.g. 10% of permit revenue = 81 for 810 KSH).
           const breakdown = calculatePaymentDeductions({
             grossAmountKES: gross,
             paymentType,
-            period: period ?? null,
+            period,
             monetization,
-            platformFeeKESOverride: platformFeeOverride,
+            platformFeeKESOverride: undefined,
           });
-          // Platform fee applies only to PERMIT; penalty commission only to PENALTY (match monetization/revenue-config)
-          const platformFee =
-            paymentType === 'PERMIT'
-              ? (p.platform_fee != null ? Number(p.platform_fee) : breakdown.platformFeeKES)
-              : 0;
-          const processingFee = p.processing_fee != null ? Number(p.processing_fee) : breakdown.processingFeeKES;
-          const penaltyComm =
-            paymentType === 'PENALTY'
-              ? (p.penalty_commission != null ? Number(p.penalty_commission) : breakdown.penaltyCommissionKES)
-              : 0;
+          // Use recalculated breakdown from current county monetization so Finance View matches
+          // the Monetization Settings calculator: platform fee, processing (convenience) fee, penalty commission.
+          const platformFee = paymentType === 'PERMIT' ? breakdown.platformFeeKES : 0;
+          const processingFee = breakdown.processingFeeKES; // paymentConvenienceFee from monetization-settings
+          const penaltyComm = paymentType === 'PENALTY' ? breakdown.penaltyCommissionKES : 0;
           const totalDed = platformFee + processingFee + penaltyComm + smsCharge;
           cur.platformFees += platformFee;
           cur.processingFees += processingFee;
@@ -850,12 +878,13 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
           cur.platformFees += platformFee;
           cur.processingFees += Number(p.processing_fee ?? 0);
           cur.penaltyCommission += penaltyComm;
-          cur.totalDeductions += Number(p.total_deductions ?? 0);
-          cur.netToCounty += Number(p.net_to_county ?? gross);
+          cur.totalDeductions += Number(p.total_deductions ?? 0) + smsCharge;
+          cur.netToCounty += Number(p.net_to_county ?? gross) - smsCharge;
         }
       });
 
-      // Include penalties paid outside payment flow (no payment_id) to match county dashboard revenue
+      // Include penalties paid outside payment flow (no payment_id) to match county dashboard revenue.
+      // Apply current county penalty commission and processing fee so Finance View matches calculator.
       const penaltyDateInRange = (dateStr: string) => {
         if (!dateStr) return false;
         if (startDate && dateStr < startDate) return false;
@@ -872,7 +901,22 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
         if (!cur) return;
         const amount = Number(pen.amount || 0);
         cur.totalGross += amount;
-        cur.netToCounty += amount;
+        if (amount > 0) {
+          const monetization = countyConfigMap.get(key)?.monetization ?? defaultMonetization();
+          const breakdown = calculatePaymentDeductions({
+            grossAmountKES: amount,
+            paymentType: 'PENALTY',
+            period: null,
+            monetization,
+          });
+          cur.processingFees += breakdown.processingFeeKES;
+          cur.penaltyCommission += breakdown.penaltyCommissionKES;
+          const totalDed = breakdown.processingFeeKES + breakdown.penaltyCommissionKES;
+          cur.totalDeductions += totalDed;
+          cur.netToCounty += amount - totalDed;
+        } else {
+          cur.netToCounty += amount;
+        }
       });
 
       return counties.map((c: { id: string; name: string; code: string }) => {
