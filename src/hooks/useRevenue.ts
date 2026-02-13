@@ -804,14 +804,13 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
         cur.totalGross += gross;
         cur.smsCharges += smsCharge;
 
+        const meta = (p.metadata as Record<string, unknown>) ?? {};
+        const paymentType: 'PERMIT' | 'PENALTY' =
+          p.payment_type === 'PENALTY' || meta.payment_type === 'penalty'
+            ? 'PENALTY'
+            : 'PERMIT';
+
         if (gross > 0) {
-          const meta = (p.metadata as Record<string, unknown>) ?? {};
-          const paymentType =
-            p.payment_type === 'PENALTY' || meta.payment_type === 'penalty'
-              ? 'PENALTY'
-              : p.payment_type === 'PERMIT' || meta.payment_type === 'permit' || p.permit_id
-                ? 'PERMIT'
-                : 'PERMIT';
           const period = (p.period ?? meta.period) as SubscriptionPeriodKey | undefined | null;
           const countyConfig = countyConfigMap.get(key);
           const monetization = countyConfig?.monetization ?? defaultMonetization();
@@ -829,10 +828,16 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
             monetization,
             platformFeeKESOverride: platformFeeOverride,
           });
-          // Use stored fee when present, otherwise use computed (fixes platform fee missing when stored as null/0)
-          const platformFee = p.platform_fee != null ? Number(p.platform_fee) : breakdown.platformFeeKES;
+          // Platform fee applies only to PERMIT; penalty commission only to PENALTY (match monetization/revenue-config)
+          const platformFee =
+            paymentType === 'PERMIT'
+              ? (p.platform_fee != null ? Number(p.platform_fee) : breakdown.platformFeeKES)
+              : 0;
           const processingFee = p.processing_fee != null ? Number(p.processing_fee) : breakdown.processingFeeKES;
-          const penaltyComm = p.penalty_commission != null ? Number(p.penalty_commission) : breakdown.penaltyCommissionKES;
+          const penaltyComm =
+            paymentType === 'PENALTY'
+              ? (p.penalty_commission != null ? Number(p.penalty_commission) : breakdown.penaltyCommissionKES)
+              : 0;
           const totalDed = platformFee + processingFee + penaltyComm + smsCharge;
           cur.platformFees += platformFee;
           cur.processingFees += processingFee;
@@ -840,9 +845,11 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
           cur.totalDeductions += totalDed;
           cur.netToCounty += gross - totalDed;
         } else {
-          cur.platformFees += Number(p.platform_fee ?? 0);
+          const platformFee = paymentType === 'PERMIT' ? Number(p.platform_fee ?? 0) : 0;
+          const penaltyComm = paymentType === 'PENALTY' ? Number(p.penalty_commission ?? 0) : 0;
+          cur.platformFees += platformFee;
           cur.processingFees += Number(p.processing_fee ?? 0);
-          cur.penaltyCommission += Number(p.penalty_commission ?? 0);
+          cur.penaltyCommission += penaltyComm;
           cur.totalDeductions += Number(p.total_deductions ?? 0);
           cur.netToCounty += Number(p.net_to_county ?? gross);
         }
