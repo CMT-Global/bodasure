@@ -2046,8 +2046,12 @@ export function useUpdateCountyConfig() {
       queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
       queryClient.invalidateQueries({ queryKey: ['county-config-history', variables.countyId] });
       queryClient.invalidateQueries({ queryKey: ['monetization-settings-history', variables.countyId] });
-      // Finance view uses monetization-summary; invalidate so it refetches with new county settings
+      // Finance view uses monetization-summary (platform fees from Revenue Config + Monetization Settings, penalty commission, etc.)
       queryClient.invalidateQueries({ queryKey: ['monetization-summary'] });
+      // When platform fees or penalty commission change, refetch so Finance View updates immediately if open
+      if (variables.section === 'revenueCommercialConfig' || variables.section === 'monetizationSettings') {
+        queryClient.refetchQueries({ queryKey: ['monetization-summary'] });
+      }
       // When permit config changed, permit_types table was synced; invalidate so Issue Permit shows new types and amounts
       if (variables.section === 'permitConfig') {
         queryClient.invalidateQueries({ queryKey: ['permit_types'] });

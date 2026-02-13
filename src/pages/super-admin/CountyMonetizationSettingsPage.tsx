@@ -124,7 +124,17 @@ function CalculationEnginePreview({
     [grossKES, monetizationInput]
   );
 
-  const BreakdownBlock = ({ title, breakdown }: { title: string; breakdown: ReturnType<typeof calculatePaymentDeductions> }) => (
+  const smsExampleKES = (monetization.bulkSmsCostRecovery?.costPerSmsCents ?? 0) / 100;
+
+  const BreakdownBlock = ({
+    title,
+    breakdown,
+    smsExampleKES: smsKES,
+  }: {
+    title: string;
+    breakdown: ReturnType<typeof calculatePaymentDeductions>;
+    smsExampleKES: number;
+  }) => (
     <div className="space-y-2">
       <p className="text-xs font-medium text-muted-foreground">{title}</p>
       <div className="rounded-lg border bg-muted/30 p-4 font-mono text-sm space-y-2">
@@ -144,10 +154,17 @@ function CalculationEnginePreview({
           <span className="text-muted-foreground">Penalty commission (KES)</span>
           <span>{breakdown.penaltyCommissionKES.toFixed(2)}</span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">SMS (e.g. 1 msg, KES)</span>
+          <span>{smsKES.toFixed(2)}</span>
+        </div>
         <div className="flex justify-between border-t pt-2 font-medium">
           <span>Total deductions (KES)</span>
           <span>{breakdown.totalDeductionsKES.toFixed(2)}</span>
         </div>
+        <p className="text-xs text-muted-foreground pt-1">
+          Total above excludes SMS. Finance View sums actual SMS charges per payment.
+        </p>
         <div className="flex justify-between font-medium">
           <span>Net to county (KES)</span>
           <span>{breakdown.netToCountyKES.toFixed(2)}</span>
@@ -185,8 +202,8 @@ function CalculationEnginePreview({
         </div>
       </div>
       <div className="grid gap-6 sm:grid-cols-2">
-        <BreakdownBlock title="PERMIT payment" breakdown={permitBreakdown} />
-        <BreakdownBlock title="PENALTY payment" breakdown={penaltyBreakdown} />
+        <BreakdownBlock title="PERMIT payment" breakdown={permitBreakdown} smsExampleKES={smsExampleKES} />
+        <BreakdownBlock title="PENALTY payment" breakdown={penaltyBreakdown} smsExampleKES={smsExampleKES} />
       </div>
     </div>
   );
