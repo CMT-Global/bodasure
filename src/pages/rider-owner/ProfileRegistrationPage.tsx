@@ -35,7 +35,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   User,
@@ -52,12 +51,47 @@ import {
   IdCard,
   Hash,
   QrCode,
+  CheckCircle,
+  Clock,
+  XCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
+
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  phone: 'Phone update',
+  photo: 'Photo update',
+  sacco_stage_transfer: 'Sacco Stage Transfer',
+  owner_rider_reassignment: 'Owner / rider reassignment',
+};
+
+function RequestStatusBadge({ status }: { status: string }) {
+  if (status === 'pending') {
+    return (
+      <Badge variant="secondary" className="gap-1.5 rounded-full px-2.5 py-0.5 font-medium shrink-0 text-xs sm:text-sm">
+        <Clock className="h-3 w-3 shrink-0" />
+        Pending
+      </Badge>
+    );
+  }
+  if (status === 'approved') {
+    return (
+      <Badge className="gap-1.5 rounded-full bg-amber-500/90 text-white border-0 px-2.5 py-0.5 font-medium hover:bg-amber-500 shrink-0 text-xs sm:text-sm">
+        <CheckCircle className="h-3 w-3 shrink-0" />
+        Approved
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="destructive" className="gap-1.5 rounded-full px-2.5 py-0.5 font-medium shrink-0 text-xs sm:text-sm">
+      <XCircle className="h-3 w-3 shrink-0" />
+      Rejected
+    </Badge>
+  );
+}
 
 function InfoRow({
   icon: Icon,
@@ -667,44 +701,31 @@ function ProfileRegistrationContent() {
           </div>
 
           {requests.length > 0 && (
-            <div className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
-              <div className="border-b border-border/60 bg-muted/10 px-4 py-3">
-                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Hash className="h-4 w-4 text-primary" />
-                  Your requests
-                </h4>
+            <div className="space-y-3 min-w-0">
+              <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                <Hash className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
+                <h4 className="text-sm font-semibold text-foreground">Your requests</h4>
               </div>
-              <ScrollArea className="h-[220px]">
-                <div className="p-3 space-y-2">
-                  {requests.map((r) => (
-                    <div
-                      key={r.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-medium text-foreground capitalize">
-                          {r.request_type.replace(/_/g, ' ')}
-                        </span>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          r.status === 'approved'
-                            ? 'default'
-                            : r.status === 'rejected'
-                              ? 'destructive'
-                              : 'secondary'
-                        }
-                        className="shrink-0 capitalize"
-                      >
-                        {r.status}
-                      </Badge>
+              <ul className="space-y-2">
+                {requests.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex flex-col gap-2 rounded-xl border border-border bg-muted/5 px-4 py-3 min-w-0 overflow-hidden sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-medium text-foreground block">
+                        {REQUEST_TYPE_LABELS[r.request_type] ?? r.request_type.replace(/_/g, ' ')}
+                      </span>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <RequestStatusBadge status={r.status} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </CardContent>

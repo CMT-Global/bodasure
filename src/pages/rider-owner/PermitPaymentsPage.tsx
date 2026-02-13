@@ -39,7 +39,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   CreditCard,
-  History,
+  RefreshCw,
   Loader2,
   Receipt,
   AlertCircle,
@@ -611,80 +611,86 @@ function PermitPaymentsContent() {
       {/* All permits */}
       <Card className="min-w-0 overflow-hidden">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <RefreshCw className="h-5 w-5 shrink-0" />
             All permits
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-muted-foreground">
             Permit name, issued date, and expiry for each permit.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {riderPermitsLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-4">
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-14 w-full" />
+                <Skeleton key={i} className="h-20 w-full" />
               ))}
             </div>
           ) : permitsWithValidPayment.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground px-4">
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>No permits yet</p>
               <p className="text-xs mt-1">Pay for a permit above to see it here.</p>
             </div>
           ) : (
-            <ScrollArea className="rounded-md border">
-              <div className="divide-y">
-                {permitsWithValidPayment.map((permit) => {
-                  const bikeLabel = motorbikes.find((m) => m.id === permit.motorbike_id)?.registration_number;
-                  const now = new Date();
-                  const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
-                  const expiresAt = permit.expires_at ? parseISO(permit.expires_at) : null;
-                  const isExpiringSoon =
-                    permit.status === 'active' &&
-                    expiresAt &&
-                    expiresAt > now &&
-                    expiresAt <= expiringSoonThreshold;
-                  return (
-                    <div
-                      key={permit.id}
-                      className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4"
-                    >
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-foreground">
-                            {permit.permit_types?.name ?? 'Permit'}
-                          </span>
-                          {bikeLabel && (
-                            <span className="text-muted-foreground text-sm">({bikeLabel})</span>
-                          )}
-                          <StatusBadge status={permit.status} />
-                          {isExpiringSoon && (
-                            <Badge variant="secondary" className="gap-1 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
-                              <Clock className="h-3 w-3" />
-                              Expiring soon
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-x-6 gap-y-0 text-sm">
-                          <span className="text-muted-foreground">
-                            Issued: {permit.issued_at ? format(parseISO(permit.issued_at), 'dd MMM yyyy') : '—'}
-                          </span>
-                          <span className={permit.status === 'active' ? 'text-primary font-medium' : 'text-muted-foreground'}>
-                            Expires: {permit.expires_at ? format(parseISO(permit.expires_at), 'dd MMM yyyy') : '—'}
-                          </span>
-                        </div>
-                        {permit.permit_number && (
-                          <p className="text-xs text-muted-foreground font-mono">
-                            #{permit.permit_number}
-                          </p>
-                        )}
-                      </div>
+            <div className="min-w-0 divide-y divide-border">
+              {permitsWithValidPayment.map((permit) => {
+                const bikeLabel = motorbikes.find((m) => m.id === permit.motorbike_id)?.registration_number ?? '—';
+                const now = new Date();
+                const expiringSoonThreshold = addDays(now, EXPIRING_SOON_DAYS);
+                const expiresAt = permit.expires_at ? parseISO(permit.expires_at) : null;
+                const isExpiringSoon =
+                  permit.status === 'active' &&
+                  expiresAt &&
+                  expiresAt > now &&
+                  expiresAt <= expiringSoonThreshold;
+                const permitLabel = [permit.permit_types?.name ?? 'Permit', permit.permit_number].filter(Boolean).join(' · ') || '—';
+                return (
+                  <div
+                    key={permit.id}
+                    className="flex flex-col gap-4 p-4 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-6 min-w-0"
+                  >
+                    {/* Name + Status */}
+                    <div className="flex items-center gap-2 flex-shrink-0 min-w-0 flex-wrap">
+                      <span className="text-lg font-bold text-foreground whitespace-nowrap">
+                        {permit.permit_types?.name ?? 'Permit'}
+                      </span>
+                      <StatusBadge status={permit.status} />
+                      {isExpiringSoon && (
+                        <Badge variant="secondary" className="gap-1 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 shrink-0">
+                          <Clock className="h-3 w-3" />
+                          Expiring soon
+                        </Badge>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+                    {/* PERMIT (type · number) */}
+                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Permit</span>
+                      <span className="text-sm text-foreground truncate" title={permitLabel}>{permitLabel}</span>
+                    </div>
+                    {/* ISSUED */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Issued</span>
+                      <span className="text-sm text-foreground">
+                        {permit.issued_at ? format(parseISO(permit.issued_at), 'dd MMM yyyy') : '—'}
+                      </span>
+                    </div>
+                    {/* EXPIRES */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Expires</span>
+                      <span className="text-sm text-foreground">
+                        {permit.expires_at ? format(parseISO(permit.expires_at), 'dd MMM yyyy') : '—'}
+                      </span>
+                    </div>
+                    {/* MOTORBIKE */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0 min-w-0">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Motorbike</span>
+                      <span className="text-sm text-foreground">{bikeLabel}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -692,93 +698,97 @@ function PermitPaymentsContent() {
       {/* Permit history */}
       <Card className="min-w-0 overflow-hidden">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <RefreshCw className="h-5 w-5 shrink-0" />
             Permit history
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-muted-foreground">
             List of permit payments: reference, amount, date, status, and receipt.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {paymentsLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-4">
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-14 w-full" />
+                <Skeleton key={i} className="h-20 w-full" />
               ))}
             </div>
           ) : permitPayments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground px-4">
               <Receipt className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>No permit payments yet</p>
             </div>
           ) : (
-            <ScrollArea className="rounded-md border min-w-0">
-              <div className="divide-y min-w-0">
-                {permitPayments.map((payment) => {
-                  const meta = (payment.metadata ?? {}) as Record<string, unknown>;
-                  const permitNumber = payment.permits?.permit_number ?? (meta.permit_number as string | undefined);
-                  const permitTypeName = payment.permits?.permit_types?.name ?? permitTypes.find((pt) => pt.id === meta.permit_type_id)?.name;
-                  const expiresAt = payment.permits?.expires_at ?? null;
-                  return (
+            <div className="min-w-0 divide-y divide-border">
+              {permitPayments.map((payment) => {
+                const meta = (payment.metadata ?? {}) as Record<string, unknown>;
+                const permitNumber = payment.permits?.permit_number ?? (meta.permit_number as string | undefined);
+                const permitTypeName = payment.permits?.permit_types?.name ?? permitTypes.find((pt) => pt.id === meta.permit_type_id)?.name;
+                const expiresAt = payment.permits?.expires_at ?? null;
+                const permitLabel = [permitTypeName, permitNumber].filter(Boolean).join(' · ') || '—';
+                return (
                   <div
                     key={payment.id}
-                    className="flex flex-col gap-3 p-3 sm:p-4 sm:flex-row sm:items-center sm:justify-between min-w-0"
+                    className="flex flex-col gap-4 p-4 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-6 min-w-0"
                   >
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">
-                          {new Intl.NumberFormat('en-KE', {
-                            style: 'currency',
-                            currency: 'KES',
-                          }).format(payment.amount)}
-                        </span>
-                        <StatusBadge status={getPaymentDisplayStatus(payment)} />
-                      </div>
-                      {(permitNumber || permitTypeName) && (
-                        <p className="text-xs text-muted-foreground break-words">
-                          {[permitTypeName, permitNumber].filter(Boolean).join(' · ')}
-                        </p>
-                      )}
-                      {payment.payment_reference && (
-                        <p className="text-xs text-muted-foreground font-mono break-all">
-                          Ref: {payment.payment_reference}
-                        </p>
-                      )}
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(payment.created_at), 'dd MMM yyyy, HH:mm')}
-                      </p>
-                      {expiresAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Expires: {format(new Date(expiresAt), 'dd MMM yyyy')}
-                        </p>
-                      )}
+                    {/* Amount + Status */}
+                    <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+                      <span className="text-lg font-bold text-foreground whitespace-nowrap">
+                        Ksh {payment.amount.toFixed(2)}
+                      </span>
+                      <StatusBadge status={getPaymentDisplayStatus(payment)} />
                     </div>
-                    <div className="flex flex-shrink-0 gap-2 w-full sm:w-auto">
+                    {/* PERMIT */}
+                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Permit</span>
+                      <span className="text-sm text-foreground truncate" title={permitLabel}>{permitLabel}</span>
+                    </div>
+                    {/* DATE */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Date</span>
+                      <span className="text-sm text-foreground">
+                        {format(new Date(payment.created_at), 'dd MMM yyyy, HH:mm')}
+                      </span>
+                    </div>
+                    {/* REFERENCE */}
+                    <div className="flex flex-col gap-0.5 min-w-0 flex-1 max-w-[12rem]">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Reference</span>
+                      <span className="text-sm text-foreground font-mono truncate break-all" title={payment.payment_reference ?? ''}>
+                        {payment.payment_reference ?? '—'}
+                      </span>
+                    </div>
+                    {/* EXPIRES */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Expires</span>
+                      <span className="text-sm text-foreground">
+                        {expiresAt ? format(new Date(expiresAt), 'dd MMM yyyy') : '—'}
+                      </span>
+                    </div>
+                    {/* Action buttons - stacked vertically */}
+                    <div className="flex flex-shrink-0 flex-col gap-2">
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
-                        className="flex-1 sm:flex-none min-h-[44px] touch-manipulation"
+                        className="min-h-[36px] touch-manipulation bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                         onClick={() => setReceiptPayment(payment)}
                       >
-                        <FileText className="h-4 w-4 mr-1 shrink-0" />
+                        <FileText className="h-4 w-4 mr-1.5 shrink-0" />
                         View
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
-                        className="flex-1 sm:flex-none print:hidden min-h-[44px] touch-manipulation"
+                        className="min-h-[36px] touch-manipulation print:hidden bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                         onClick={() => handlePrintReceipt(payment)}
                       >
-                        <Download className="h-4 w-4 mr-1 shrink-0" />
+                        <Download className="h-4 w-4 mr-1.5 shrink-0" />
                         Receipt
                       </Button>
                     </div>
                   </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

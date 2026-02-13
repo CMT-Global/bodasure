@@ -187,6 +187,17 @@ export function useRiderPermits(riderId: string | undefined) {
   });
 }
 
+export type PermitPaymentRow = Payment & {
+  riders: { full_name: string; phone: string } | null;
+  permits: {
+    permit_number: string;
+    status: string;
+    issued_at: string | null;
+    expires_at: string | null;
+    permit_types: { name: string } | null;
+  } | null;
+};
+
 // Fetch payments for a specific permit
 export function usePermitPayments(permitId: string) {
   return useQuery({
@@ -196,18 +207,25 @@ export function usePermitPayments(permitId: string) {
         .from('payments')
         .select(`
           *,
-          riders(full_name, phone)
+          riders(full_name, phone),
+          permits(permit_number, status, issued_at, expires_at, permit_types(name))
         `)
         .eq('permit_id', permitId)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
-      return (data || []) as Array<Payment & {
-        riders: {
-          full_name: string;
-          phone: string;
-        } | null;
-      }>;
+      const rows = (data || []) as unknown[];
+      return rows.map((row: unknown) => {
+        const r = row as Record<string, unknown>;
+        const permits = r.permits;
+        if (Array.isArray(permits) && permits.length >= 1) {
+          const permit = permits[0] as Record<string, unknown>;
+          const pt = permit?.permit_types;
+          const permitTypes = Array.isArray(pt) && pt.length >= 1 ? pt[0] : pt;
+          return { ...r, permits: { ...permit, permit_types: permitTypes } } as PermitPaymentRow;
+        }
+        return row as PermitPaymentRow;
+      }) as PermitPaymentRow[];
     },
     enabled: !!permitId,
   });

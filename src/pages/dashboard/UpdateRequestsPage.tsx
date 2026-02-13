@@ -12,13 +12,6 @@ import {
 } from '@/hooks/useRiderUpdateRequests';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -50,7 +43,7 @@ import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 const REQUEST_TYPE_LABELS: Record<RiderUpdateRequestType, string> = {
   phone: 'Phone update',
   photo: 'Photo update',
-  sacco_stage_transfer: 'Sacco / stage transfer',
+  sacco_stage_transfer: 'Sacco Stage Transfer',
   owner_rider_reassignment: 'Owner / rider reassignment',
 };
 
@@ -175,114 +168,117 @@ export default function UpdateRequestsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <Select value={statusFilterValue} onValueChange={setStatusFilterValue}>
-                <SelectTrigger className="w-[160px] min-h-[44px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Status filter tabs with orange underline for active */}
+            <div className="flex gap-0 border-b border-border/60">
+              {[
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' },
+                { value: 'all', label: 'All' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStatusFilterValue(value)}
+                  className={cn(
+                    'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+                    statusFilterValue === value
+                      ? 'text-primary border-primary'
+                      : 'text-muted-foreground border-transparent hover:text-foreground'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             {isLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-16 w-full rounded-lg" />
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-[72px] w-full rounded-xl" />
                 ))}
               </div>
             ) : requests.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-6 text-center">
+              <p className="text-muted-foreground text-sm py-8 text-center">
                 {statusFilterValue === 'pending'
                   ? 'No pending requests. Riders and owners submit requests from Rider-Owner → Profile.'
                   : 'No requests match the selected filter.'}
               </p>
             ) : (
-              <ScrollArea className="h-[400px] sm:h-[500px] rounded-lg border border-border/60">
-                <div className="p-3 space-y-2">
-                  {requests.map((r) => (
+              <div className="space-y-3">
+                {requests.map((r) => (
+                  <div
+                    key={r.id}
+                    className={cn(
+                      'flex items-center justify-between gap-4 rounded-xl bg-card px-5 py-4',
+                      detailRequest?.id === r.id && 'ring-2 ring-primary/50'
+                    )}
+                  >
                     <div
-                      key={r.id}
-                      className={cn(
-                        'flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-4 py-3',
-                        detailRequest?.id === r.id && 'ring-2 ring-primary/50'
-                      )}
+                      className="min-w-0 flex-1 cursor-pointer"
+                      onClick={() => setDetailRequest(detailRequest?.id === r.id ? null : r)}
                     >
-                      <div
-                        className="min-w-0 flex-1 cursor-pointer"
-                        onClick={() => setDetailRequest(detailRequest?.id === r.id ? null : r)}
-                      >
-                        <span className="font-medium text-foreground">
-                          {REQUEST_TYPE_LABELS[r.request_type]}
-                        </span>
-                        <p className="text-sm text-foreground/90 mt-0.5">
-                          {requestUserName(r)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Summary: {payloadSummary(r)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge
-                          variant={
-                            r.status === 'approved'
-                              ? 'default'
-                              : r.status === 'rejected'
-                                ? 'destructive'
-                                : 'secondary'
-                          }
-                          className="capitalize"
-                        >
-                          {r.status}
-                        </Badge>
-                        {r.status === 'pending' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="min-h-[36px]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleApprove(r);
-                              }}
-                              disabled={reviewMutation.isPending}
-                            >
-                              {reviewMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Accept
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="min-h-[36px]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleReject(r);
-                              }}
-                              disabled={reviewMutation.isPending}
-                            >
-                              <XCircle className="h-4 w-4 mr-1" />
-                              Decline
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <p className="font-semibold text-foreground text-base">
+                        {REQUEST_TYPE_LABELS[r.request_type]}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {format(new Date(r.created_at), 'dd MMM yyyy, HH:mm')}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant={
+                          r.status === 'approved'
+                            ? 'default'
+                            : r.status === 'rejected'
+                              ? 'destructive'
+                              : 'secondary'
+                        }
+                        className="inline-flex items-center gap-1.5 capitalize"
+                      >
+                        {r.status === 'approved' && <CheckCircle className="h-3.5 w-3.5" />}
+                        {r.status}
+                      </Badge>
+                      {r.status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="min-h-[36px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(r);
+                            }}
+                            disabled={reviewMutation.isPending}
+                          >
+                            {reviewMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Accept
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="min-h-[36px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReject(r);
+                            }}
+                            disabled={reviewMutation.isPending}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Decline
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
