@@ -63,6 +63,36 @@ interface MonetizationConfig {
   penaltyCommission?: { feeType?: 'fixed' | 'percentage'; fixedFeeCents?: number; percentageFee?: number };
 }
 
+/** Revenue Config Platform Fee model (Revenue Config tab). When set, overrides monetization platform fee for PERMIT. */
+interface PlatformFeeModelConfig {
+  modelType?: 'fixed' | 'percentage' | 'hybrid';
+  fixedFeeCentsPerRider?: number;
+  percentageFee?: number;
+  hybridFixedCents?: number;
+  hybridPercentage?: number;
+}
+
+function isPlatformFeeModelEffective(model: PlatformFeeModelConfig | undefined): boolean {
+  if (!model) return false;
+  if (model.modelType === 'fixed' && (model.fixedFeeCentsPerRider ?? 0) > 0) return true;
+  if (model.modelType === 'percentage' && (model.percentageFee ?? 0) > 0) return true;
+  if (model.modelType === 'hybrid' && ((model.hybridFixedCents ?? 0) > 0 || (model.hybridPercentage ?? 0) > 0)) return true;
+  return false;
+}
+
+function platformFeeFromRevenueModel(grossKES: number, model: PlatformFeeModelConfig): number {
+  let fee = 0;
+  if (model.modelType === 'fixed' && model.fixedFeeCentsPerRider != null) {
+    fee += model.fixedFeeCentsPerRider / 100;
+  } else if (model.modelType === 'percentage' && model.percentageFee != null) {
+    fee += (grossKES * model.percentageFee) / 100;
+  } else if (model.modelType === 'hybrid') {
+    if (model.hybridFixedCents != null) fee += model.hybridFixedCents / 100;
+    if (model.hybridPercentage != null) fee += (grossKES * model.hybridPercentage) / 100;
+  }
+  return round2(fee);
+}
+
 function round2(x: number): number {
   return Math.round(x * 100) / 100;
 }
@@ -145,6 +175,8 @@ async function applyPaymentCalculation(supabase: any, payment: any) {
     return;
   }
   const mon: MonetizationConfig = county.settings?.monetizationSettings ?? {};
+  const revenueConfig = county.settings?.revenueCommercialConfig as { platformFeeModel?: PlatformFeeModelConfig } | undefined;
+  const platformFeeModel = revenueConfig?.platformFeeModel;
   const meta = (payment.metadata || {}) as Record<string, unknown>;
   const paymentType = (meta.payment_type === 'penalty' ? 'PENALTY' : 'PERMIT') as 'PERMIT' | 'PENALTY';
   let period: PeriodKey | null = (meta.period as PeriodKey) || null;
@@ -153,7 +185,13 @@ async function applyPaymentCalculation(supabase: any, payment: any) {
     if (pt?.duration_days != null) period = durationDaysToPeriod(Number(pt.duration_days));
   }
   const grossKES = Number(payment.amount) || 0;
-  const { grossAmount, totalDeductions, netToCounty, platformFee, processingFee, penaltyCommission } = computePaymentBreakdown(grossKES, paymentType, period, mon);
+  let { grossAmount, totalDeductions, netToCounty, platformFee, processingFee, penaltyCommission } = computePaymentBreakdown(grossKES, paymentType, period, mon);
+  if (paymentType === 'PERMIT' && isPlatformFeeModelEffective(platformFeeModel)) {
+    platformFee = Math.min(platformFeeFromRevenueModel(grossKES, platformFeeModel!), grossKES);
+    totalDeductions = round2(platformFee + processingFee + penaltyCommission);
+    if (totalDeductions > grossKES) totalDeductions = grossKES;
+    netToCounty = round2(grossKES - totalDeductions);
+  }
   const update: Record<string, unknown> = {
     payment_type: paymentType,
     period: period,

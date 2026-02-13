@@ -1,8 +1,33 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getCountyConfigFromSettings } from '@/hooks/useData';
+import { getCountyConfigFromSettings, type PlatformFeeModelConfig } from '@/hooks/useData';
 import { calculatePaymentDeductions } from '@/utils/paymentCalculation';
 import type { PaymentCalculationMonetization, SubscriptionPeriodKey } from '@/utils/paymentCalculation';
+
+/** True when Revenue Config Platform Fee tab has non-zero values that should override monetization. */
+function isPlatformFeeModelEffective(model: PlatformFeeModelConfig | undefined): boolean {
+  if (!model) return false;
+  if (model.modelType === 'fixed' && (model.fixedFeeCentsPerRider ?? 0) > 0) return true;
+  if (model.modelType === 'percentage' && (model.percentageFee ?? 0) > 0) return true;
+  if (model.modelType === 'hybrid') {
+    if ((model.hybridFixedCents ?? 0) > 0 || (model.hybridPercentage ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+/** Compute platform fee (KES) from Revenue Config Platform Fee model for a PERMIT payment. */
+function platformFeeFromRevenueModel(grossKES: number, model: PlatformFeeModelConfig): number {
+  let fee = 0;
+  if (model.modelType === 'fixed' && model.fixedFeeCentsPerRider != null) {
+    fee += model.fixedFeeCentsPerRider / 100;
+  } else if (model.modelType === 'percentage' && model.percentageFee != null) {
+    fee += (grossKES * model.percentageFee) / 100;
+  } else if (model.modelType === 'hybrid') {
+    if (model.hybridFixedCents != null) fee += model.hybridFixedCents / 100;
+    if (model.hybridPercentage != null) fee += (grossKES * model.hybridPercentage) / 100;
+  }
+  return Math.round(fee * 100) / 100;
+}
 
 /** Normalize date strings for Supabase: include full start/end of day for proper filtering */
 function toDateRangeBounds(startDate?: string, endDate?: string) {
@@ -653,6 +678,14 @@ export function useRevenueByCounty(startDate?: string, endDate?: string) {
 }
 
 // Monetization summary per county (Super Admin Finance View)
+export interface CountyRevenueModelDisplay {
+  chargeAmountCents: number;
+  frequency: 'weekly' | 'monthly';
+  effectiveFrom: string;
+  effectiveTo?: string;
+  description?: string;
+}
+
 export interface MonetizationSummaryByCounty {
   countyId: string;
   countyName: string;
@@ -664,6 +697,8 @@ export interface MonetizationSummaryByCounty {
   smsCharges: number;
   totalDeductions: number;
   netToCounty: number;
+  /** From Revenue Config County Revenue tab; shown in Finance view. */
+  countyRevenueModel?: CountyRevenueModelDisplay;
 }
 
 function defaultMonetization(): PaymentCalculationMonetization {
@@ -697,9 +732,17 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
       if (countiesError) throw countiesError;
       if (!counties?.length) return [] as MonetizationSummaryByCounty[];
 
-      const countySettingsMap = new Map<string, PaymentCalculationMonetization>();
+      const countyConfigMap = new Map<
+        string,
+        { monetization: PaymentCalculationMonetization; platformFeeModel?: PlatformFeeModelConfig; countyRevenueModel?: CountyRevenueModelDisplay }
+      >();
       (counties as { id: string; settings?: Record<string, unknown> }[]).forEach((c) => {
-        countySettingsMap.set(c.id, monetizationForCalculation(c.settings));
+        const config = getCountyConfigFromSettings(c.settings);
+        countyConfigMap.set(c.id, {
+          monetization: monetizationForCalculation(c.settings),
+          platformFeeModel: config.revenueCommercialConfig?.platformFeeModel,
+          countyRevenueModel: config.revenueCommercialConfig?.countyRevenueModel,
+        });
       });
 
       const { start: startBound, end: endBound } = toDateRangeBounds(startDate, endDate);
@@ -770,12 +813,21 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
                 ? 'PERMIT'
                 : 'PERMIT';
           const period = (p.period ?? meta.period) as SubscriptionPeriodKey | undefined | null;
-          const monetization = countySettingsMap.get(key) ?? defaultMonetization();
+          const countyConfig = countyConfigMap.get(key);
+          const monetization = countyConfig?.monetization ?? defaultMonetization();
+          const platformFeeModel = countyConfig?.platformFeeModel;
+          const useRevenueConfigPlatformFee =
+            paymentType === 'PERMIT' && isPlatformFeeModelEffective(platformFeeModel);
+          const platformFeeOverride =
+            useRevenueConfigPlatformFee && platformFeeModel
+              ? platformFeeFromRevenueModel(gross, platformFeeModel)
+              : undefined;
           const breakdown = calculatePaymentDeductions({
             grossAmountKES: gross,
             paymentType,
             period: period ?? null,
             monetization,
+            platformFeeKESOverride: platformFeeOverride,
           });
           // Use stored fee when present, otherwise use computed (fixes platform fee missing when stored as null/0)
           const platformFee = p.platform_fee != null ? Number(p.platform_fee) : breakdown.platformFeeKES;
@@ -818,6 +870,7 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
 
       return counties.map((c: { id: string; name: string; code: string }) => {
         const agg = countyMap.get(c.id)!;
+        const config = countyConfigMap.get(c.id);
         return {
           countyId: c.id,
           countyName: c.name,
@@ -829,6 +882,7 @@ export function useMonetizationSummary(startDate?: string, endDate?: string) {
           smsCharges: Math.round(agg.smsCharges * 100) / 100,
           totalDeductions: Math.round(agg.totalDeductions * 100) / 100,
           netToCounty: Math.round(agg.netToCounty * 100) / 100,
+          countyRevenueModel: config?.countyRevenueModel,
         } as MonetizationSummaryByCounty;
       });
     },

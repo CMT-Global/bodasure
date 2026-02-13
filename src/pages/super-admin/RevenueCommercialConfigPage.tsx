@@ -206,7 +206,9 @@ export default function RevenueCommercialConfigPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>A. County Revenue Model</CardTitle>
-                  <CardDescription>County charge amounts, frequency (weekly/monthly), and effective dates.</CardDescription>
+                  <CardDescription>
+                    County charge amounts, frequency (weekly/monthly), and effective dates. Effective: shown in Super Admin Finance View per county and used for reporting.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-2">
@@ -271,7 +273,9 @@ export default function RevenueCommercialConfigPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>B. Platform Fee Model</CardTitle>
-                  <CardDescription>Fixed fee per rider, percentage-based fee, or hybrid. Set fee review dates.</CardDescription>
+                  <CardDescription>
+                    Fixed fee per rider, percentage-based fee, or hybrid. When set, this overrides County Monetization platform fee for permit payments. Effective: used in payment breakdown and stored as platform_fee; visible in Finance View.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-2">

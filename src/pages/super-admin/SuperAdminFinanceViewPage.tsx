@@ -263,6 +263,19 @@ export default function SuperAdminFinanceViewPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
+                  {(() => {
+                    const rev = (county as MonetizationSummaryByCounty).countyRevenueModel;
+                    if (!rev || (rev.chargeAmountCents ?? 0) <= 0) return null;
+                    return (
+                      <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs sm:text-sm">
+                        <span className="font-medium text-primary">County revenue model (Revenue Config)</span>
+                        <p className="mt-0.5 text-muted-foreground">
+                          {rev.chargeAmountCents / 100} KES per rider ({rev.frequency})
+                          {rev.effectiveFrom ? ` · effective from ${rev.effectiveFrom}` : ''}
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div className="rounded-lg border bg-muted/30 p-3 font-mono text-xs sm:p-4 sm:text-sm">
                     <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2">
                       <span className="text-muted-foreground">Permit revenue</span>
