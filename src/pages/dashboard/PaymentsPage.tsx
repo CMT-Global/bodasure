@@ -5,7 +5,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Download, CheckCircle, XCircle, Clock, RefreshCw, Search, Filter, History, TrendingUp } from 'lucide-react';
-import { usePayments, usePermitTypesForPayments, useVerifyPayment } from '@/hooks/usePayments';
+import { usePayments, usePermitTypesForPayments, useVerifyPayment, useExpireStalePendingPayments } from '@/hooks/usePayments';
 import { usePenalties } from '@/hooks/usePenalties';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { PaymentHistoryDialog } from '@/components/payments/PaymentHistoryDialog';
@@ -139,7 +139,14 @@ export default function PaymentsPage() {
   const { data: permitTypes = [] } = usePermitTypesForPayments(countyId);
   const { data: penalties = [], isLoading: penaltiesLoading } = usePenalties(countyId ?? undefined);
   const verifyPayment = useVerifyPayment();
+  const expireStalePending = useExpireStalePendingPayments();
   const verifiedRef = useRef<string | null>(null);
+
+  // On load: mark pending payments older than 10 minutes as failed, then refetch (runs for any county or "All counties")
+  useEffect(() => {
+    expireStalePending.mutate(undefined, { onSettled: () => {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount / county change
+  }, [countyId]);
 
   // When returning from Paystack with ?payment_reference=..., verify and refresh so status shows Complete/Paid
   const paymentReference = searchParams.get('payment_reference');

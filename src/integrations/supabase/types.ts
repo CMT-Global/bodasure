@@ -1093,6 +1093,7 @@ export type Database = {
     }
     Functions: {
       claim_rider_or_owner_by_email: { Args: Record<string, never>; Returns: Json }
+      expire_stale_pending_payments: { Args: Record<string, never>; Returns: number }
       get_public_rider_by_plate: { Args: { plate_number: string }; Returns: Json }
       get_public_rider_by_qr: { Args: { qr: string }; Returns: Json }
       get_user_county_id: { Args: { _user_id: string }; Returns: string }
