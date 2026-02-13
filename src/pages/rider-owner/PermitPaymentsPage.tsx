@@ -392,9 +392,9 @@ function PermitPaymentsContent() {
   );
 
   return (
-    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden">
+    <div className="space-y-6 max-w-full min-w-0 overflow-x-hidden w-full">
       {/* Pay for permit */}
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
@@ -405,7 +405,7 @@ function PermitPaymentsContent() {
             becomes active and expiry updates.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 min-w-0">
           {hasActivePermitForSelection && selectedType && selectedMotorbikeId && (() => {
             const activePermit = permitsWithValidPayment.find(
               (p) =>
@@ -578,7 +578,7 @@ function PermitPaymentsContent() {
 
               <Button
                 className={cn(
-                  'w-full sm:w-auto min-h-[44px] touch-manipulation',
+                  'w-full min-h-[44px] touch-manipulation shrink-0',
                   hasActivePermitForSelection && 'opacity-70 cursor-not-allowed'
                 )}
                 disabled={
@@ -597,11 +597,11 @@ function PermitPaymentsContent() {
                 onClick={handlePay}
               >
                 {initializePayment.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
                 ) : (
-                  <CreditCard className="mr-2 h-4 w-4" />
+                  <CreditCard className="mr-2 h-4 w-4 shrink-0" />
                 )}
-                Pay with Paystack (KES + M-Pesa)
+                <span className="truncate">Pay with Paystack (KES + M-Pesa)</span>
               </Button>
             </>
           )}
@@ -609,7 +609,7 @@ function PermitPaymentsContent() {
       </Card>
 
       {/* All permits */}
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -690,7 +690,7 @@ function PermitPaymentsContent() {
       </Card>
 
       {/* Permit history */}
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -713,8 +713,8 @@ function PermitPaymentsContent() {
               <p>No permit payments yet</p>
             </div>
           ) : (
-            <ScrollArea className="rounded-md border">
-              <div className="divide-y">
+            <ScrollArea className="rounded-md border min-w-0">
+              <div className="divide-y min-w-0">
                 {permitPayments.map((payment) => {
                   const meta = (payment.metadata ?? {}) as Record<string, unknown>;
                   const permitNumber = payment.permits?.permit_number ?? (meta.permit_number as string | undefined);
@@ -723,9 +723,9 @@ function PermitPaymentsContent() {
                   return (
                   <div
                     key={payment.id}
-                    className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4"
+                    className="flex flex-col gap-3 p-3 sm:p-4 sm:flex-row sm:items-center sm:justify-between min-w-0"
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">
                           {new Intl.NumberFormat('en-KE', {
@@ -736,29 +736,29 @@ function PermitPaymentsContent() {
                         <StatusBadge status={getPaymentDisplayStatus(payment)} />
                       </div>
                       {(permitNumber || permitTypeName) && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-muted-foreground break-words">
                           {[permitTypeName, permitNumber].filter(Boolean).join(' · ')}
                         </p>
                       )}
                       {payment.payment_reference && (
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                        <p className="text-xs text-muted-foreground font-mono break-all">
                           Ref: {payment.payment_reference}
                         </p>
                       )}
-                      <p className="text-sm text-muted-foreground mt-0.5">
+                      <p className="text-sm text-muted-foreground">
                         {format(new Date(payment.created_at), 'dd MMM yyyy, HH:mm')}
                       </p>
                       {expiresAt && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-muted-foreground">
                           Expires: {format(new Date(expiresAt), 'dd MMM yyyy')}
                         </p>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-shrink-0 gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="shrink-0 min-h-[44px] touch-manipulation"
+                        className="flex-1 sm:flex-none min-h-[44px] touch-manipulation"
                         onClick={() => setReceiptPayment(payment)}
                       >
                         <FileText className="h-4 w-4 mr-1 shrink-0" />
@@ -767,7 +767,7 @@ function PermitPaymentsContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="shrink-0 print:hidden min-h-[44px] touch-manipulation"
+                        className="flex-1 sm:flex-none print:hidden min-h-[44px] touch-manipulation"
                         onClick={() => handlePrintReceipt(payment)}
                       >
                         <Download className="h-4 w-4 mr-1 shrink-0" />
@@ -911,9 +911,9 @@ function PermitPaymentsContent() {
 export default function PermitPaymentsPage() {
   return (
     <RiderOwnerLayout>
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Permit payments</h1>
+      <div className="space-y-4 sm:space-y-6 max-w-full min-w-0 overflow-x-hidden">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold break-words">Permit payments</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             Pay for your permit (weekly / monthly / annual) and view payment history.
           </p>

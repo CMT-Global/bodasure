@@ -89,21 +89,25 @@ export default function IncidentEscalationSupportPage() {
 
   return (
     <SuperAdminLayout>
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Incident, Escalation & Support Management</h1>
+      <div className="space-y-4 sm:space-y-6 overflow-x-hidden min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold break-words">Incident, Escalation & Support Management</h1>
           <p className="text-muted-foreground text-sm sm:text-base mt-1">
             View all support tickets, escalated disputes, reassign to counties, override county decisions, and track resolution timelines with audit trail.
           </p>
         </div>
 
         <Tabs defaultValue="all" className="space-y-4">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="all">All support tickets</TabsTrigger>
-            <TabsTrigger value="disputes">
-              Escalated disputes
+          <TabsList className="grid w-full grid-cols-2 h-auto min-h-[44px] p-1 gap-1">
+            <TabsTrigger value="all" className="text-xs sm:text-sm py-2.5 px-2">
+              <span className="hidden sm:inline">All support tickets</span>
+              <span className="sm:hidden">All tickets</span>
+            </TabsTrigger>
+            <TabsTrigger value="disputes" className="text-xs sm:text-sm py-2.5 px-2 gap-1">
+              <span className="hidden sm:inline">Escalated disputes</span>
+              <span className="sm:hidden">Disputes</span>
               {escalatedDisputes.length > 0 && (
-                <span className="ml-2 rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-medium text-destructive">
+                <span className="rounded-full bg-destructive/20 px-1.5 sm:px-2 py-0.5 text-xs font-medium text-destructive shrink-0">
                   {escalatedDisputes.length}
                 </span>
               )}
@@ -111,17 +115,17 @@ export default function IncidentEscalationSupportPage() {
           </TabsList>
 
           <TabsContent value="all" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <Headset className="h-5 w-5" />
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Headset className="h-5 w-5 shrink-0" />
                   All support tickets
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
                   View and manage all support tickets across counties. Reassign tickets, override decisions, and track resolution.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                 <div className="flex flex-wrap gap-2 sm:gap-3">
                   <Input
                     placeholder="Search subject or description…"
@@ -156,7 +160,7 @@ export default function IncidentEscalationSupportPage() {
                     </SelectContent>
                   </Select>
                   <Select value={countyFilter} onValueChange={setCountyFilter}>
-                    <SelectTrigger className="w-[180px] min-h-[44px]">
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
                       <SelectValue placeholder="County" />
                     </SelectTrigger>
                     <SelectContent>
@@ -188,8 +192,8 @@ export default function IncidentEscalationSupportPage() {
                     </p>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[min(500px,60vh)]">
-                    <div className="space-y-2 pr-2">
+                  <ScrollArea className="h-[min(500px,60vh)] min-w-0 w-full">
+                    <div className="space-y-2 pr-2 min-w-0 w-full overflow-hidden">
                       {allFiltered.map((t) => (
                         <TicketCard
                           key={t.id}
@@ -206,14 +210,14 @@ export default function IncidentEscalationSupportPage() {
           </TabsContent>
 
           <TabsContent value="disputes" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">Escalated disputes</CardTitle>
-                <CardDescription>
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">Escalated disputes</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Penalty disputes (open or in progress) that may require platform override or reassignment.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                 {isLoading ? (
                   <div className="space-y-3">
                     <Skeleton className="h-24 w-full rounded-lg" />
@@ -228,8 +232,8 @@ export default function IncidentEscalationSupportPage() {
                     </p>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[min(400px,50vh)]">
-                    <div className="space-y-2 pr-2">
+                  <ScrollArea className="h-[min(400px,50vh)] min-w-0 w-full">
+                    <div className="space-y-2 pr-2 min-w-0 w-full overflow-hidden">
                       {escalatedDisputes.map((t) => (
                         <TicketCard
                           key={t.id}
@@ -276,23 +280,23 @@ function TicketCard({
 
   return (
     <div
-      className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+      className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border p-3 sm:p-4 hover:bg-muted/50 active:bg-muted/70 transition-colors cursor-pointer touch-manipulation min-w-0 overflow-hidden"
       onClick={onSelect}
     >
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{ticket.subject}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{ticket.description}</p>
-        <div className="flex flex-wrap items-center gap-2 mt-2">
-          <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', sc)}>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="font-medium text-sm truncate break-words min-w-0">{ticket.subject}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-1 break-words overflow-hidden">{ticket.description}</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2">
+          <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium shrink-0', sc)}>
             {ticket.status.replace('_', ' ')}
           </span>
-          <span className="text-xs text-muted-foreground">{cat}</span>
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            {countyName}
+          <span className="text-xs text-muted-foreground shrink-0">{cat}</span>
+          <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0 truncate">
+            <MapPin className="h-3 w-3 shrink-0" />
+            <span className="truncate">{countyName}</span>
           </span>
-          <span className="text-xs text-muted-foreground">
-            {format(new Date(ticket.created_at), 'PPp')}
+          <span className="text-xs text-muted-foreground shrink-0">
+            {format(new Date(ticket.created_at), 'MMM d, HH:mm')}
           </span>
         </div>
       </div>
@@ -352,10 +356,10 @@ function TicketDetailDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{ticket.subject}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-lg">
+        <DialogHeader className="space-y-1.5">
+          <DialogTitle className="text-base sm:text-lg pr-6 break-words">{ticket.subject}</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm break-words">
             {cat} · {currentCountyName} · {format(createdAt, 'PPp')}
           </DialogDescription>
         </DialogHeader>
@@ -448,11 +452,11 @@ function TicketDetailDialog({
             </ul>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto min-h-[44px]">
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateTicket.isPending || isOverCharLimit(adminNotes)} className="gap-2">
+          <Button onClick={handleSave} disabled={updateTicket.isPending || isOverCharLimit(adminNotes)} className="gap-2 w-full sm:w-auto min-h-[44px]">
             {updateTicket.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Save
           </Button>

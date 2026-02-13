@@ -74,7 +74,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
   }, []);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden min-w-0 max-w-[100vw]">
+    <div className="layout-root flex bg-background overflow-hidden min-w-0 max-w-[100vw]">
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div
@@ -278,7 +278,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Header */}
         <header className="sticky top-0 flex-shrink-0 z-30 flex h-14 sm:h-16 items-center justify-between gap-2 border-b border-border bg-background/95 px-2 sm:px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-4 lg:px-6 min-w-0 overflow-hidden">
           <Button
@@ -499,7 +499,7 @@ export function RiderOwnerLayout({ children }: RiderOwnerLayoutProps) {
         </header>
 
         {/* Page content - mobile-first: no horizontal scroll, full width */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 min-w-0 max-w-full">
+        <main className="main-scroll-area flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 min-w-0 max-w-full min-h-0">
           <div className="w-full max-w-full min-w-0 mx-auto">{children}</div>
         </main>
       </div>
