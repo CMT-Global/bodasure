@@ -15,6 +15,20 @@ import { Loader2, History, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
+/** Mobile-friendly key-value row: label above value on small screens so long values (Ref, M-Pesa) don't truncate */
+function DetailRow({
+  label,
+  value,
+  mono,
+}: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between min-w-0">
+      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
+      <span className={`text-sm font-medium break-words min-w-0 ${mono ? 'font-mono' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
 interface PaymentHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,18 +97,18 @@ export function PaymentHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(36rem,calc(100vw-2rem))] w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-hidden flex flex-col overflow-x-hidden">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:w-full sm:max-w-[36rem] max-h-[90dvh] sm:max-h-[90vh] overflow-hidden flex flex-col overflow-x-hidden p-4 sm:p-6 min-w-0 rounded-xl">
+        <DialogHeader className="shrink-0 space-y-1 pr-8 pb-2">
+          <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+            <History className="h-5 w-5 shrink-0 text-primary" />
             Payment History
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm text-muted-foreground break-words pr-2">
             {riderName ? `Payment history for ${riderName}` : 'View all payments for this rider'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2 -mr-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-1 px-1 sm:mx-0 sm:px-0 min-w-0 w-full">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -105,30 +119,30 @@ export function PaymentHistoryDialog({
               <p>No payment history found</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 min-w-0 w-full pb-2">
               {/* Summary Card */}
-              <Card>
+              <Card className="min-w-0 w-full overflow-hidden border-border/80">
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="min-w-0">
                       <p className="text-sm text-muted-foreground">Total Paid</p>
-                      <p className="text-2xl font-bold">
+                      <p className="text-xl sm:text-2xl font-bold text-primary break-words">
                         {new Intl.NumberFormat('en-KE', {
                           style: 'currency',
                           currency: 'KES',
                         }).format(totalPaid)}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right min-w-0">
                       <p className="text-sm text-muted-foreground">Total Payments</p>
-                      <p className="text-2xl font-bold">{historyItems.length}</p>
+                      <p className="text-xl sm:text-2xl font-bold">{historyItems.length}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Payment List (payments + admin-marked penalties) */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {historyItems.map((item) =>
                   item.type === 'payment' ? (
                     <PaymentHistoryCard
@@ -161,59 +175,53 @@ function PaymentHistoryCard({
   const penaltyId = meta?.penalty_id as string | undefined;
   const penalty = penaltyId ? penaltyIdToPenalty.get(penaltyId) : null;
 
+  const paymentMethodLabel =
+    payment.payment_method === 'mobile_money'
+      ? 'M-Pesa'
+      : payment.payment_method === 'card'
+        ? 'Card'
+        : payment.payment_method ?? '';
+
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
       <CardContent className="p-4">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-semibold">
-                  {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(payment.amount)}
-                </p>
-                <StatusBadge status={payment.paid_at ? 'completed' : payment.status} />
-              </div>
-              {payment.payment_reference && (
-                <p className="text-xs text-muted-foreground font-mono">Ref: {payment.payment_reference}</p>
-              )}
+        <div className="space-y-4">
+          {/* Amount + status + ref + date: stacked on mobile */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-lg">
+                {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(payment.amount)}
+              </p>
+              <StatusBadge status={payment.paid_at ? 'completed' : payment.status} />
             </div>
-            <div className="text-right text-sm text-muted-foreground">
-              <p>{format(new Date(payment.created_at), 'MMM d, yyyy')}</p>
-              {payment.paid_at && (
-                <p className="text-xs">Paid: {format(new Date(payment.paid_at), 'HH:mm')}</p>
-              )}
-            </div>
+            {payment.payment_reference && (
+              <p className="text-xs text-muted-foreground font-mono break-all min-w-0">Ref: {payment.payment_reference}</p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {format(new Date(payment.created_at), 'MMM d, yyyy')}
+              {payment.paid_at && ` · Paid ${format(new Date(payment.paid_at), 'HH:mm')}`}
+            </p>
           </div>
 
           {payment.permits && (
             <>
-              <Separator />
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Permit Number</span>
-                  <span className="font-mono font-medium">{payment.permits.permit_number}</span>
-                </div>
+              <Separator className="my-3" />
+              <div className="space-y-3 min-w-0">
+                <DetailRow label="Permit Number" value={payment.permits.permit_number} mono />
                 {payment.permits.permit_types && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Permit Type</span>
-                    <span className="font-medium">{payment.permits.permit_types.name}</span>
-                  </div>
+                  <DetailRow label="Permit Type" value={payment.permits.permit_types.name} />
                 )}
                 {payment.permits.issued_at && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Start Date</span>
-                    <span>{format(new Date(payment.permits.issued_at), 'PPP')}</span>
-                  </div>
+                  <DetailRow label="Start Date" value={format(new Date(payment.permits.issued_at), 'PPP')} />
                 )}
                 {payment.permits.expires_at && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Expiry Date</span>
-                    <span>{format(new Date(payment.permits.expires_at), 'PPP')}</span>
-                  </div>
+                  <DetailRow label="Expiry Date" value={format(new Date(payment.permits.expires_at), 'PPP')} />
                 )}
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Permit Status</span>
-                  <StatusBadge status={payment.permits.status} />
+                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                  <span className="text-sm text-muted-foreground">Permit Status</span>
+                  <span className="w-fit">
+                    <StatusBadge status={payment.permits.status} className="shrink-0" />
+                  </span>
                 </div>
               </div>
             </>
@@ -221,31 +229,22 @@ function PaymentHistoryCard({
 
           {isPenalty && penalty && (
             <>
-              <Separator />
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Payment Type</span>
-                  <span className="font-medium">Penalty</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Penalty Type</span>
-                  <span className="font-medium">{penalty.penalty_type}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Amount</span>
-                  <span className="font-medium">
-                    {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
+              <Separator className="my-3" />
+              <div className="space-y-3 min-w-0">
+                <DetailRow label="Payment Type" value="Penalty" />
+                <DetailRow label="Penalty Type" value={penalty.penalty_type} />
+                <DetailRow
+                  label="Amount"
+                  value={new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
+                />
+                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                  <span className="text-sm text-muted-foreground">Penalty Status</span>
+                  <span className="w-fit">
+                    <StatusBadge status={penalty.is_paid ? 'paid' : 'unpaid'} className="shrink-0" />
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Penalty Status</span>
-                  <StatusBadge status={penalty.is_paid ? 'paid' : 'unpaid'} />
-                </div>
                 {penalty.paid_at && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Paid At</span>
-                    <span>{format(new Date(penalty.paid_at), 'PPP p')}</span>
-                  </div>
+                  <DetailRow label="Paid At" value={format(new Date(penalty.paid_at), 'PPP p')} />
                 )}
               </div>
             </>
@@ -253,17 +252,8 @@ function PaymentHistoryCard({
 
           {payment.payment_method && (
             <>
-              <Separator />
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Method of payment</span>
-                <span className="font-medium">
-                  {payment.payment_method === 'mobile_money'
-                    ? 'M-Pesa'
-                    : payment.payment_method === 'card'
-                      ? 'Card'
-                      : payment.payment_method}
-                </span>
-              </div>
+              <Separator className="my-3" />
+              <DetailRow label="Method of payment" value={paymentMethodLabel} />
             </>
           )}
         </div>
@@ -275,57 +265,41 @@ function PaymentHistoryCard({
 function PenaltyOnlyHistoryCard({ penalty }: { penalty: Penalty }) {
   const dateStr = penalty.paid_at || penalty.created_at;
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
       <CardContent className="p-4">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-semibold">
-                  {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
-                </p>
-                <StatusBadge status="completed" />
-              </div>
-              <p className="text-xs text-muted-foreground font-mono">Ref: ADMIN-{penalty.id.slice(0, 8)}</p>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-lg">
+                {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
+              </p>
+              <StatusBadge status="completed" />
             </div>
-            <div className="text-right text-sm text-muted-foreground">
-              <p>{format(new Date(dateStr), 'MMM d, yyyy')}</p>
-              {penalty.paid_at && (
-                <p className="text-xs">Paid: {format(new Date(penalty.paid_at), 'HH:mm')}</p>
-              )}
-            </div>
+            <p className="text-xs text-muted-foreground font-mono">Ref: ADMIN-{penalty.id.slice(0, 8)}</p>
+            <p className="text-sm text-muted-foreground">
+              {format(new Date(dateStr), 'MMM d, yyyy')}
+              {penalty.paid_at && ` · Paid ${format(new Date(penalty.paid_at), 'HH:mm')}`}
+            </p>
           </div>
 
-          <Separator />
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Payment Type</span>
-              <span className="font-medium">Penalty</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Penalty Type</span>
-              <span className="font-medium">{penalty.penalty_type}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Amount</span>
-              <span className="font-medium">
-                {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
+          <Separator className="my-3" />
+          <div className="space-y-3 min-w-0">
+            <DetailRow label="Payment Type" value="Penalty" />
+            <DetailRow label="Penalty Type" value={penalty.penalty_type} />
+            <DetailRow
+              label="Amount"
+              value={new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(penalty.amount)}
+            />
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between min-w-0">
+              <span className="text-sm text-muted-foreground">Penalty Status</span>
+              <span className="w-fit">
+                <StatusBadge status="paid" className="shrink-0" />
               </span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Penalty Status</span>
-              <StatusBadge status="paid" />
-            </div>
             {penalty.paid_at && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Paid At</span>
-                <span>{format(new Date(penalty.paid_at), 'PPP p')}</span>
-              </div>
+              <DetailRow label="Paid At" value={format(new Date(penalty.paid_at), 'PPP p')} />
             )}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Method of payment</span>
-              <span className="font-medium">Offline</span>
-            </div>
+            <DetailRow label="Method of payment" value="Offline" />
           </div>
         </div>
       </CardContent>

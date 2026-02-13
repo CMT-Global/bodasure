@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Download, MapPin, Users } from 'lucide-react';
 import { useStages, useSaccos, Stage } from '@/hooks/useData';
 import { CountyFilterBar } from '@/components/shared/CountyFilterBar';
@@ -163,24 +164,26 @@ export default function StagesPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6 overflow-x-hidden min-w-0">
+        <div className="flex flex-col gap-4 min-w-0">
           <div>
-            <h1 className="text-2xl font-bold">Stages</h1>
-            <p className="text-muted-foreground">Manage stage locations • {filteredStages.length} total</p>
+            <h1 className="text-xl sm:text-2xl font-bold break-words">Stages</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">Manage stage locations • {filteredStages.length} total</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <CountyFilterBar />
-            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredStages.length === 0}><Download className="mr-2 h-4 w-4" />Export</Button>
-            <Button onClick={() => { setSelectedStage(null); setIsFormOpen(true); }} className="glow-primary">
-              <Plus className="mr-2 h-4 w-4" />Add Stage
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredStages.length === 0} className="w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0">
+              <Download className="mr-2 h-4 w-4 shrink-0" />Export
+            </Button>
+            <Button onClick={() => { setSelectedStage(null); setIsFormOpen(true); }} className="glow-primary w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0">
+              <Plus className="mr-2 h-4 w-4 shrink-0" />Add Stage
             </Button>
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3 min-w-0">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0 sm:w-[150px] min-h-[44px]"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
@@ -190,7 +193,20 @@ export default function StagesPage() {
           </Select>
         </div>
 
-        <DataTable columns={columns} data={filteredStages} searchPlaceholder="Search stages..." isLoading={isLoading} />
+        <DataTable
+          columns={columns}
+          data={filteredStages}
+          searchPlaceholder="Search stages..."
+          searchKeys={['name', 'location']}
+          isLoading={isLoading}
+          mobileCardRender={(stage) => (
+            <StageMobileCard
+              stage={stage}
+              onEdit={() => { setSelectedStage(stage); setIsFormOpen(true); }}
+              onDelete={() => { setSelectedStage(stage); setIsDeleteOpen(true); }}
+            />
+          )}
+        />
 
         {/* Form Dialog */}
         <StageFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} stage={selectedStage} countyId={countyId} saccos={saccos} />
@@ -210,6 +226,54 @@ export default function StagesPage() {
         </AlertDialog>
       </div>
     </DashboardLayout>
+  );
+}
+
+function StageMobileCard({ stage, onEdit, onDelete }: { stage: Stage; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <Card className="overflow-hidden min-w-0">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MapPin className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium truncate">{stage.name}</p>
+              <p className="text-xs text-muted-foreground line-clamp-1">{stage.location || 'No location'}</p>
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 touch-manipulation">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onEdit}>
+                <Edit className="mr-2 h-4 w-4" />Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{stage.sacco?.name || 'No sacco'}</span>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Users className="h-3.5 w-3 shrink-0" />
+            {stage.capacity ?? '—'}
+          </span>
+        </div>
+        <div className="mt-3 pt-3 border-t">
+          <StatusBadge status={stage.status} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -358,9 +422,9 @@ function StageFormDialog({ open, onOpenChange, stage, countyId, saccos }: { open
                 </FormItem>
               )}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={mutation.isPending}>
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+              <Button type="submit" disabled={mutation.isPending} className="w-full sm:w-auto min-h-[44px]">
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEditing ? 'Update' : 'Add'}
               </Button>

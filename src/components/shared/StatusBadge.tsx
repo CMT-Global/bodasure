@@ -20,7 +20,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   blacklisted: { label: 'Blacklisted', className: 'bg-destructive/20 text-destructive border-destructive/30' },
   
   // Permit status
-  active: { label: 'Active', className: 'bg-success/20 text-success border-success/30' },
+  active: { label: 'Active', className: 'bg-success/15 text-success border-success/40 shadow-sm' },
   expired: { label: 'Expired', className: 'bg-destructive/20 text-destructive border-destructive/30' },
   cancelled: { label: 'Cancelled', className: 'bg-muted text-muted-foreground border-muted' },
   
@@ -48,7 +48,14 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   const config = statusConfig[status] || { label: status, className: 'bg-muted text-muted-foreground' };
   
   return (
-    <Badge variant="outline" className={cn('text-xs font-medium', config.className, className)}>
+    <Badge
+      variant="outline"
+      className={cn(
+        'inline-flex shrink-0 w-fit max-w-full rounded-full px-2.5 py-1 text-xs font-medium',
+        config.className,
+        className
+      )}
+    >
       {config.label}
     </Badge>
   );

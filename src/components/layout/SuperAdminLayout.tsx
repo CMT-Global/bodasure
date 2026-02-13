@@ -67,7 +67,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   }, []);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="layout-root flex bg-background overflow-hidden">
       {isMobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -309,7 +309,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden">
         <header className="sticky top-0 flex-shrink-0 z-30 flex h-16 items-center justify-between gap-2 sm:gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 sm:px-4 lg:px-6">
           <Button
             variant="ghost"
@@ -439,7 +439,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6">
+        <main className="main-scroll-area flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 min-h-0">
           <div className="w-full max-w-full mx-auto">
             {children}
           </div>

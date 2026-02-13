@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/data-table';
@@ -121,6 +121,48 @@ function resolvePermitPenaltyLabel(
   const info = resolvePermitPenaltyInfo(payment, permitTypes, penaltyIdToName);
   if (info.kind === null || info.name === '—') return '—';
   return `${info.kind === 'penalty' ? 'Penalty' : 'Permit'}: ${info.name}`;
+}
+
+function PaymentMobileCard({
+  payment,
+  typeLabel,
+  statusBadge,
+  onViewHistory,
+}: {
+  payment: PaymentRow;
+  typeLabel: string;
+  statusBadge: ReactNode;
+  onViewHistory?: () => void;
+}) {
+  return (
+    <Card className="overflow-hidden min-w-0">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-primary">
+              {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(payment.amount)}
+            </p>
+            <p className="text-xs text-muted-foreground font-mono truncate">{payment.payment_reference || 'N/A'}</p>
+          </div>
+          <div className="shrink-0">{statusBadge}</div>
+        </div>
+        <div className="mt-3 space-y-1 text-sm">
+          <p className="font-medium truncate">{payment.riders?.full_name || 'N/A'}</p>
+          {payment.riders?.phone && <p className="text-xs text-muted-foreground">{payment.riders.phone}</p>}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground truncate">{typeLabel}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {format(new Date(payment.created_at), 'MMM d, yyyy HH:mm')}
+        </p>
+        {onViewHistory && (
+          <Button variant="ghost" size="sm" onClick={onViewHistory} className="mt-3 w-full min-h-[44px] touch-manipulation">
+            <History className="mr-2 h-4 w-4" />
+            History
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function PaymentsPage() {
@@ -377,95 +419,93 @@ export default function PaymentsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 overflow-x-hidden min-w-0">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4 min-w-0">
           <div>
-            <h1 className="text-2xl font-bold">Payments</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold break-words">Payments</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
               Track revenue and payment transactions • {paymentsWithAdminMarked.length} total
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <CountyFilterBar />
-            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredPayments.length === 0}>
-              <Download className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={handleExport} disabled={isLoading || filteredPayments.length === 0} className="w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0">
+              <Download className="mr-2 h-4 w-4 shrink-0" />
               Export
             </Button>
-            <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary">
-              <Plus className="mr-2 h-4 w-4" />
+            <Button onClick={() => setIsPaymentOpen(true)} className="glow-primary w-full sm:w-auto min-h-[44px] touch-manipulation shrink-0">
+              <Plus className="mr-2 h-4 w-4 shrink-0" />
               New Payment
             </Button>
           </div>
         </div>
 
-        {/* Revenue Totals */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
+        {/* Revenue Totals: 1 col on narrow mobile so values don't clip, then 2x2 then 4 in a row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 min-w-0">
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 gap-2 min-w-0">
+              <CardTitle className="text-xs sm:text-sm font-medium min-w-0">Total Revenue</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">
+            <CardContent className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold text-primary min-w-0 break-words">
                 {new Intl.NumberFormat('en-KE', {
                   style: 'currency',
                   currency: 'KES',
                 }).format(revenueStats.total)}
               </div>
-              <p className="text-xs text-muted-foreground">{revenueStats.paid} paid payments</p>
+              <p className="text-xs text-muted-foreground min-w-0">{revenueStats.paid} paid payments</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Paid</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 gap-2 min-w-0">
+              <CardTitle className="text-xs sm:text-sm font-medium min-w-0">Paid</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-500">{revenueStats.paid}</div>
-              <p className="text-xs text-muted-foreground">completed payments</p>
+            <CardContent className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold text-green-500 min-w-0">{revenueStats.paid}</div>
+              <p className="text-xs text-muted-foreground min-w-0">completed payments</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-500" />
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 gap-2 min-w-0">
+              <CardTitle className="text-xs sm:text-sm font-medium min-w-0">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-yellow-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-500">{revenueStats.pending}</div>
-              <p className="text-xs text-muted-foreground">awaiting confirmation</p>
+            <CardContent className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold text-yellow-500 min-w-0">{revenueStats.pending}</div>
+              <p className="text-xs text-muted-foreground min-w-0">awaiting confirmation</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Failed</CardTitle>
-              <XCircle className="h-4 w-4 text-red-500" />
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 gap-2 min-w-0">
+              <CardTitle className="text-xs sm:text-sm font-medium min-w-0">Failed</CardTitle>
+              <XCircle className="h-4 w-4 text-red-500 shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-500">{revenueStats.failed}</div>
-              <p className="text-xs text-muted-foreground">require attention</p>
+            <CardContent className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold text-red-500 min-w-0">{revenueStats.failed}</div>
+              <p className="text-xs text-muted-foreground min-w-0">require attention</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Search and Filters */}
-        <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="space-y-4 min-w-0">
+          <div className="relative min-w-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground shrink-0 pointer-events-none" />
             <Input
               placeholder="Search by rider name, phone, permit number, or reference..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 min-h-[44px] w-full min-w-0"
             />
           </div>
 
-          {/* Filter Row */}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3 min-w-0">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <Filter className="mr-2 h-4 w-4" />
+              <SelectTrigger className="w-full min-w-0 sm:w-[180px] min-h-[44px]">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
               <SelectContent>
@@ -484,6 +524,14 @@ export default function PaymentsPage() {
           data={filteredPayments as PaymentRow[]}
           searchPlaceholder="Search payments..."
           isLoading={isLoading}
+          mobileCardRender={(payment: PaymentRow) => (
+            <PaymentMobileCard
+              payment={payment}
+              typeLabel={resolvePermitPenaltyLabel(payment, permitTypes, penaltyIdToName)}
+              statusBadge={getStatusBadge(payment.paid_at ? 'completed' : payment.status)}
+              onViewHistory={payment.riders ? () => handleViewHistory(payment.riders!.id, payment.riders!.full_name) : undefined}
+            />
+          )}
         />
 
         {/* Payment Dialog: validation from @/lib/zod (permitPaymentFormSchema) */}

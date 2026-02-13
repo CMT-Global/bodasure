@@ -233,9 +233,9 @@ export default function CommunicationToolsPage() {
 
   return (
     <SaccoPortalLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 overflow-x-hidden min-w-0">
         {/* Page header */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold lg:text-3xl">Communication Tools</h1>
@@ -283,7 +283,7 @@ export default function CommunicationToolsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
             {/* County Announcements */}
             <Card>
               <CardHeader>
@@ -410,7 +410,7 @@ export default function CommunicationToolsPage() {
             </Card>
 
             {/* Send Messages */}
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 min-w-0 overflow-hidden">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5 text-primary" />
@@ -547,8 +547,8 @@ export default function CommunicationToolsPage() {
                         </FormItem>
                       )}
                     />
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
+                    <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                      <div className="text-sm text-muted-foreground min-w-0">
                         Will be sent to{' '}
                         <span className="font-semibold text-foreground">
                           {getRecipientCount()} member{getRecipientCount() !== 1 ? 's' : ''}
@@ -557,16 +557,16 @@ export default function CommunicationToolsPage() {
                       <Button
                         type="submit"
                         disabled={isSending || (messageForm.watch('body')?.length ?? 0) > TEXTAREA_MAX_CHARS}
-                        className="min-h-[44px] gap-2"
+                        className="w-full sm:w-auto min-h-[44px] gap-2 shrink-0 touch-manipulation"
                       >
                         {isSending ? (
                           <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                             Sending...
                           </>
                         ) : (
                           <>
-                            <Send className="h-4 w-4" />
+                            <Send className="h-4 w-4 shrink-0" />
                             Send Message
                           </>
                         )}
