@@ -48,6 +48,8 @@ export interface PaymentCalculationInput {
   /** Required for PERMIT; ignored for PENALTY. */
   period?: SubscriptionPeriodKey | null;
   monetization: PaymentCalculationMonetization;
+  /** When set for PERMIT, used instead of monetization.platformServiceFee (Revenue Config Platform Fee tab). */
+  platformFeeKESOverride?: number;
 }
 
 export interface PaymentCalculationBreakdown {
@@ -122,16 +124,20 @@ function penaltyCommissionFee(
 export function calculatePaymentDeductions(
   input: PaymentCalculationInput
 ): PaymentCalculationBreakdown {
-  const { grossAmountKES, paymentType, period, monetization } = input;
+  const { grossAmountKES, paymentType, period, monetization, platformFeeKESOverride } = input;
   const gross = ROUND(Number(grossAmountKES) || 0);
 
   let platformFeeKES = 0;
   if (paymentType === 'PERMIT') {
-    platformFeeKES = platformFeeForPermit(
-      gross,
-      period ?? null,
-      monetization.platformServiceFee
-    );
+    if (platformFeeKESOverride != null) {
+      platformFeeKES = ROUND(Math.min(platformFeeKESOverride, gross));
+    } else {
+      platformFeeKES = platformFeeForPermit(
+        gross,
+        period ?? null,
+        monetization.platformServiceFee
+      );
+    }
   }
 
   const processingFeeKES = processingFee(gross, monetization.paymentConvenienceFee);
