@@ -437,6 +437,27 @@ export function useInitializePenaltyPayment() {
   });
 }
 
+/** Expire pending payments older than 10 minutes (mark as failed). Call on dashboard/payments load. */
+export function useExpireStalePendingPayments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('expire_stale_pending_payments');
+      if (error) throw error;
+      return typeof data === 'number' ? data : 0;
+    },
+    onSuccess: (_count) => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    },
+    onError: (err: Error) => {
+      const msg = err.message || '';
+      if (msg.includes('function') || msg.includes('does not exist') || msg.includes('42883')) {
+        toast.error('Expire pending payments not available. Run the latest database migration.');
+      }
+    },
+  });
+}
+
 export function useVerifyPayment() {
   const queryClient = useQueryClient();
   
