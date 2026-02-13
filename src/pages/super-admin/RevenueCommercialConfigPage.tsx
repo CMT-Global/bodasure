@@ -24,12 +24,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Map, Loader2, Save, DollarSign, Percent, Users, Eye } from 'lucide-react';
+import { Map, Loader2, Save, DollarSign, Percent, Users, Eye, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { TEXTAREA_MAX_CHARS, isOverCharLimit } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
+const DEFAULT_COUNTY_REVENUE_MODEL: CountyRevenueModelConfig = {
+  chargeAmountCents: 0,
+  frequency: 'monthly',
+  effectiveFrom: new Date().toISOString().slice(0, 10),
+  description: '',
+};
+
 export default function RevenueCommercialConfigPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCountyId, setSelectedCountyId] = useState<string | null>(null);
   const { data: counties = [], isLoading: countiesLoading } = useAllCounties();
 
@@ -70,10 +79,41 @@ export default function RevenueCommercialConfigPage() {
   }, [revConfig]);
 
   useEffect(() => {
-    if (counties.length > 0 && !selectedCountyId) setSelectedCountyId(counties[0].id);
-  }, [counties, selectedCountyId]);
+    if (counties.length > 0 && !selectedCountyId) {
+      const countyFromUrl = searchParams.get('county');
+      if (countyFromUrl && counties.some(c => c.id === countyFromUrl)) {
+        setSelectedCountyId(countyFromUrl);
+      } else {
+        setSelectedCountyId(counties[0].id);
+      }
+    }
+  }, [counties, searchParams, selectedCountyId]);
 
   const updateMutation = useUpdateCountyConfig();
+
+  const hasActiveCountyRevenue = (countyRevenueModel.chargeAmountCents ?? 0) > 0;
+
+  const handleRemoveCountyRevenue = () => {
+    if (!selectedCountyId) return;
+    const configToSave: CountyRevenueCommercialConfig = {
+      ...buildRevenueConfig(),
+      countyRevenueModel: { ...DEFAULT_COUNTY_REVENUE_MODEL },
+    };
+    updateMutation.mutate(
+      {
+        countyId: selectedCountyId,
+        config: { revenueCommercialConfig: configToSave },
+        section: 'revenueCommercialConfig',
+      },
+      {
+        onSuccess: () => {
+          setCountyRevenueModel({ ...DEFAULT_COUNTY_REVENUE_MODEL });
+          toast.success('County revenue model removed. It will no longer appear in Finance view.');
+        },
+        onError: () => {},
+      }
+    );
+  };
 
   const buildRevenueConfig = (): CountyRevenueCommercialConfig => ({
     countyRevenueModel: {
@@ -264,6 +304,27 @@ export default function RevenueCommercialConfigPage() {
                       rows={2}
                       className={cn(isOverCharLimit(countyRevenueModel.description ?? '') && 'border-destructive')}
                     />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <Button
+                      onClick={handleSaveRevenue}
+                      disabled={updateMutation.isPending}
+                    >
+                      {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      <span className="ml-2">Save</span>
+                    </Button>
+                    {hasActiveCountyRevenue && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="text-destructive border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={handleRemoveCountyRevenue}
+                        disabled={updateMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="ml-2">Remove county revenue model</span>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

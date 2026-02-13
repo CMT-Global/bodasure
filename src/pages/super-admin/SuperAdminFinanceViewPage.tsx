@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { useMonetizationSummary, useRevenueByCounty, type MonetizationSummaryByCounty } from '@/hooks/useRevenue';
 import { superAdminFinanceDateRangeSchema } from '@/lib/zod';
 import { format } from 'date-fns';
-import { Loader2, Download, FileSpreadsheet, Calendar } from 'lucide-react';
+import { Loader2, Download, FileSpreadsheet, Calendar, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 function formatKES(n: number) {
@@ -268,11 +269,22 @@ export default function SuperAdminFinanceViewPage() {
                     if (!rev || (rev.chargeAmountCents ?? 0) <= 0) return null;
                     return (
                       <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs sm:text-sm">
-                        <span className="font-medium text-primary">County revenue model (Revenue Config)</span>
-                        <p className="mt-0.5 text-muted-foreground">
-                          {rev.chargeAmountCents / 100} KES per rider ({rev.frequency})
-                          {rev.effectiveFrom ? ` · effective from ${rev.effectiveFrom}` : ''}
-                        </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-medium text-primary">County revenue model (Revenue Config)</span>
+                            <p className="mt-0.5 text-muted-foreground">
+                              {rev.chargeAmountCents / 100} KES per rider ({rev.frequency})
+                              {rev.effectiveFrom ? ` · effective from ${rev.effectiveFrom}` : ''}
+                            </p>
+                          </div>
+                          <Link
+                            to={`/super-admin/revenue-config?county=${county.countyId}`}
+                            className="shrink-0 inline-flex items-center gap-1 text-destructive hover:underline text-xs font-medium"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remove
+                          </Link>
+                        </div>
                       </div>
                     );
                   })()}
