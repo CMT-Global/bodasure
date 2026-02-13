@@ -328,7 +328,7 @@ export default function SaccoReportsPage() {
     },
   ];
 
-  // Penalty Report columns
+  // Penalty Report columns (match design: date left-aligned, numbers/currency center-aligned)
   const penaltyReportColumns: ColumnDef<SaccoPenaltyReport>[] = [
     {
       accessorKey: 'date',
@@ -338,29 +338,38 @@ export default function SaccoReportsPage() {
     {
       accessorKey: 'totalPenalties',
       header: 'Total Penalties',
+      cell: ({ row }) => <span className="tabular-nums">{row.original.totalPenalties}</span>,
+      meta: { align: 'center' },
     },
     {
       accessorKey: 'paid',
       header: 'Paid',
+      cell: ({ row }) => <span className="tabular-nums">{row.original.paid}</span>,
+      meta: { align: 'center' },
     },
     {
       accessorKey: 'unpaid',
       header: 'Unpaid',
+      cell: ({ row }) => <span className="tabular-nums">{row.original.unpaid}</span>,
+      meta: { align: 'center' },
     },
     {
       accessorKey: 'totalAmount',
       header: 'Total Amount',
-      cell: ({ row }) => `KES ${row.original.totalAmount.toLocaleString()}`,
+      cell: ({ row }) => <span className="tabular-nums">KES {row.original.totalAmount.toLocaleString()}</span>,
+      meta: { align: 'center' },
     },
     {
       accessorKey: 'paidAmount',
       header: 'Paid Amount',
-      cell: ({ row }) => `KES ${row.original.paidAmount.toLocaleString()}`,
+      cell: ({ row }) => <span className="tabular-nums">KES {row.original.paidAmount.toLocaleString()}</span>,
+      meta: { align: 'center' },
     },
     {
       accessorKey: 'unpaidAmount',
       header: 'Unpaid Amount',
-      cell: ({ row }) => `KES ${row.original.unpaidAmount.toLocaleString()}`,
+      cell: ({ row }) => <span className="tabular-nums">KES {row.original.unpaidAmount.toLocaleString()}</span>,
+      meta: { align: 'center' },
     },
   ];
 
@@ -524,13 +533,13 @@ export default function SaccoReportsPage() {
               </TabsList>
 
               {/* Member List Report */}
-              <TabsContent value="member-list" className="space-y-4">
-                <Card>
-                  <CardHeader className="pb-3 sm:pb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <TabsContent value="member-list" className="space-y-4 mt-4">
+                <Card className="overflow-hidden">
+                  <CardHeader className="pb-3 sm:pb-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <CardTitle className="text-base sm:text-lg">Member List Report</CardTitle>
-                        <CardDescription className="text-xs sm:text-sm">Complete list of all sacco members with their details</CardDescription>
+                        <CardTitle className="text-lg sm:text-xl">Member List Report</CardTitle>
+                        <CardDescription className="text-sm mt-1">Complete list of all sacco members with their details</CardDescription>
                       </div>
                       <ExportButtons 
                         data={memberListReport} 
@@ -550,7 +559,14 @@ export default function SaccoReportsPage() {
                         No members found for this sacco.
                       </div>
                     ) : (
-                      <DataTable columns={memberListColumns} data={memberListReport} />
+                      <div className="w-full min-w-0 overflow-hidden">
+                        <DataTable
+                          columns={memberListColumns}
+                          data={memberListReport}
+                          searchKeys={['fullName', 'phone', 'idNumber', 'email', 'permitNumber', 'motorbikeRegistration']}
+                          searchPlaceholder="Search members..."
+                        />
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -566,8 +582,15 @@ export default function SaccoReportsPage() {
                         <CardDescription className="text-xs sm:text-sm">Overview of member compliance status</CardDescription>
                       </div>
                       {complianceReport && (
-                        <ExportButtons 
-                          data={[complianceReport]} 
+                        <ExportButtons
+                          data={[{
+                            'Total Members': complianceReport.totalMembers,
+                            'Compliant': complianceReport.compliant,
+                            'Non-Compliant': complianceReport.nonCompliant,
+                            'Pending Review': complianceReport.pendingReview,
+                            'Blacklisted': complianceReport.blacklisted,
+                            'Compliance Rate (%)': complianceReport.complianceRate,
+                          }]}
                           filename="compliance_report"
                           title="Compliance Report"
                           disabled={loadingCompliance}
@@ -577,79 +600,55 @@ export default function SaccoReportsPage() {
                   </CardHeader>
                   <CardContent>
                     {loadingCompliance ? (
-                      <div className="flex items-center justify-center py-8">
+                      <div className="flex items-center justify-center py-12">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
                     ) : !complianceReport ? (
-                      <div className="text-center py-8 text-muted-foreground">
+                      <div className="text-center py-12 text-muted-foreground">
                         No compliance data available.
                       </div>
                     ) : (
-                      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Total Members</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{complianceReport.totalMembers}</div>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Compliant</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{complianceReport.compliant}</div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {complianceReport.totalMembers > 0 
-                                ? `${Math.round((complianceReport.compliant / complianceReport.totalMembers) * 100)}% of total`
-                                : '0%'}
-                            </p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Non-Compliant</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{complianceReport.nonCompliant}</div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {complianceReport.totalMembers > 0 
-                                ? `${Math.round((complianceReport.nonCompliant / complianceReport.totalMembers) * 100)}% of total`
-                                : '0%'}
-                            </p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold text-yellow-600">{complianceReport.pendingReview}</div>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Blacklisted</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold text-red-800">{complianceReport.blacklisted}</div>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium">Compliance Rate</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold">{complianceReport.complianceRate}%</div>
-                            <Badge 
-                              variant={complianceReport.complianceRate >= 80 ? 'default' : complianceReport.complianceRate >= 50 ? 'secondary' : 'destructive'}
-                              className="mt-2"
-                            >
-                              {complianceReport.complianceRate >= 80 ? 'Excellent' : complianceReport.complianceRate >= 50 ? 'Good' : 'Needs Improvement'}
-                            </Badge>
-                          </CardContent>
-                        </Card>
+                      <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-lg border border-border bg-muted/30 p-4">
+                          <p className="text-sm font-medium text-muted-foreground">Total Members</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums">{complianceReport.totalMembers}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-4">
+                          <p className="text-sm font-medium text-muted-foreground">Compliant</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums text-green-600 dark:text-green-500">{complianceReport.compliant}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {complianceReport.totalMembers > 0
+                              ? `${Math.round((complianceReport.compliant / complianceReport.totalMembers) * 100)}% of total`
+                              : '0%'}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-4">
+                          <p className="text-sm font-medium text-muted-foreground">Non-Compliant</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">{complianceReport.nonCompliant}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {complianceReport.totalMembers > 0
+                              ? `${Math.round((complianceReport.nonCompliant / complianceReport.totalMembers) * 100)}% of total`
+                              : '0%'}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-4">
+                          <p className="text-sm font-medium text-muted-foreground">Pending Review</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-500">{complianceReport.pendingReview}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-4">
+                          <p className="text-sm font-medium text-muted-foreground">Blacklisted</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums text-red-700 dark:text-red-400">{complianceReport.blacklisted}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-4">
+                          <p className="text-sm font-medium text-muted-foreground">Compliance Rate</p>
+                          <p className="mt-1 text-2xl font-bold tabular-nums">{complianceReport.complianceRate}%</p>
+                          <Badge
+                            variant={complianceReport.complianceRate >= 80 ? 'default' : complianceReport.complianceRate >= 50 ? 'secondary' : 'destructive'}
+                            className="mt-2"
+                          >
+                            {complianceReport.complianceRate >= 80 ? 'Excellent' : complianceReport.complianceRate >= 50 ? 'Good' : 'Needs Improvement'}
+                          </Badge>
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -657,13 +656,13 @@ export default function SaccoReportsPage() {
               </TabsContent>
 
               {/* Penalty Report */}
-              <TabsContent value="penalty" className="space-y-4">
-                <Card>
-                  <CardHeader className="pb-3 sm:pb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <TabsContent value="penalty" className="space-y-4 mt-4">
+                <Card className="overflow-hidden">
+                  <CardHeader className="pb-3 sm:pb-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <CardTitle className="text-base sm:text-lg">Penalty Report</CardTitle>
-                        <CardDescription className="text-xs sm:text-sm">Penalty statistics by date range</CardDescription>
+                        <CardTitle className="text-lg sm:text-xl">Penalty Report</CardTitle>
+                        <CardDescription className="text-sm mt-1">Penalty statistics by date range</CardDescription>
                       </div>
                       <ExportButtons 
                         data={penaltyReport} 
@@ -683,20 +682,27 @@ export default function SaccoReportsPage() {
                         No penalty data found for the selected date range.
                       </div>
                     ) : (
-                      <DataTable columns={penaltyReportColumns} data={penaltyReport} />
+                      <div className="w-full min-w-0 overflow-hidden">
+                        <DataTable
+                          columns={penaltyReportColumns}
+                          data={penaltyReport}
+                          searchKeys={['date']}
+                          searchPlaceholder="Search..."
+                        />
+                      </div>
                     )}
                   </CardContent>
                 </Card>
               </TabsContent>
 
               {/* Stage Performance Report */}
-              <TabsContent value="stage-performance" className="space-y-4">
-                <Card>
-                  <CardHeader className="pb-3 sm:pb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <TabsContent value="stage-performance" className="space-y-4 mt-4">
+                <Card className="overflow-hidden">
+                  <CardHeader className="pb-3 sm:pb-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <CardTitle className="text-base sm:text-lg">Stage Performance Report</CardTitle>
-                        <CardDescription className="text-xs sm:text-sm">Performance metrics for each stage</CardDescription>
+                        <CardTitle className="text-lg sm:text-xl">Stage Performance Report</CardTitle>
+                        <CardDescription className="text-sm mt-1">Performance metrics for each stage</CardDescription>
                       </div>
                       <ExportButtons 
                         data={stagePerformanceReport} 
@@ -716,7 +722,14 @@ export default function SaccoReportsPage() {
                         No stage performance data available.
                       </div>
                     ) : (
-                      <DataTable columns={stagePerformanceColumns} data={stagePerformanceReport} />
+                      <div className="w-full min-w-0 overflow-hidden">
+                        <DataTable
+                          columns={stagePerformanceColumns}
+                          data={stagePerformanceReport}
+                          searchKeys={['stageName']}
+                          searchPlaceholder="Search stages..."
+                        />
+                      </div>
                     )}
                   </CardContent>
                 </Card>

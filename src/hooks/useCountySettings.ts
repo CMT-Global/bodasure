@@ -50,6 +50,8 @@ export interface CountySettings {
   permitSettings: PermitSettings;
   penaltySettings: PenaltySettings;
   revenueSharingSettings: RevenueSharingSettings;
+  /** Set by super-admin on revenue-config; when false, sacco portal must not show revenue share. */
+  revenueSharingEnabledBySuperAdmin: boolean;
 }
 
 // Default settings
@@ -116,6 +118,9 @@ export function useCountySettings(countyId?: string) {
         };
       }
 
+      const revenueSharingEnabledBySuperAdmin =
+        countyConfig.revenueCommercialConfig?.saccoWelfareRevenueSharing?.enabled ?? false;
+
       return {
         permitSettings: {
           ...defaultPermitSettings,
@@ -125,6 +130,7 @@ export function useCountySettings(countyId?: string) {
         revenueSharingSettings: {
           rules: (settings.revenueSharingSettings as { rules?: RevenueShareRule[] } | undefined)?.rules || [],
         },
+        revenueSharingEnabledBySuperAdmin,
       } as CountySettings;
     },
     enabled: !!countyId,

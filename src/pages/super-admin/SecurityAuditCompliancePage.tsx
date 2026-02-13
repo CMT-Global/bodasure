@@ -158,7 +158,7 @@ export default function SecurityAuditCompliancePage() {
                   RLS policies and application filters enforce county boundaries. Super admin can view all; county admins are restricted to their county.
                 </p>
               </div>
-            </div>
+            </div>image.png
           </CardContent>
         </Card>
 

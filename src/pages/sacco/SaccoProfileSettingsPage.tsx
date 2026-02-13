@@ -15,6 +15,7 @@ import {
   useDeleteSaccoDocument,
 } from '@/hooks/useSaccoManagement';
 import { useCountyUsers } from '@/hooks/useUserManagement';
+import { useCountySettings, type RevenueShareRule } from '@/hooks/useCountySettings';
 import {
   Form,
   FormControl,
@@ -108,7 +109,23 @@ export default function SaccoProfileSettingsPage() {
   const { data: sacco, isLoading: saccoLoading } = useSacco(saccoId);
   const { data: officials = [], isLoading: officialsLoading } = useSaccoOfficials(countyId, saccoId);
   const { data: revenueShares = [], isLoading: revenueSharesLoading } = useSaccoRevenueShares(saccoId, countyId);
+  // Use county from auth or from selected sacco so revenue share rule can load for sacco users
+  const effectiveCountyId = countyId ?? sacco?.county_id ?? undefined;
+  const { data: countySettings, isLoading: countySettingsLoading, refetch: refetchCountySettings } = useCountySettings(effectiveCountyId);
   const { data: countyUsers = [] } = useCountyUsers(countyId);
+  const [settingsTab, setSettingsTab] = useState('profile');
+
+  // When user opens Revenue Share tab, refetch county settings so we show current rules (e.g. if county admin just deleted one)
+  const handleSettingsTabChange = (value: string) => {
+    setSettingsTab(value);
+    if (value === 'revenue') refetchCountySettings();
+  };
+
+  // Revenue share rule that applies to the selected sacco (from county config)
+  const saccoRevenueShareRule = useMemo((): RevenueShareRule | null => {
+    if (!saccoId || !countySettings?.revenueSharingSettings?.rules?.length) return null;
+    return countySettings.revenueSharingSettings.rules.find((r) => r.saccoId === saccoId) ?? null;
+  }, [saccoId, countySettings?.revenueSharingSettings?.rules]);
 
   const updateProfile = useUpdateSaccoProfile();
   const assignRole = useAssignSaccoRole();
@@ -335,7 +352,7 @@ export default function SaccoProfileSettingsPage() {
             <p className="text-muted-foreground text-sm sm:text-base">Please select a sacco to manage.</p>
           </div>
         ) : (
-          <Tabs defaultValue="profile" className="space-y-4">
+          <Tabs value={settingsTab} onValueChange={handleSettingsTabChange} className="space-y-4">
             {/* Segmented tab bar: all four visible on mobile (2x2 grid), single row on desktop. */}
             <TabsList className="grid grid-cols-2 sm:flex sm:flex-nowrap h-auto gap-2 p-2 rounded-lg bg-muted/80 text-muted-foreground border-0 shadow-inner w-full sm:w-max">
               <TabsTrigger
@@ -888,16 +905,58 @@ export default function SaccoProfileSettingsPage() {
                     View revenue share information (read-only, if enabled by county).
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
-                  {revenueSharesLoading ? (
+                <CardContent className="p-4 sm:p-6 pt-0 space-y-6">
+                  {countySettingsLoading ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  ) : revenueShares.length === 0 ? (
+                  ) : !countySettings?.revenueSharingEnabledBySuperAdmin ? (
                     <p className="py-8 text-center text-muted-foreground text-sm sm:text-base">
-                      No revenue share data available.
+                      Revenue sharing is disabled for your county. Contact your county or platform administrator if you have questions.
                     </p>
                   ) : (
+                    <>
+                  {/* County-configured rule for this sacco */}
+                  {saccoRevenueShareRule ? (
+                    <div className="rounded-lg border border-border bg-muted/30 p-4">
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Your revenue share rule</p>
+                      <p className="font-semibold text-foreground">{saccoRevenueShareRule.saccoName}</p>
+                      <p className="text-sm text-foreground mt-1">
+                        {saccoRevenueShareRule.shareType === 'percentage' && saccoRevenueShareRule.percentage != null && (
+                          <>Percentage-based: {saccoRevenueShareRule.percentage}% of permit fees</>
+                        )}
+                        {saccoRevenueShareRule.shareType === 'fixed_per_rider' && saccoRevenueShareRule.fixedAmount != null && (
+                          <>Fixed: KES {saccoRevenueShareRule.fixedAmount.toLocaleString()} per rider{saccoRevenueShareRule.period ? ` (${saccoRevenueShareRule.period})` : ''}</>
+                        )}
+                        {saccoRevenueShareRule.shareType === 'none' && 'No revenue share'}
+                      </p>
+                      {saccoRevenueShareRule.complianceThreshold != null && saccoRevenueShareRule.complianceThreshold > 0 && (
+                        <Badge variant="secondary" className="mt-2 text-xs bg-green-500/20 text-green-700 dark:text-green-400 border-0">
+                          Min {saccoRevenueShareRule.complianceThreshold}% Compliance
+                        </Badge>
+                      )}
+                      {!saccoRevenueShareRule.isActive && (
+                        <Badge variant="outline" className="mt-2 text-xs">Inactive</Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No revenue share rule configured for your sacco. Contact your county administrator if you expect to receive revenue share.
+                    </p>
+                  )}
+
+                  {/* Revenue share transactions */}
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-2">Revenue share transactions</p>
+                    {revenueSharesLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : revenueShares.length === 0 ? (
+                      <p className="py-6 text-center text-muted-foreground text-sm">
+                        No revenue share data available yet. Transactions will appear here when permit payments generate revenue share for your sacco.
+                      </p>
+                    ) : (
                     <ScrollArea className="h-[400px] w-full">
                       <div className="overflow-x-auto min-w-0">
                         <Table>
@@ -943,6 +1002,9 @@ export default function SaccoProfileSettingsPage() {
                         </Table>
                       </div>
                     </ScrollArea>
+                    )}
+                  </div>
+                    </>
                   )}
                 </CardContent>
               </Card>

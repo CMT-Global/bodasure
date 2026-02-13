@@ -2128,12 +2128,44 @@ export function useMonetizationSettingsHistory(countyId: string | null) {
           .in('id', userIds);
         if (profiles) profilesMap = new Map(profiles.map((p) => [p.id, { full_name: p.full_name, email: p.email }]));
       }
+      // Resolve role from user_roles for all users in history (same source as User Access Governance).
+      // Use audit_logs.actor_role when present, else resolved role so platform/county roles show correctly.
+      let roleResolvedMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: roleRows } = await supabase
+          .from('user_roles')
+          .select('user_id, role, county_id')
+          .in('user_id', userIds);
+        const rolePriority = (role: string) => {
+          switch (role) {
+            case 'platform_super_admin': return 1;
+            case 'platform_admin': return 2;
+            case 'county_super_admin': return 3;
+            case 'county_admin': return 4;
+            default: return 5;
+          }
+        };
+        // Include: this county, or platform-level (county_id null), or platform roles (they can act on any county).
+        const applicable = (row: { county_id: string | null; role: unknown }) => {
+          const roleStr = String(row.role);
+          if (row.county_id === null || row.county_id === countyId) return true;
+          if (roleStr === 'platform_super_admin' || roleStr === 'platform_admin') return true;
+          return false;
+        };
+        (roleRows ?? [])
+          .filter(applicable)
+          .sort((a, b) => rolePriority(String(a.role)) - rolePriority(String(b.role)))
+          .forEach((row) => {
+            const uid = row.user_id as string;
+            if (!roleResolvedMap.has(uid)) roleResolvedMap.set(uid, String(row.role));
+          });
+      }
       return monetizationOnly.map((r) => ({
         id: r.id,
         action: r.action,
         created_at: r.created_at,
         user_id: r.user_id,
-        actor_role: r.actor_role ?? null,
+        actor_role: (r.actor_role?.trim() || (r.user_id ? roleResolvedMap.get(r.user_id) ?? null : null)) ?? null,
         who: r.user_id ? (profilesMap.get(r.user_id)?.full_name || profilesMap.get(r.user_id)?.email || r.user_id) : 'System',
         old_monetization: (r.old_values as Record<string, unknown> | null)?.monetizationSettings ?? null,
         new_monetization: (r.new_values as Record<string, unknown> | null)?.monetizationSettings ?? null,
