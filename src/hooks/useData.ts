@@ -2011,6 +2011,23 @@ export function useUpdateCountyConfig() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: updateError } = await supabase.from('counties').update({ settings: newSettings } as any).eq('id', countyId);
       if (updateError) throw updateError;
+
+      // Sync permit types from county config to permit_types table so they appear in Issue Permit and show correct amount
+      if (section === 'permitConfig' && config.permitConfig?.permitTypes?.length) {
+        const permitTypesPayload = config.permitConfig.permitTypes.map((pt) => ({
+          county_id: countyId,
+          name: pt.name,
+          amount: pt.feeCents / 100,
+          duration_days: pt.validityDays ?? 0,
+          description: pt.description ?? null,
+          is_active: true,
+        }));
+        const { error: upsertError } = await supabase
+          .from('permit_types')
+          .upsert(permitTypesPayload, { onConflict: 'county_id,name' });
+        if (upsertError) throw upsertError;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       const newValuesForAudit = effectiveFrom ? { ...config, effective_from: effectiveFrom } : config;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2029,6 +2046,17 @@ export function useUpdateCountyConfig() {
       queryClient.invalidateQueries({ queryKey: ['counties', 'all'] });
       queryClient.invalidateQueries({ queryKey: ['county-config-history', variables.countyId] });
       queryClient.invalidateQueries({ queryKey: ['monetization-settings-history', variables.countyId] });
+      // Finance view uses monetization-summary; invalidate so it refetches with new county settings
+      queryClient.invalidateQueries({ queryKey: ['monetization-summary'] });
+      // When permit config changed, permit_types table was synced; invalidate so Issue Permit shows new types and amounts
+      if (variables.section === 'permitConfig') {
+        queryClient.invalidateQueries({ queryKey: ['permit_types'] });
+        queryClient.invalidateQueries({ queryKey: ['permit_types_for_payments'] });
+      }
+      // When penalty config changed, county-settings (used by Penalties page and PenaltyIssuanceDialog) should refetch
+      if (variables.section === 'penaltyConfig') {
+        queryClient.invalidateQueries({ queryKey: ['county-settings'] });
+      }
       toast.success('County configuration saved. Changes apply prospectively.');
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to save configuration'),
