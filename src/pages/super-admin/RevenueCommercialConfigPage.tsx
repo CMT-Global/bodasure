@@ -6,9 +6,10 @@ import {
   getCountyConfigFromSettings,
   type CountyRevenueCommercialConfig,
   type CountyRevenueModelConfig,
-  type PlatformFeeModelConfig,
+  type PlatformServiceFeeConfig,
   type RevenueSharingRuleConfig,
   type RevenueSharingVisibilityConfig,
+  type SubscriptionPeriodKey,
 } from '@/hooks/useData';
 import {
   Select,
@@ -35,6 +36,14 @@ const DEFAULT_COUNTY_REVENUE_MODEL: CountyRevenueModelConfig = {
   frequency: 'monthly',
   effectiveFrom: new Date().toISOString().slice(0, 10),
   description: '',
+};
+
+const PERIOD_LABELS: Record<SubscriptionPeriodKey, string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  three_months: '3 months',
+  six_months: '6 months',
+  annual: 'Annual',
 };
 
 export default function RevenueCommercialConfigPage() {
@@ -68,15 +77,37 @@ export default function RevenueCommercialConfigPage() {
     },
   };
 
+  const defaultPlatformServiceFee: PlatformServiceFeeConfig = {
+    feeType: 'fixed',
+    fixedFeeCents: 0,
+    applyScope: 'permit_payments_only',
+    basis: 'per_subscription_period',
+    periods: [
+      { period: 'weekly', enabled: true },
+      { period: 'monthly', enabled: true },
+      { period: 'three_months', enabled: true },
+      { period: 'six_months', enabled: true },
+      { period: 'annual', enabled: true },
+    ],
+    proportionalByWeeks: true,
+    periodDiscounts: [],
+  };
+
+  const monetization = config.monetizationSettings ?? { platformServiceFee: defaultPlatformServiceFee };
+  const platformServiceFeeFromConfig = monetization.platformServiceFee ?? defaultPlatformServiceFee;
+
   const [countyRevenueModel, setCountyRevenueModel] = useState<CountyRevenueModelConfig>(revConfig.countyRevenueModel);
-  const [platformFeeModel, setPlatformFeeModel] = useState<PlatformFeeModelConfig>(revConfig.platformFeeModel);
+  const [platformServiceFee, setPlatformServiceFee] = useState<PlatformServiceFeeConfig>(platformServiceFeeFromConfig);
   const [saccoWelfare, setSaccoWelfare] = useState(revConfig.saccoWelfareRevenueSharing);
 
   useEffect(() => {
     setCountyRevenueModel(revConfig.countyRevenueModel);
-    setPlatformFeeModel(revConfig.platformFeeModel);
     setSaccoWelfare(revConfig.saccoWelfareRevenueSharing);
   }, [revConfig]);
+
+  useEffect(() => {
+    setPlatformServiceFee(platformServiceFeeFromConfig);
+  }, [platformServiceFeeFromConfig]);
 
   useEffect(() => {
     if (counties.length > 0 && !selectedCountyId) {
@@ -120,13 +151,7 @@ export default function RevenueCommercialConfigPage() {
       ...countyRevenueModel,
       chargeAmountCents: countyRevenueModel.chargeAmountCents ?? 0,
     },
-    platformFeeModel: {
-      ...platformFeeModel,
-      fixedFeeCentsPerRider: platformFeeModel.fixedFeeCentsPerRider ?? 0,
-      percentageFee: platformFeeModel.percentageFee ?? 0,
-      hybridFixedCents: platformFeeModel.hybridFixedCents ?? 0,
-      hybridPercentage: platformFeeModel.hybridPercentage ?? 0,
-    },
+    platformFeeModel: revConfig.platformFeeModel ?? { modelType: 'fixed', fixedFeeCentsPerRider: 0, notes: '' },
     saccoWelfareRevenueSharing: {
       enabled: saccoWelfare.enabled,
       rules: saccoWelfare.rules.map(r => ({
@@ -145,14 +170,14 @@ export default function RevenueCommercialConfigPage() {
       toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
       return;
     }
-    if (isOverCharLimit(platformFeeModel.notes ?? '')) {
-      toast.error(`Maximum ${TEXTAREA_MAX_CHARS} characters allowed.`);
-      return;
-    }
+    const fullMonetization = config.monetizationSettings ?? {};
     updateMutation.mutate(
       {
         countyId: selectedCountyId,
-        config: { revenueCommercialConfig: buildRevenueConfig() },
+        config: {
+          revenueCommercialConfig: buildRevenueConfig(),
+          monetizationSettings: { ...fullMonetization, platformServiceFee },
+        },
         section: 'revenueCommercialConfig',
       },
       { onError: () => {} }
@@ -333,94 +358,139 @@ export default function RevenueCommercialConfigPage() {
             <TabsContent value="platform-fee" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>B. Platform Fee Model</CardTitle>
+                  <CardTitle>B. Platform Service Fee (Primary)</CardTitle>
                   <CardDescription>
-                    Fixed fee per rider, percentage-based fee, or hybrid. When set, this overrides County Monetization platform fee for permit payments. Effective: used in payment breakdown and stored as platform_fee; visible in Finance View.
+                    Same as County Monetization: fee type Fixed (KES) or Percentage (%). Apply scope: Permit payments only. Basis: per subscription period. Rule: proportional by weeks (weekly fee × number of weeks). Optional discounts per period. Used in payment breakdown and Finance View.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-2">
-                    <Label>Fee model type</Label>
+                    <Label>Fee type</Label>
                     <Select
-                      value={platformFeeModel.modelType}
-                      onValueChange={v => setPlatformFeeModel(prev => ({ ...prev, modelType: v as 'fixed' | 'percentage' | 'hybrid' }))}
+                      value={platformServiceFee.feeType}
+                      onValueChange={v => setPlatformServiceFee(prev => ({ ...prev, feeType: v as 'fixed' | 'percentage' }))}
                     >
                       <SelectTrigger className="max-w-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="fixed">Fixed fee per rider</SelectItem>
-                        <SelectItem value="percentage">Percentage-based</SelectItem>
-                        <SelectItem value="hybrid">Hybrid (fixed + percentage)</SelectItem>
+                        <SelectItem value="fixed">Fixed (KES)</SelectItem>
+                        <SelectItem value="percentage">Percentage (%)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  {(platformFeeModel.modelType === 'fixed' || platformFeeModel.modelType === 'hybrid') && (
+                  {platformServiceFee.feeType === 'fixed' && (
                     <div className="grid gap-2">
-                      <Label>{platformFeeModel.modelType === 'hybrid' ? 'Fixed amount per rider (KES)' : 'Fixed fee per rider (KES)'}</Label>
+                      <Label>Fixed fee (KES) — must be ≥ 0</Label>
                       <Input
                         type="number"
                         min={0}
                         step={1}
                         placeholder="0"
-                        value={
-                          platformFeeModel.modelType === 'hybrid'
-                            ? (platformFeeModel.hybridFixedCents != null ? platformFeeModel.hybridFixedCents / 100 : '')
-                            : (platformFeeModel.fixedFeeCentsPerRider != null ? platformFeeModel.fixedFeeCentsPerRider / 100 : '')
-                        }
-                        onChange={e => {
-                          if (e.target.value === '') {
-                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridFixedCents: undefined }));
-                            else setPlatformFeeModel(prev => ({ ...prev, fixedFeeCentsPerRider: undefined }));
-                          } else {
-                            const cents = Math.round(Number(e.target.value) * 100);
-                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridFixedCents: cents }));
-                            else setPlatformFeeModel(prev => ({ ...prev, fixedFeeCentsPerRider: cents }));
-                          }
-                        }}
+                        value={platformServiceFee.fixedFeeCents != null ? platformServiceFee.fixedFeeCents / 100 : ''}
+                        onChange={e => setPlatformServiceFee(prev => ({ ...prev, fixedFeeCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) }))}
                       />
                     </div>
                   )}
-                  {(platformFeeModel.modelType === 'percentage' || platformFeeModel.modelType === 'hybrid') && (
+                  {platformServiceFee.feeType === 'percentage' && (
                     <div className="grid gap-2">
-                      <Label>{platformFeeModel.modelType === 'hybrid' ? 'Percentage (%)' : 'Percentage-based fee (%)'}</Label>
+                      <Label>Percentage (%) — 0–100</Label>
                       <Input
                         type="number"
                         min={0}
                         max={100}
                         step={0.01}
                         placeholder="0"
-                        value={platformFeeModel.modelType === 'hybrid' ? (platformFeeModel.hybridPercentage ?? '') : (platformFeeModel.percentageFee ?? '')}
-                        onChange={e => {
-                          if (e.target.value === '') {
-                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridPercentage: undefined }));
-                            else setPlatformFeeModel(prev => ({ ...prev, percentageFee: undefined }));
-                          } else {
-                            const pct = Number(e.target.value);
-                            if (platformFeeModel.modelType === 'hybrid') setPlatformFeeModel(prev => ({ ...prev, hybridPercentage: pct }));
-                            else setPlatformFeeModel(prev => ({ ...prev, percentageFee: pct }));
-                          }
-                        }}
+                        value={platformServiceFee.percentageFee ?? ''}
+                        onChange={e => setPlatformServiceFee(prev => ({ ...prev, percentageFee: e.target.value === '' ? undefined : Number(e.target.value) }))}
                       />
                     </div>
                   )}
-                  <div className="grid gap-2">
-                    <Label>Fee review date (optional)</Label>
-                    <Input
-                      type="date"
-                      value={platformFeeModel.feeReviewDate ?? ''}
-                      onChange={e => setPlatformFeeModel(prev => ({ ...prev, feeReviewDate: e.target.value || undefined }))}
+                  <p className="text-xs text-muted-foreground">Apply scope: Permit payments only. Basis: per subscription period (Weekly, Monthly, 3 months, 6 months, Annual).</p>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={platformServiceFee.proportionalByWeeks}
+                      onCheckedChange={v => setPlatformServiceFee(prev => ({ ...prev, proportionalByWeeks: v }))}
                     />
+                    <Label>Proportional by weeks (weekly fee × number of weeks)</Label>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Notes (optional)</Label>
-                    <Textarea
-                      value={platformFeeModel.notes ?? ''}
-                      onChange={e => setPlatformFeeModel(prev => ({ ...prev, notes: e.target.value || undefined }))}
-                      placeholder="e.g. Reviewed quarterly"
-                      rows={2}
-                      className={cn(isOverCharLimit(platformFeeModel.notes ?? '') && 'border-destructive')}
-                    />
+                  <div className="space-y-2">
+                    <Label>Optional period discounts (e.g. annual discount)</Label>
+                    {platformServiceFee.periodDiscounts?.map((d, i) => (
+                      <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                        <Select
+                          value={d.period}
+                          onValueChange={v =>
+                            setPlatformServiceFee(prev => ({
+                              ...prev,
+                              periodDiscounts: (prev.periodDiscounts ?? []).map((pd, j) => (j === i ? { ...pd, period: v as SubscriptionPeriodKey } : pd)),
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-full min-w-0 sm:w-[140px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(PERIOD_LABELS) as SubscriptionPeriodKey[]).map(p => (
+                              <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          placeholder="Discount KES"
+                          className="w-full min-w-0 sm:w-28"
+                          value={d.discountCents != null ? d.discountCents / 100 : ''}
+                          onChange={e =>
+                            setPlatformServiceFee(prev => ({
+                              ...prev,
+                              periodDiscounts: (prev.periodDiscounts ?? []).map((pd, j) =>
+                                j === i ? { ...pd, discountCents: e.target.value === '' ? undefined : Math.round(Number(e.target.value) * 100) } : pd
+                              ),
+                            }))
+                          }
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Discount %"
+                          className="w-full min-w-0 sm:w-24"
+                          min={0}
+                          max={100}
+                          value={d.discountPercent ?? ''}
+                          onChange={e =>
+                            setPlatformServiceFee(prev => ({
+                              ...prev,
+                              periodDiscounts: (prev.periodDiscounts ?? []).map((pd, j) =>
+                                j === i ? { ...pd, discountPercent: e.target.value === '' ? undefined : Number(e.target.value) } : pd
+                              ),
+                            }))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setPlatformServiceFee(prev => ({ ...prev, periodDiscounts: (prev.periodDiscounts ?? []).filter((_, j) => j !== i) }))
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPlatformServiceFee(prev => ({
+                          ...prev,
+                          periodDiscounts: [...(prev.periodDiscounts ?? []), { period: 'annual' }],
+                        }))
+                      }
+                    >
+                      Add period discount
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -596,7 +666,7 @@ export default function RevenueCommercialConfigPage() {
             <div className="flex justify-end">
               <Button
               onClick={handleSaveRevenue}
-              disabled={updateMutation.isPending || isOverCharLimit(countyRevenueModel.description ?? '') || isOverCharLimit(platformFeeModel.notes ?? '')}
+              disabled={updateMutation.isPending || isOverCharLimit(countyRevenueModel.description ?? '')}
             >
                 {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Save revenue & commercial config

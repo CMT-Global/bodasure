@@ -23,16 +23,8 @@ function getPermitType(durationDays: number): string {
   return 'Annual';
 }
 
-// Helper to get permit type badge variant
-function getPermitTypeBadge(type: string) {
-  const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
-    Weekly: 'secondary',
-    Monthly: 'default',
-    Quarterly: 'outline',
-    Annual: 'default',
-  };
-  return variants[type] || 'outline';
-}
+// Orange badge style for all permit types (like Monthly)
+const permitTypeBadgeClass = 'bg-orange-500/90 text-white border-0 hover:bg-orange-500/90 hover:text-white';
 
 type PermitRow = {
   id: string;
@@ -114,10 +106,9 @@ const getColumns = (onViewPayments: (permitId: string, permitNumber: string) => 
       const type = getPermitType(permitType.duration_days);
       return (
         <div>
-          <Badge variant={getPermitTypeBadge(type)} className="mb-1">
+          <Badge variant="secondary" className={`mb-1 ${permitTypeBadgeClass}`}>
             {type}
           </Badge>
-          {/* <p className="text-xs text-muted-foreground">{permitType.name}</p> */}
         </div>
       );
     },
@@ -141,10 +132,11 @@ const getColumns = (onViewPayments: (permitId: string, permitNumber: string) => 
       if (!row.original.expires_at) return '-';
       const expiresDate = new Date(row.original.expires_at);
       const daysLeft = differenceInDays(expiresDate, new Date());
+      const daysLeftClass = daysLeft <= 7 ? 'text-red-500' : 'text-yellow-500';
       return (
         <div>
           <p>{format(expiresDate, 'MMM d, yyyy')}</p>
-          <p className={`text-xs ${daysLeft <= 30 ? 'text-yellow-500' : 'text-muted-foreground'}`}>
+          <p className={`text-xs ${daysLeftClass}`}>
             {daysLeft > 0 ? `${daysLeft} days left` : 'Expired'}
           </p>
         </div>
