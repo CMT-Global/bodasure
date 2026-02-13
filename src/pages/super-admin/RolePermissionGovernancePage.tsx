@@ -36,7 +36,6 @@ import {
   ShieldCheck,
   Users,
   Building2,
-  Heart,
   MapPin,
   UserCircle,
   Lock,
@@ -50,10 +49,11 @@ import {
 import { useAllCounties } from '@/hooks/useData';
 import { useSystemRoleTemplates, type SystemRole } from '@/hooks/useSystemRoleTemplates';
 
+/** Combined Sacco & Welfare use the same role set; DB may store category as 'sacco' or 'welfare'. */
+const SACCO_WELFARE_CATEGORY_ID = 'sacco_welfare';
 const ROLE_CATEGORIES = [
   { id: 'county', label: 'County roles', icon: MapPin, description: 'County admin, county super admin, county staff' },
-  { id: 'sacco', label: 'Sacco roles', icon: Building2, description: 'Sacco admin, sacco staff, sacco member' },
-  { id: 'welfare', label: 'Welfare roles', icon: Heart, description: 'Welfare committee, welfare officer' },
+  { id: SACCO_WELFARE_CATEGORY_ID, label: 'Sacco & Welfare roles', icon: Building2, description: 'Admin, officer, chairman, secretary, treasurer, general official' },
   { id: 'stage', label: 'Stage roles', icon: MapPin, description: 'Stage chair, stage treasurer, stage member' },
   { id: 'rider_owner', label: 'Rider/owner capabilities', icon: UserCircle, description: 'Rider, owner, view-only, self-service' },
 ] as const;
@@ -95,7 +95,8 @@ export default function RolePermissionGovernancePage() {
 
   const handleAddRole = async () => {
     if (!newRoleName.trim() || !managingCategory) return;
-    await addRole({ name: newRoleName.trim(), category: managingCategory });
+    const dbCategory = managingCategory === SACCO_WELFARE_CATEGORY_ID ? 'sacco' : managingCategory;
+    await addRole({ name: newRoleName.trim(), category: dbCategory });
     setNewRoleName('');
     setIsAddingRole(false);
   };
@@ -132,7 +133,9 @@ export default function RolePermissionGovernancePage() {
     ? ROLE_CATEGORIES.find(c => c.id === managingCategory)
     : null;
   const rolesInCategory = managingCategory
-    ? systemRoles.filter(r => r.category === managingCategory)
+    ? managingCategory === SACCO_WELFARE_CATEGORY_ID
+      ? systemRoles.filter(r => r.category === 'sacco' || r.category === 'welfare')
+      : systemRoles.filter(r => r.category === managingCategory)
     : [];
 
   return (
@@ -411,13 +414,19 @@ export default function RolePermissionGovernancePage() {
                       </CardHeader>
                       <CardContent className="pt-0 px-4 pb-4 sm:px-6 sm:pb-6">
                         <ul className="space-y-1 text-xs text-muted-foreground sm:text-sm">
-                          {systemRoles.filter(r => r.category === id).map(role => (
+                          {(id === SACCO_WELFARE_CATEGORY_ID
+                            ? systemRoles.filter(r => r.category === 'sacco' || r.category === 'welfare')
+                            : systemRoles.filter(r => r.category === id)
+                          ).map(role => (
                             <li key={role.id} className="flex items-center gap-2">
                               <span className="truncate">{role.name}</span>
                               {role.locked && <Lock className="h-3 w-3 shrink-0 text-amber-600" />}
                             </li>
                           ))}
-                          {systemRoles.filter(r => r.category === id).length === 0 && (
+                          {(id === SACCO_WELFARE_CATEGORY_ID
+                            ? systemRoles.filter(r => r.category === 'sacco' || r.category === 'welfare')
+                            : systemRoles.filter(r => r.category === id)
+                          ).length === 0 && (
                             <li>— No roles defined</li>
                           )}
                         </ul>

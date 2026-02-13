@@ -38,6 +38,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+} from '@/components/ui/pagination';
+import {
   Map,
   Loader2,
   Save,
@@ -69,6 +76,8 @@ const PERIOD_LABELS: Record<SubscriptionPeriodKey, string> = {
   six_months: '6 months',
   annual: 'Annual',
 };
+
+const HISTORY_PAGE_SIZE = 15;
 
 /** Preview calculator: uses current county monetization to show deduction breakdown. */
 function CalculationEnginePreview({
@@ -333,8 +342,31 @@ export default function CountyMonetizationSettingsPage() {
   const [subscriptionPeriodControls, setSubscriptionPeriodControls] = useState<SubscriptionPeriodControlsConfig>(monetization.subscriptionPeriodControls);
   const [effectiveFrom, setEffectiveFrom] = useState<'immediate' | 'next_day' | 'next_week'>('immediate');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(0);
 
   const monetizationHistory = useMonetizationSettingsHistory(selectedCountyId);
+
+  const historyEntries = monetizationHistory.data ?? [];
+  const totalHistoryPages = Math.max(1, Math.ceil(historyEntries.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, totalHistoryPages - 1);
+  const paginatedHistoryEntries = useMemo(
+    () =>
+      historyEntries.slice(
+        safeHistoryPage * HISTORY_PAGE_SIZE,
+        (safeHistoryPage + 1) * HISTORY_PAGE_SIZE
+      ),
+    [historyEntries, safeHistoryPage]
+  );
+
+  useEffect(() => {
+    setHistoryPage(0);
+  }, [selectedCountyId]);
+
+  useEffect(() => {
+    if (totalHistoryPages > 0 && historyPage >= totalHistoryPages) {
+      setHistoryPage(totalHistoryPages - 1);
+    }
+  }, [totalHistoryPages, historyPage]);
 
   useEffect(() => {
     setPlatformServiceFee(monetization.platformServiceFee);
@@ -1073,9 +1105,10 @@ export default function CountyMonetizationSettingsPage() {
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
                       </div>
-                    ) : !monetizationHistory.data?.length ? (
+                    ) : !historyEntries.length ? (
                       <p className="text-sm text-muted-foreground">No monetization changes recorded yet.</p>
                     ) : (
+                      <>
                       <div className="rounded-lg border overflow-x-auto">
                         <table className="w-full text-sm min-w-[500px]">
                           <thead>
@@ -1088,7 +1121,7 @@ export default function CountyMonetizationSettingsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {monetizationHistory.data.map((entry) => (
+                            {paginatedHistoryEntries.map((entry) => (
                               <React.Fragment key={entry.id}>
                                 <tr
                                   className="border-b hover:bg-muted/30 cursor-pointer min-h-[44px] touch-manipulation"
@@ -1151,6 +1184,46 @@ export default function CountyMonetizationSettingsPage() {
                           </tbody>
                         </table>
                       </div>
+                      {totalHistoryPages > 1 && (
+                        <Pagination className="mt-4 justify-end">
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setHistoryPage((p) => Math.max(0, p - 1));
+                                }}
+                                className={
+                                  historyPage === 0
+                                    ? 'pointer-events-none opacity-50'
+                                    : 'cursor-pointer'
+                                }
+                              />
+                            </PaginationItem>
+                            <PaginationItem>
+                              <span className="px-4 py-2 text-sm text-muted-foreground">
+                                Page {safeHistoryPage + 1} of {totalHistoryPages}
+                              </span>
+                            </PaginationItem>
+                            <PaginationItem>
+                              <PaginationNext
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setHistoryPage((p) => Math.min(totalHistoryPages - 1, p + 1));
+                                }}
+                                className={
+                                  historyPage >= totalHistoryPages - 1
+                                    ? 'pointer-events-none opacity-50'
+                                    : 'cursor-pointer'
+                                }
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
+                      )}
+                      </>
                     )}
                   </CardContent>
                 </Card>

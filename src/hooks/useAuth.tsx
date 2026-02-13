@@ -399,11 +399,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return isPlatformAdmin() || hasRole('county_super_admin') || hasRole('county_admin');
   };
 
-  // Effective county: prefer county from county portal role (user's assigned county), then profile. Ensures county officers see their actual county, not a stale/wrong profile county.
+  // Effective county: prefer county portal role, then profile, then sacco role (so sacco users can load county settings e.g. revenue share rules).
   const countyPortalRoleWithCounty = roles.find(
     (r) => r.county_id && (COUNTY_PORTAL_ROLES_WITH_COUNTY as readonly string[]).includes(r.role)
   );
-  const countyId = countyPortalRoleWithCounty?.county_id ?? profile?.county_id ?? undefined;
+  const saccoRoleWithCounty = roles.find(
+    (r) => r.county_id && (r.role === 'sacco_admin' || r.role === 'sacco_officer')
+  );
+  const countyId = countyPortalRoleWithCounty?.county_id ?? profile?.county_id ?? saccoRoleWithCounty?.county_id ?? undefined;
   const countyName = countyPortalRoleWithCounty?.county_name ?? undefined;
   const isProfileComplete = !!(profile?.full_name?.trim() && profile?.phone?.trim());
 
